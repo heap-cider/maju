@@ -46,8 +46,8 @@ function autocomplete(page: import("@playwright/test").Page) {
 async function readCommandLog(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
     return (
-      (window as Window & { __BUZZ_E2E_COMMANDS__?: string[] })
-        .__BUZZ_E2E_COMMANDS__ ?? []
+      (window as Window & { __MAJU_E2E_COMMANDS__?: string[] })
+        .__MAJU_E2E_COMMANDS__ ?? []
     );
   });
 }
@@ -57,12 +57,12 @@ async function readCommandPayloadLog(page: import("@playwright/test").Page) {
     return (
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          __MAJU_E2E_COMMAND_LOG__?: Array<{
             command: string;
             payload: unknown;
           }>;
         }
-      ).__BUZZ_E2E_COMMAND_LOG__ ?? []
+      ).__MAJU_E2E_COMMAND_LOG__ ?? []
     );
   });
 }
@@ -86,7 +86,7 @@ async function emitMockMessage(
     ({ ch, kind, mentionPubkeys, msg, parentEventId, pubkey }) => {
       return (
         window as Window & {
-          __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+          __MAJU_E2E_EMIT_MOCK_MESSAGE__?: (input: {
             channelName: string;
             content: string;
             kind?: number;
@@ -95,7 +95,7 @@ async function emitMockMessage(
             pubkey?: string;
           }) => { id: string; created_at: number; pubkey: string };
         }
-      ).__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      ).__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: ch,
         content: msg,
         kind,
@@ -131,12 +131,12 @@ async function waitForMockLiveSubscription(
           return (
             (
               window as Window & {
-                __BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
+                __MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
                   channelName: string;
                   kind?: number;
                 }) => boolean;
               }
-            ).__BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
+            ).__MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
               channelName: currentChannelName,
               kind: expectedKind,
             }) ?? false
@@ -268,7 +268,7 @@ test("thread autocomplete keeps multiple long names readable in a narrow panel",
   });
   await page.setViewportSize({ width: 900, height: 640 });
   await page.addInitScript(() => {
-    window.sessionStorage.setItem("buzz.desktop.thread-panel-width", "300");
+    window.sessionStorage.setItem("maju.desktop.thread-panel-width", "300");
   });
   await page.goto("/");
   await page.getByTestId("channel-general").click();
@@ -1085,7 +1085,7 @@ test("system add rows use plain names while remove rows retain agent mention sty
 
   await page.evaluate(
     ({ actorPubkey, kind, targetPubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "general",
         content: JSON.stringify({
           type: "member_joined",
@@ -1094,7 +1094,7 @@ test("system add rows use plain names while remove rows retain agent mention sty
         }),
         kind,
       });
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "general",
         content: JSON.stringify({
           type: "member_removed",
@@ -1156,7 +1156,7 @@ test("groups member additions and joins with hidden names in the standard toolti
     ({ actorPubkey, addedTargets, kind }) => {
       const createdAt = Math.floor(Date.now() / 1_000);
       for (const [index, target] of addedTargets.entries()) {
-        window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+        window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
           channelName: "general",
           content: JSON.stringify({
             type: "member_joined",
@@ -1212,7 +1212,7 @@ test("groups member additions and joins with hidden names in the standard toolti
     ({ addedTargets, kind }) => {
       const createdAt = Math.floor(Date.now() / 1_000) + 60;
       for (const [index, target] of addedTargets.entries()) {
-        window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+        window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
           channelName: "general",
           content: JSON.stringify({
             type: "member_joined",
@@ -1256,7 +1256,7 @@ test("system agent profile only exposes message action", async ({ page }) => {
 
   await page.evaluate(
     ({ actorPubkey, kind, targetPubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "general",
         content: JSON.stringify({
           type: "member_joined",
@@ -1301,7 +1301,7 @@ test("system agent avatar only exposes message action", async ({ page }) => {
 
   await page.evaluate(
     ({ kind, targetPubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "random",
         content: JSON.stringify({
           type: "member_joined",
@@ -1382,7 +1382,7 @@ test("system member-joined rows render the joined person as a plain profile name
 
   await page.evaluate(
     ({ kind, pubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "general",
         content: JSON.stringify({
           type: "member_joined",
@@ -2048,7 +2048,7 @@ test("profile popover wave sends a direct message for a human profile", async ({
       expect.objectContaining({
         command: "send_channel_message",
         payload: expect.objectContaining({
-          content: expect.stringContaining("<!-- buzz:wave:v1 -->"),
+          content: expect.stringContaining("<!-- maju:wave:v1 -->"),
         }),
       }),
     ]),

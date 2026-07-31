@@ -73,11 +73,11 @@ const INITIAL_RENDER_READY_EVENT: &str = "initial-render-ready";
 
 fn reveal_initial_window<R: tauri::Runtime>(window: &tauri::Window<R>) {
     if let Err(error) = window.show() {
-        eprintln!("buzz-desktop: failed to reveal main window: {error}");
+        eprintln!("maju-desktop: failed to reveal main window: {error}");
         return;
     }
     if let Err(error) = window.set_focus() {
-        eprintln!("buzz-desktop: failed to focus main window: {error}");
+        eprintln!("maju-desktop: failed to focus main window: {error}");
     }
 }
 
@@ -87,7 +87,7 @@ fn set_initial_window_backing<R: tauri::Runtime>(window: &tauri::Window<R>) {
     // native backing only across the first visible frames so the previous app
     // cannot show through before WebKit has submitted its first surface.
     if let Err(error) = window.set_background_color(Some(tauri::window::Color(17, 21, 24, 255))) {
-        eprintln!("buzz-desktop: failed to set initial window backing: {error}");
+        eprintln!("maju-desktop: failed to set initial window backing: {error}");
     }
 }
 
@@ -95,7 +95,7 @@ fn set_initial_window_backing<R: tauri::Runtime>(window: &tauri::Window<R>) {
 async fn clear_initial_window_backing<R: tauri::Runtime>(window: &tauri::Window<R>) {
     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     if let Err(error) = window.set_background_color(None) {
-        eprintln!("buzz-desktop: failed to clear initial window backing: {error}");
+        eprintln!("maju-desktop: failed to clear initial window backing: {error}");
     }
 }
 
@@ -132,7 +132,7 @@ async fn wait_for_stable_initial_window_geometry<R: tauri::Runtime>(window: &tau
         tokio::time::sleep(std::time::Duration::from_millis(16)).await;
     }
 
-    eprintln!("buzz-desktop: initial window geometry did not settle before reveal timeout");
+    eprintln!("maju-desktop: initial window geometry did not settle before reveal timeout");
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -154,14 +154,14 @@ pub fn run() {
             // would shut down the workers Tauri now depends on.
             std::mem::forget(runtime);
             eprintln!(
-                "buzz-mesh: installed tokio runtime with {} MiB worker stacks",
+                "maju-mesh: installed tokio runtime with {} MiB worker stacks",
                 crate::mesh_llm::MESH_WORKER_STACK_SIZE / (1024 * 1024)
             );
         }
         Err(error) => {
             // Fall back to Tauri's default runtime: the app still works,
             // only deep mesh-llm futures are at risk of stack overflow.
-            eprintln!("buzz-mesh: failed to build big-stack tokio runtime, using default: {error}");
+            eprintln!("maju-mesh: failed to build big-stack tokio runtime, using default: {error}");
         }
     }
 
@@ -173,7 +173,7 @@ pub fn run() {
             }
             // Forward any deep link URLs from the duplicate launch.
             for arg in &argv {
-                if arg.starts_with("buzz://") {
+                if arg.starts_with("maju://") {
                     handle_deep_link_url(app, arg);
                 }
             }
@@ -222,7 +222,7 @@ pub fn run() {
                             .is_err()
                             {
                                 eprintln!(
-                                    "buzz-desktop: initial render did not commit before reveal timeout"
+                                    "maju-desktop: initial render did not commit before reveal timeout"
                                 );
                             }
 
@@ -334,21 +334,21 @@ pub fn run() {
     });
 
     // Register the updater only in configured release builds; omit it locally.
-    #[cfg(buzz_updater_enabled)]
+    #[cfg(maju_updater_enabled)]
     let builder = if cfg!(debug_assertions) {
         builder
     } else {
         builder.plugin(tauri_plugin_updater::Builder::new().build())
     };
 
-    #[cfg(not(buzz_updater_enabled))]
+    #[cfg(not(maju_updater_enabled))]
     let builder = builder;
 
     let app = builder
-        .register_asynchronous_uri_scheme_protocol("buzz-media", |ctx, request, responder| {
+        .register_asynchronous_uri_scheme_protocol("maju-media", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             tauri::async_runtime::spawn(async move {
-                let response = media_proxy::handle_buzz_media(&app, &request).await;
+                let response = media_proxy::handle_maju_media(&app, &request).await;
                 responder.respond(response);
             });
         })
@@ -403,7 +403,7 @@ pub fn run() {
             // memberships, DMs, and relay identity.
             let state = app_handle.state::<AppState>();
             if let Err(e) = resolve_persisted_identity(&app_handle, &state) {
-                eprintln!("buzz-desktop: fatal: identity resolution failed: {e}");
+                eprintln!("maju-desktop: fatal: identity resolution failed: {e}");
                 std::process::exit(1);
             }
 
@@ -427,7 +427,7 @@ pub fn run() {
             // snapshot. Synchronous and best-effort — a failure here must not
             // block launch, but a missing persona is logged loudly inside.
             if let Err(e) = backfill_persona_snapshots(&app_handle) {
-                eprintln!("buzz-desktop: persona-snapshot backfill failed: {e}");
+                eprintln!("maju-desktop: persona-snapshot backfill failed: {e}");
             }
 
             // Warm the loaded-harness registry BEFORE restore so cold-launch
@@ -480,12 +480,12 @@ pub fn run() {
                     .store(port, std::sync::atomic::Ordering::Relaxed);
             });
 
-            // Create the Buzz nest (~/.buzz or ~/.buzz-dev for dev builds) before
+            // Create the Maju nest (~/.maju or ~/.maju-dev for dev builds) before
             // agents are restored, so default_agent_workdir() resolves to the
             // nest directory. Non-fatal: agents fall back to $HOME if nest
             // creation fails.
             if let Err(error) = ensure_nest() {
-                eprintln!("buzz-desktop: failed to create nest: {error}");
+                eprintln!("maju-desktop: failed to create nest: {error}");
             }
 
             // Resolve the REPOS symlink from the persisted repos_dir BEFORE
@@ -515,14 +515,14 @@ pub fn run() {
             }
 
             // One-time migration for dev builds: copy accumulated knowledge
-            // from the shared ~/.buzz nest into the new dedicated ~/.buzz-dev
+            // from the shared ~/.maju nest into the new dedicated ~/.maju-dev
             // nest so no work is lost when the nest is first namespaced.
-            // Runs only when nest_dir() resolved to ~/.buzz-dev (dev instance).
-            // Suppressed after a reset so re-importing ~/.buzz into ~/.buzz-dev
+            // Runs only when nest_dir() resolved to ~/.maju-dev (dev instance).
+            // Suppressed after a reset so re-importing ~/.maju into ~/.maju-dev
             // doesn't re-populate what was just wiped.
             let is_dev_nest = managed_agents::nest_dir()
                 .and_then(|p| p.file_name().map(|n| n.to_os_string()))
-                .is_some_and(|n| n == ".buzz-dev");
+                .is_some_and(|n| n == ".maju-dev");
             if !reset_outcome.completed && is_dev_nest {
                 migration::migrate_dev_nest();
             }
@@ -532,7 +532,7 @@ pub fn run() {
             if let Ok(exe) = std::env::current_exe() {
                 if let Some(parent) = exe.parent() {
                     if let Err(error) = managed_agents::ensure_cli_symlink(parent, is_dev_nest) {
-                        eprintln!("buzz-desktop: failed to create CLI symlink: {error}");
+                        eprintln!("maju-desktop: failed to create CLI symlink: {error}");
                     }
                 }
             }
@@ -629,7 +629,7 @@ pub fn run() {
                         )
                         .await
                         {
-                            eprintln!("buzz-desktop: event-flush: {e}");
+                            eprintln!("maju-desktop: event-flush: {e}");
                         }
                         tokio::time::sleep(Duration::from_secs(30)).await;
                     }
@@ -925,7 +925,7 @@ pub fn run() {
             // AppKit terminates through libc exit(), which runs C++ static
             // destructors. The embedded ggml/Metal runtime currently aborts in
             // that destructor phase even after its node has stopped cleanly.
-            // End the process only after Buzz and Mesh shutdown above, while
+            // End the process only after Maju and Mesh shutdown above, while
             // deliberately skipping those native global destructors.
             #[cfg(all(feature = "mesh-llm", target_os = "macos"))]
             hard_exit_after_mesh_shutdown();

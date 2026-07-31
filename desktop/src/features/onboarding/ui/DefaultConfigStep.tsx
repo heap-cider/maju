@@ -42,7 +42,7 @@ type DefaultConfigStepProps = {
 
 function formatHarnessLabel(runtime: AcpRuntimeCatalogEntry | undefined) {
   if (!runtime) return "Select a harness";
-  return runtime.id === "buzz-agent" ? "Buzz" : runtime.label;
+  return runtime.id === "maju-agent" ? "Maju" : runtime.label;
 }
 
 function AgentDefaultsSection({
@@ -190,7 +190,7 @@ function AgentDefaultsSection({
     onPersistenceStateChange({
       // configIsValid comes from AgentConfigFields' onValidityChange and
       // covers model + provider credentials — a harness selection alone is
-      // not a working default (e.g. buzz-agent with no provider configured).
+      // not a working default (e.g. maju-agent with no provider configured).
       canComplete: selectedRuntimeId.length > 0 && configIsValid && !isSaving,
       flush: flushPersistence,
     });
@@ -306,7 +306,7 @@ export function DefaultConfigStep({
           Configure your default model settings
         </h1>
         <p className="mx-auto mt-3 max-w-[440px] text-sm leading-5 text-foreground/80">
-          This will be set as your default model configuration across Buzz. You
+          This will be set as your default model configuration across Maju. You
           can always change this in your Settings or give specific agents a
           different configuration.
         </p>

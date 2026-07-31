@@ -19,11 +19,11 @@ async function waitForInvokeBridge(page: import("@playwright/test").Page) {
   await page.waitForFunction(
     () => {
       const w = window as Window & {
-        __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: unknown;
+        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: unknown;
         __TAURI_INTERNALS__?: { invoke?: unknown };
       };
       return (
-        typeof w.__BUZZ_E2E_INVOKE_MOCK_COMMAND__ === "function" ||
+        typeof w.__MAJU_E2E_INVOKE_MOCK_COMMAND__ === "function" ||
         typeof w.__TAURI_INTERNALS__?.invoke === "function"
       );
     },
@@ -41,7 +41,7 @@ async function invokeTauri<T>(
   return page.evaluate(
     async ({ command: c, payload: p }) => {
       const w = window as Window & {
-        __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
           c: string,
           p?: Record<string, unknown>,
         ) => Promise<unknown>;
@@ -50,7 +50,7 @@ async function invokeTauri<T>(
         };
       };
       const invoke =
-        w.__BUZZ_E2E_INVOKE_MOCK_COMMAND__ ?? w.__TAURI_INTERNALS__?.invoke;
+        w.__MAJU_E2E_INVOKE_MOCK_COMMAND__ ?? w.__TAURI_INTERNALS__?.invoke;
       if (!invoke) throw new Error("Mock invoke bridge is unavailable.");
       return (await invoke(c, p)) as T;
     },
@@ -279,7 +279,7 @@ test("env vars editor renders in PersonaDialog new-persona form", async ({
 
   await dialog.getByRole("button", { name: "Advanced", exact: true }).click();
   await expect(dialog.getByTestId("env-vars-editor")).toBeVisible();
-  // Initially empty (no rows — buzz-agent with no provider has no required keys).
+  // Initially empty (no rows — maju-agent with no provider has no required keys).
   await expect(dialog.getByTestId("env-vars-key")).toHaveCount(0);
 
   // Add a row.
@@ -321,7 +321,7 @@ test("persona model options follow the selected LLM provider", async ({
   await page.getByRole("tab", { name: "Customize for this agent" }).click();
   const llmProvider = page.locator("#persona-llm-provider");
   const model = page.locator("#persona-model");
-  await expect(provider).toContainText("Buzz Agent (default)");
+  await expect(provider).toContainText("Maju Agent (default)");
   await expect(llmProvider).toBeVisible();
   await expect(model).toBeVisible();
   // Custom mode requires a model selection until a provider is chosen.

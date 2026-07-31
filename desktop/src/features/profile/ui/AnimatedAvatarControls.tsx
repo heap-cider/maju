@@ -156,14 +156,14 @@ export function AvatarFramingSlider({
     left: `${percentFromSliderValue(resetValue, min, max)}%`,
   };
   const sliderControl = (
-    <div className="buzz-avatar-framing-slider-wrapper">
+    <div className="maju-avatar-framing-slider-wrapper">
       <div
         aria-label="Avatar size"
         aria-describedby={tipText ? tipId : undefined}
         aria-valuemax={max}
         aria-valuemin={min}
         aria-valuenow={value}
-        className="buzz-avatar-framing-slider"
+        className="maju-avatar-framing-slider"
         data-active={isActive ? "true" : undefined}
         data-testid={testId}
         onKeyDown={(event) => {
@@ -221,16 +221,16 @@ export function AvatarFramingSlider({
         role="slider"
         style={
           {
-            "--buzz-avatar-framing-slider-fill": `${fill}%`,
+            "--maju-avatar-framing-slider-fill": `${fill}%`,
           } as React.CSSProperties
         }
         tabIndex={disabled ? -1 : 0}
       >
-        <div className="buzz-avatar-framing-slider-hashmarks">
+        <div className="maju-avatar-framing-slider-hashmarks">
           {ticks.map((tick) => (
             <span
               aria-hidden="true"
-              className="buzz-avatar-framing-slider-hashmark"
+              className="maju-avatar-framing-slider-hashmark"
               key={tick}
               style={{
                 left: `${percentFromSliderValue(tick, min, max)}%`,
@@ -238,12 +238,12 @@ export function AvatarFramingSlider({
             />
           ))}
         </div>
-        <div aria-hidden="true" className="buzz-avatar-framing-slider-fill" />
-        <div aria-hidden="true" className="buzz-avatar-framing-slider-handle" />
+        <div aria-hidden="true" className="maju-avatar-framing-slider-fill" />
+        <div aria-hidden="true" className="maju-avatar-framing-slider-handle" />
       </div>
       <button
         aria-label="Reset avatar size"
-        className="buzz-avatar-framing-slider-hashmark"
+        className="maju-avatar-framing-slider-hashmark"
         data-reset="true"
         data-testid={resetTestId}
         disabled={disabled}
@@ -260,7 +260,7 @@ export function AvatarFramingSlider({
       />
       {tipText ? (
         <p
-          className="buzz-avatar-framing-slider-tip"
+          className="maju-avatar-framing-slider-tip"
           data-visible={isActive ? "true" : undefined}
           id={tipId}
         >

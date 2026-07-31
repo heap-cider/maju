@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
       json: {
         code: "qr-download-test",
         expires_at: Math.floor(Date.now() / 1000) + 86_400,
-        url: "buzz://join?relay=wss%3A%2F%2Frelay.example.com&code=qr-download-test",
+        url: "maju://join?relay=wss%3A%2F%2Frelay.example.com&code=qr-download-test",
       },
       status: 200,
     });
@@ -47,18 +47,18 @@ test("copies a freshly minted invite link without showing a URL or QR code", asy
   const payload = await page.evaluate(() => {
     const log = (
       window as Window & {
-        __BUZZ_E2E_COMMAND_LOG__?: Array<{
+        __MAJU_E2E_COMMAND_LOG__?: Array<{
           command: string;
           payload: Record<string, unknown> | null;
         }>;
       }
-    ).__BUZZ_E2E_COMMAND_LOG__;
+    ).__MAJU_E2E_COMMAND_LOG__;
     return log?.findLast(({ command }) => command === "copy_text_to_clipboard")
       ?.payload;
   });
 
   expect(payload).toEqual({
-    text: "buzz://join?relay=wss%3A%2F%2Frelay.example.com&code=qr-download-test",
+    text: "maju://join?relay=wss%3A%2F%2Frelay.example.com&code=qr-download-test",
   });
 });
 

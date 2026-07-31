@@ -116,9 +116,9 @@ const DEFAULT_PLAYBACK_SPEED = 1;
 const INLINE_SPEED_CONTROL_MIN_WIDTH = 220;
 const PLAYBACK_SPEEDS = [2, 1.75, 1.5, 1.25, 1, 0.75, 0.5, 0.25];
 const TIMECODE_ACCENT_CLASS =
-  "bg-[hsl(var(--buzz-video-review-accent,var(--primary))/0.15)] text-[hsl(var(--buzz-video-review-accent-foreground,var(--buzz-video-review-accent,var(--primary))))]";
+  "bg-[hsl(var(--maju-video-review-accent,var(--primary))/0.15)] text-[hsl(var(--maju-video-review-accent-foreground,var(--maju-video-review-accent,var(--primary))))]";
 const TIMECODE_ACCENT_HOVER_CLASS =
-  "hover:bg-[hsl(var(--buzz-video-review-accent,var(--primary))/0.3)]";
+  "hover:bg-[hsl(var(--maju-video-review-accent,var(--primary))/0.3)]";
 
 /**
  * Frosted-glass backing layer for floating media controls. The parent must

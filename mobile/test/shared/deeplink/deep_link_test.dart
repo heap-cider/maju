@@ -1,4 +1,4 @@
-import 'package:buzz/shared/deeplink/deep_link.dart';
+import 'package:maju/shared/deeplink/deep_link.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -8,7 +8,7 @@ void main() {
   group('parseMessageDeepLink', () {
     test('parses channel and id', () {
       final link = parseMessageDeepLink(
-        Uri.parse('buzz://message?channel=d14cd131&id=abc123'),
+        Uri.parse('maju://message?channel=d14cd131&id=abc123'),
       );
       expect(
         link,
@@ -18,38 +18,38 @@ void main() {
 
     test('parses optional thread param', () {
       final link = parseMessageDeepLink(
-        Uri.parse('buzz://message?channel=d14cd131&id=abc123&thread=root99'),
+        Uri.parse('maju://message?channel=d14cd131&id=abc123&thread=root99'),
       );
       expect(link?.threadRootId, 'root99');
     });
 
     test('treats empty thread as absent', () {
       final link = parseMessageDeepLink(
-        Uri.parse('buzz://message?channel=d14cd131&id=abc123&thread='),
+        Uri.parse('maju://message?channel=d14cd131&id=abc123&thread='),
       );
       expect(link, isNotNull);
       expect(link?.threadRootId, isNull);
     });
 
     test('rejects missing channel', () {
-      expect(parseMessageDeepLink(Uri.parse('buzz://message?id=abc')), isNull);
+      expect(parseMessageDeepLink(Uri.parse('maju://message?id=abc')), isNull);
     });
 
     test('rejects empty channel', () {
       expect(
-        parseMessageDeepLink(Uri.parse('buzz://message?channel=&id=abc')),
+        parseMessageDeepLink(Uri.parse('maju://message?channel=&id=abc')),
         isNull,
       );
     });
 
     test('rejects missing id', () {
       expect(
-        parseMessageDeepLink(Uri.parse('buzz://message?channel=d14cd131')),
+        parseMessageDeepLink(Uri.parse('maju://message?channel=d14cd131')),
         isNull,
       );
     });
 
-    test('rejects non-buzz scheme', () {
+    test('rejects non-maju scheme', () {
       expect(
         parseMessageDeepLink(Uri.parse('https://message?channel=a&id=b')),
         isNull,
@@ -58,7 +58,7 @@ void main() {
 
     test('rejects non-message host (connect is desktop-only)', () {
       expect(
-        parseMessageDeepLink(Uri.parse('buzz://connect?relay=wss://x')),
+        parseMessageDeepLink(Uri.parse('maju://connect?relay=wss://x')),
         isNull,
       );
     });
@@ -90,10 +90,10 @@ void _inviteTests() {
       );
     });
 
-    test('parses buzz join handoff link', () {
+    test('parses maju join handoff link', () {
       final link = parseInviteDeepLink(
         Uri.parse(
-          'buzz://join?relay=wss%3A%2F%2Frelay.example.com&code=abc123',
+          'maju://join?relay=wss%3A%2F%2Frelay.example.com&code=abc123',
         ),
       );
       expect(
@@ -105,27 +105,27 @@ void _inviteTests() {
       );
     });
 
-    test('normalizes trailing slash in buzz join handoff', () {
+    test('normalizes trailing slash in maju join handoff', () {
       final link = parseInviteDeepLink(
         Uri.parse(
-          'buzz://join?relay=wss%3A%2F%2Frelay.example.com%2F&code=abc123',
+          'maju://join?relay=wss%3A%2F%2Frelay.example.com%2F&code=abc123',
         ),
       );
       expect(link?.relayUrl, 'wss://relay.example.com');
     });
 
-    test('rejects plaintext public buzz join handoff', () {
+    test('rejects plaintext public maju join handoff', () {
       final relay = Uri.encodeQueryComponent('ws://relay.example.com');
       expect(
-        parseInviteDeepLink(Uri.parse('buzz://join?relay=$relay&code=abc')),
+        parseInviteDeepLink(Uri.parse('maju://join?relay=$relay&code=abc')),
         isNull,
       );
     });
 
-    test('preserves policy receipt in buzz join handoff', () {
+    test('preserves policy receipt in maju join handoff', () {
       final link = parseInviteDeepLink(
         Uri.parse(
-          'buzz://join?relay=wss%3A%2F%2Frelay.example.com&code=abc123&policy_receipt=receipt.value',
+          'maju://join?relay=wss%3A%2F%2Frelay.example.com&code=abc123&policy_receipt=receipt.value',
         ),
       );
       expect(
@@ -169,28 +169,28 @@ void _inviteTests() {
       expect(
         parseInviteDeepLink(
           Uri.parse(
-            'buzz://join?relay=wss%3A%2F%2Fuser%3Apass%40relay.example.com&code=abc',
+            'maju://join?relay=wss%3A%2F%2Fuser%3Apass%40relay.example.com&code=abc',
           ),
         ),
         isNull,
       );
     });
 
-    test('rejects buzz join without websocket relay or code', () {
+    test('rejects maju join without websocket relay or code', () {
       expect(
         parseInviteDeepLink(
-          Uri.parse('buzz://join?relay=https://relay.example.com&code=abc'),
+          Uri.parse('maju://join?relay=https://relay.example.com&code=abc'),
         ),
         isNull,
       );
       expect(
         parseInviteDeepLink(
-          Uri.parse('buzz://join?relay=wss://relay.example.com'),
+          Uri.parse('maju://join?relay=wss://relay.example.com'),
         ),
         isNull,
       );
       expect(
-        parseInviteDeepLink(Uri.parse('buzz://connect?relay=wss://x')),
+        parseInviteDeepLink(Uri.parse('maju://connect?relay=wss://x')),
         isNull,
       );
     });
@@ -207,7 +207,7 @@ void _inviteTests() {
       }
     });
 
-    test('rejects buzz join with dangerous relay schemes', () {
+    test('rejects maju join with dangerous relay schemes', () {
       // The `relay=` param is an allowlist — only `ws` / `wss` are safe to
       // hand to a Nostr relay session. Anything else must be dropped by the
       // parser so a hostile QR / share link can't smuggle a browser scheme
@@ -224,7 +224,7 @@ void _inviteTests() {
       ]) {
         final encoded = Uri.encodeQueryComponent(hostile);
         expect(
-          parseInviteDeepLink(Uri.parse('buzz://join?relay=$encoded&code=abc')),
+          parseInviteDeepLink(Uri.parse('maju://join?relay=$encoded&code=abc')),
           isNull,
           reason: 'must reject relay scheme in $hostile',
         );
@@ -238,7 +238,7 @@ void _buildMessageLinkTests() {
     test('builds channel + id link', () {
       expect(
         buildMessageLink(channelId: 'd14cd131', messageId: 'abc123'),
-        'buzz://message?channel=d14cd131&id=abc123',
+        'maju://message?channel=d14cd131&id=abc123',
       );
     });
 
@@ -249,7 +249,7 @@ void _buildMessageLinkTests() {
           messageId: 'abc123',
           threadRootId: 'root99',
         ),
-        'buzz://message?channel=d14cd131&id=abc123&thread=root99',
+        'maju://message?channel=d14cd131&id=abc123&thread=root99',
       );
     });
 
@@ -260,7 +260,7 @@ void _buildMessageLinkTests() {
           messageId: 'abc123',
           threadRootId: '',
         ),
-        'buzz://message?channel=d14cd131&id=abc123',
+        'maju://message?channel=d14cd131&id=abc123',
       );
     });
 

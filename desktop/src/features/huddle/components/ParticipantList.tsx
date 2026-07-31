@@ -46,7 +46,7 @@ export function HuddleParticipantsControl({
         <Button
           aria-label={`Show huddle participants (${participants.length})`}
           className={cn(
-            "buzz-huddle-control-button relative h-12 w-12 shrink-0 rounded-md p-0",
+            "maju-huddle-control-button relative h-12 w-12 shrink-0 rounded-md p-0",
             className,
           )}
           size="icon"
@@ -63,7 +63,7 @@ export function HuddleParticipantsControl({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="buzz-huddle-drawer buzz-huddle-popover w-72 p-3 text-foreground"
+        className="maju-huddle-drawer maju-huddle-popover w-72 p-3 text-foreground"
         side="top"
         sideOffset={10}
       >

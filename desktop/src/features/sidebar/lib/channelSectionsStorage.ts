@@ -1,6 +1,6 @@
 import { normalizeRelayUrl } from "@/features/profile/lib/selfProfileStorage";
 
-const STORAGE_KEY_PREFIX = "buzz-channel-sections.v1";
+const STORAGE_KEY_PREFIX = "maju-channel-sections.v1";
 
 export type ChannelSection = {
   id: string;

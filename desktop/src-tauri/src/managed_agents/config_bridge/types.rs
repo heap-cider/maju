@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ConfigOrigin {
-    /// Explicitly set in Buzz UI / ManagedAgentRecord (highest precedence).
-    BuzzExplicit,
+    /// Explicitly set in Maju UI / ManagedAgentRecord (highest precedence).
+    MajuExplicit,
     /// Returned by ACP `_goose/unstable/config/read` (tier 1a).
     AcpNativeRead,
     /// Returned by ACP `session/new` configOptions (tier 1b).
@@ -19,11 +19,11 @@ pub enum ConfigOrigin {
     /// Value inherited from persona defaults.
     /// Populated by the `get_agent_config_surface` call site: persona values are
     /// resolved before calling the reader, then the surface is post-processed to
-    /// re-tag injected fields from `BuzzExplicit` to `PersonaDefault`.
+    /// re-tag injected fields from `MajuExplicit` to `PersonaDefault`.
     PersonaDefault,
     /// Value inherited from global agent configuration defaults.
     /// The lowest user-settable layer — active when neither the agent record nor
-    /// the linked persona specifies a value. Re-tagged from `BuzzExplicit` by the
+    /// the linked persona specifies a value. Re-tagged from `MajuExplicit` by the
     /// `resolve_config_surface` call site, analogously to `PersonaDefault`.
     GlobalDefault,
     /// Live runtime model override applied via the ModelPicker (Phase 3).
@@ -52,7 +52,7 @@ pub enum ConfigWriteMechanism {
     /// Not yet constructed by any reader; will be wired when config/read+write
     /// are available in the harness.
     GooseNativeConfigWrite { config_key: String },
-    /// Not writable through Buzz.
+    /// Not writable through Maju.
     ReadOnly,
 }
 

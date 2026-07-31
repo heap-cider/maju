@@ -9,7 +9,7 @@ import 'channel.dart';
 import 'channel_detail_page.dart';
 import 'channels_provider.dart';
 
-/// Routes pending `buzz://message` deep links into the channel view.
+/// Routes pending `maju://message` deep links into the channel view.
 ///
 /// Wraps the authenticated home subtree. Whenever a parsed link is parked in
 /// [pendingDeepLinkProvider] and the channel list is available, this pushes
@@ -50,7 +50,7 @@ class _DeepLinkDispatcherState extends ConsumerState<DeepLinkDispatcher> {
   @override
   Widget build(BuildContext context) {
     // Re-evaluate dispatch when either a new link arrives or channels load.
-    ref.listen<BuzzDeepLink?>(pendingDeepLinkProvider, (_, link) {
+    ref.listen<MajuDeepLink?>(pendingDeepLinkProvider, (_, link) {
       _maybeDispatch(link);
     });
     if (widget.dispatchMessageLinks) {
@@ -62,7 +62,7 @@ class _DeepLinkDispatcherState extends ConsumerState<DeepLinkDispatcher> {
     return widget.child;
   }
 
-  void _maybeDispatch(BuzzDeepLink? link) {
+  void _maybeDispatch(MajuDeepLink? link) {
     if (link == null) return;
     if (link is InviteDeepLink) {
       _maybeDispatchInvite(link);

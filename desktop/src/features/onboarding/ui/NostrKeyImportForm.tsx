@@ -160,7 +160,7 @@ export function NostrKeyImportForm({
                 // Symmetric px reserves the absolutely positioned toggle's
                 // footprint on BOTH sides, so the centered key text never
                 // runs under the eye control and stays optically centered.
-                className="h-[3.6875rem] rounded-none border-0 bg-transparent px-10 text-center font-mono !text-4xl text-[color:var(--buzz-onboarding-backup-ink)] shadow-none placeholder:text-foreground/30 focus-visible:ring-0"
+                className="h-[3.6875rem] rounded-none border-0 bg-transparent px-10 text-center font-mono !text-4xl text-[color:var(--maju-onboarding-backup-ink)] shadow-none placeholder:text-foreground/30 focus-visible:ring-0"
                 data-testid="nostr-import-nsec-input"
                 id="nostr-private-key"
                 onChange={(event) => {
@@ -320,7 +320,7 @@ export function NostrKeyImportForm({
                 <Check aria-hidden="true" className="h-4 w-4 shrink-0" />
                 Nostr identity found
               </p>
-              <p className="break-all font-mono text-[color:var(--buzz-onboarding-backup-ink)]">
+              <p className="break-all font-mono text-[color:var(--maju-onboarding-backup-ink)]">
                 {previewNpub}
               </p>
             </div>

@@ -92,10 +92,10 @@ export function ModelPicker({
 
   // Provenance label shown only for post-spawn agents where the model origin
   // is known from the config surface and the source is not a user-explicit
-  // Buzz setting (which is already self-evident from the picker state).
+  // Maju setting (which is already self-evident from the picker state).
   const modelOriginLabel = React.useMemo(() => {
     const origin = configSurface?.normalized.model?.origin;
-    if (!origin || origin === "buzzExplicit") return null;
+    if (!origin || origin === "majuExplicit") return null;
     const labels: Record<string, string> = {
       acpNativeRead: "from ACP",
       acpConfigOption: "from ACP config",

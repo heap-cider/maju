@@ -1,17 +1,17 @@
 //! Model download manager for STT (Parakeet TDT-CTC 110M) and TTS (Pocket TTS) models.
 //!
 //! Mental model:
-//!   app launch → start_stt_download (background) → ~/.buzz/models/parakeet-tdt-ctc-110m-en/
-//!   app launch → start_tts_download (background) → ~/.buzz/models/pocket-tts/
+//!   app launch → start_stt_download (background) → ~/.maju/models/parakeet-tdt-ctc-110m-en/
+//!   app launch → start_tts_download (background) → ~/.maju/models/pocket-tts/
 //!   STT pipeline → is_stt_ready() → stt_model_dir() → run inference
 //!   TTS pipeline → is_tts_ready() → tts_model_dir() → run synthesis
 //!
-//! Models are downloaded once and cached. A version manifest (`.buzz-model-manifest`)
+//! Models are downloaded once and cached. A version manifest (`.maju-model-manifest`)
 //! is written alongside model files — if the on-disk version doesn't match the
 //! compiled-in version, the model is re-downloaded.
 //!
 //! Upgrade note: an older Moonshine STT model directory at
-//! `~/.buzz/models/moonshine-tiny/` is removed best-effort once the new STT
+//! `~/.maju/models/moonshine-tiny/` is removed best-effort once the new STT
 //! model finishes installing successfully. Cleanup is gated on the new model
 //! being Ready, so a failed download never removes the previous on-disk model
 //! during migration. If removal fails (permissions, etc.) the leftover is
@@ -103,7 +103,7 @@ const STT_MODEL_VERSION: &str = "2";
 const TTS_MODEL_VERSION: &str = "3";
 
 /// Filename for the version manifest written alongside model files.
-const MANIFEST_FILENAME: &str = ".buzz-model-manifest";
+const MANIFEST_FILENAME: &str = ".maju-model-manifest";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -127,12 +127,12 @@ const STT_DOWNLOAD_URL: &str =
 /// Subdirectory name produced by `tar xjf` on the archive.
 const STT_ARCHIVE_SUBDIR: &str = "sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8";
 
-/// Final directory name under `~/.buzz/models/`.
+/// Final directory name under `~/.maju/models/`.
 const STT_MODEL_DIR_NAME: &str = "parakeet-tdt-ctc-110m-en";
 
 /// All files that must be present for the model to be considered ready.
 ///
-/// Includes the attribution sidecar written by Buzz during install. The
+/// Includes the attribution sidecar written by Maju during install. The
 /// upstream archive does not ship a license file, so readiness should require
 /// the local CC-BY-4.0 attribution to travel with the cached model bytes.
 const STT_EXPECTED_FILES: &[&str] = &["model.int8.onnx", "tokens.txt", STT_LICENSE_FILE_NAME];
@@ -153,7 +153,7 @@ Licensed under the Creative Commons Attribution 4.0 International License
 
 Original model: https://huggingface.co/nvidia/parakeet-tdt_ctc-110m
 Converted to ONNX with int8 quantization by the sherpa-onnx project
-(https://github.com/k2-fsa/sherpa-onnx); Buzz ships this conversion
+(https://github.com/k2-fsa/sherpa-onnx); Maju ships this conversion
 unmodified.
 
 Provided \"AS IS\", without warranty of any kind, express or implied. See the
@@ -162,7 +162,7 @@ license text for full warranty disclaimer.
 
 // ── Pocket TTS model ──────────────────────────────────────────────────────────
 
-/// Final directory name under `~/.buzz/models/`.
+/// Final directory name under `~/.maju/models/`.
 const TTS_MODEL_DIR_NAME: &str = "pocket-tts";
 
 /// Attribution sidecar written next to the Pocket TTS model files.
@@ -194,7 +194,7 @@ https://datashare.ed.ac.uk/handle/10283/3443 (CC-BY-4.0).
 Recording enhancement (denoise/dereverb) by ai-coustics:
 https://ai-coustics.com/
 
-Buzz ships all ONNX/model artifacts and the reference voice WAV unmodified,
+Maju ships all ONNX/model artifacts and the reference voice WAV unmodified,
 renamed only by placement in the local model directory.
 
 Provided \"AS IS\", without warranty of any kind, express or implied. See the
@@ -401,7 +401,7 @@ where
 /// Per-model state + config. `ModelManager` owns two of these (stt, tts).
 #[derive(Clone)]
 struct ModelSlot {
-    dir_name: &'static str,                  // subdir under ~/.buzz/models/
+    dir_name: &'static str,                  // subdir under ~/.maju/models/
     expected_files: &'static [&'static str], // files required for "ready"
     version: &'static str,                   // manifest version; increment to force re-download
     status: Arc<Mutex<ModelStatus>>,
@@ -484,7 +484,7 @@ impl ModelSlot {
         // is accessible on the current thread. Tauri's runtime is always available.
         tauri::async_runtime::spawn(async move {
             if let Err(e) = download_fn(http_client).await {
-                eprintln!("buzz-desktop: {name} download failed: {e}");
+                eprintln!("maju-desktop: {name} download failed: {e}");
                 slot.set_status(ModelStatus::Error(e));
             }
         });
@@ -549,18 +549,18 @@ impl ModelSlot {
 /// Cheap to clone — all inner state is behind `Arc`.
 #[derive(Clone)]
 pub struct ModelManager {
-    /// `~/.buzz/models/`
+    /// `~/.maju/models/`
     models_dir: PathBuf,
     stt: ModelSlot,
     tts: ModelSlot,
 }
 
 impl ModelManager {
-    /// Create a new `ModelManager` rooted at `~/.buzz/models/`.
+    /// Create a new `ModelManager` rooted at `~/.maju/models/`.
     ///
     /// Returns `None` if the home directory cannot be resolved.
     pub fn new() -> Option<Self> {
-        let models_dir = dirs::home_dir()?.join(".buzz").join("models");
+        let models_dir = dirs::home_dir()?.join(".maju").join("models");
         Some(Self {
             models_dir,
             stt: ModelSlot::new(STT_MODEL_DIR_NAME, STT_EXPECTED_FILES, STT_MODEL_VERSION),
@@ -664,7 +664,7 @@ impl ModelManager {
             .join(format!("{STT_MODEL_DIR_NAME}.tar.bz2"));
         let temp_dir = self.models_dir.join(format!("{STT_MODEL_DIR_NAME}.tmp"));
 
-        eprintln!("buzz-desktop: downloading STT model from {STT_DOWNLOAD_URL}");
+        eprintln!("maju-desktop: downloading STT model from {STT_DOWNLOAD_URL}");
         let response = fetch_url(&http_client, STT_DOWNLOAD_URL, "stt archive").await?;
 
         let slot = self.stt.clone();
@@ -684,7 +684,7 @@ impl ModelManager {
             },
         )
         .await?;
-        eprintln!("buzz-desktop: downloaded {bytes} bytes, wrote to disk");
+        eprintln!("maju-desktop: downloaded {bytes} bytes, wrote to disk");
 
         // Verify archive integrity before extraction.
         let hash = sha256_file(&archive_path).await?;
@@ -700,7 +700,7 @@ impl ModelManager {
         });
         fresh_temp_dir(&temp_dir).await?;
 
-        eprintln!("buzz-desktop: extracting STT archive…");
+        eprintln!("maju-desktop: extracting STT archive…");
         let (ap, td) = (archive_path.clone(), temp_dir.clone());
         tokio::task::spawn_blocking(move || extract_archive(&ap, &td))
             .await
@@ -745,7 +745,7 @@ impl ModelManager {
         cleanup_legacy_moonshine_dir(&self.models_dir).await;
 
         eprintln!(
-            "buzz-desktop: STT model ready at {}",
+            "maju-desktop: STT model ready at {}",
             self.stt.model_dir(&self.models_dir).display()
         );
         Ok(())
@@ -753,10 +753,10 @@ impl ModelManager {
 
     /// Download and verify the Pocket TTS model files from HuggingFace.
     ///
-    /// Downloads files into `~/.buzz/models/pocket-tts/`:
+    /// Downloads files into `~/.maju/models/pocket-tts/`:
     ///   - five ONNX sessions (Pocket TTS + Mimi codec)
     ///   - `vocab.json` / `token_scores.json` for sherpa-onnx text conditioning
-    ///   - upstream `LICENSE` plus Buzz's `MODEL_LICENSE.txt` attribution sidecar
+    ///   - upstream `LICENSE` plus Maju's `MODEL_LICENSE.txt` attribution sidecar
     ///   - `reference_sample.wav` as the bundled default voice
     ///
     /// Files are written to a temp directory first, then moved atomically.
@@ -786,7 +786,7 @@ impl ModelManager {
         let total_files = downloads.len() as u32;
 
         for (i, (url, filename)) in downloads.iter().enumerate() {
-            eprintln!("buzz-desktop: downloading Pocket TTS {filename} from {url}");
+            eprintln!("maju-desktop: downloading Pocket TTS {filename} from {url}");
 
             let response = fetch_url(&http_client, url, filename)
                 .await
@@ -820,7 +820,7 @@ impl ModelManager {
             .inspect_err(|_| {
                 let _ = std::fs::remove_dir_all(&temp_dir);
             })?;
-            eprintln!("buzz-desktop: downloaded {bytes} bytes ({filename}), wrote to disk");
+            eprintln!("maju-desktop: downloaded {bytes} bytes ({filename}), wrote to disk");
 
             let expected = TTS_FILE_HASHES
                 .iter()
@@ -860,7 +860,7 @@ impl ModelManager {
         }
 
         eprintln!(
-            "buzz-desktop: Pocket TTS model ready at {}",
+            "maju-desktop: Pocket TTS model ready at {}",
             self.tts.model_dir(&self.models_dir).display()
         );
         Ok(())
@@ -892,7 +892,7 @@ pub fn is_stt_ready() -> bool {
 
 /// Best-effort cleanup of the legacy Moonshine STT model directory.
 ///
-/// Removes `~/.buzz/models/moonshine-tiny/` if present (~70 MB on disk).
+/// Removes `~/.maju/models/moonshine-tiny/` if present (~70 MB on disk).
 /// Idempotent — no-op if the directory is absent. Errors are logged and
 /// swallowed; the leftover is harmless and the user can remove it manually.
 ///
@@ -907,11 +907,11 @@ async fn cleanup_legacy_moonshine_dir(models_dir: &Path) {
     }
     match tokio::fs::remove_dir_all(&legacy).await {
         Ok(()) => eprintln!(
-            "buzz-desktop: removed legacy STT model dir {}",
+            "maju-desktop: removed legacy STT model dir {}",
             legacy.display()
         ),
         Err(e) => eprintln!(
-            "buzz-desktop: could not remove legacy STT model dir {}: {e} \
+            "maju-desktop: could not remove legacy STT model dir {}: {e} \
              (harmless — remove manually to reclaim disk space)",
             legacy.display()
         ),

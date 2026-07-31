@@ -45,13 +45,13 @@ import {
 import { PersonaProviderApiKeyField } from "@/features/agents/ui/PersonaProviderApiKeyField";
 import { usePersonaModelDiscovery } from "@/features/agents/ui/usePersonaModelDiscovery";
 import {
-  BUZZ_AGENT_THINKING_EFFORT,
+  MAJU_AGENT_THINKING_EFFORT,
   getProviderEffortConfig,
-} from "@/features/agents/ui/buzzAgentConfig";
+} from "@/features/agents/ui/majuAgentConfig";
 import {
   EffortSelectField,
   useEffortAutoClear,
-} from "@/features/agents/ui/buzzAgentModelTuningFields";
+} from "@/features/agents/ui/majuAgentModelTuningFields";
 import { SettingsOptionGroup } from "@/features/settings/ui/SettingsOptionGroup";
 import { AdvancedRequiredBadge } from "./AdvancedRequiredBadge";
 import { getGlobalAgentCredentialState } from "./globalAgentCredentialState";
@@ -65,9 +65,9 @@ export const EMPTY_GLOBAL_CONFIG: GlobalAgentConfig = {
 
 /** Baked env keys that route to structured controls, not the generic env editor. */
 const BAKED_STRUCTURED_KEYS = new Set([
-  "BUZZ_AGENT_PROVIDER",
-  "BUZZ_AGENT_MODEL",
-  BUZZ_AGENT_THINKING_EFFORT,
+  "MAJU_AGENT_PROVIDER",
+  "MAJU_AGENT_MODEL",
+  MAJU_AGENT_THINKING_EFFORT,
 ]);
 
 const PROGRESSIVE_FIELDS_TRANSITION = {
@@ -272,7 +272,7 @@ export function AgentConfigFields({
       ? effortField.currentPersistence.key
       : null;
   const bakedProvider = React.useMemo(
-    () => bakedEnv.find((e) => e.key === "BUZZ_AGENT_PROVIDER")?.value ?? null,
+    () => bakedEnv.find((e) => e.key === "MAJU_AGENT_PROVIDER")?.value ?? null,
     [bakedEnv],
   );
   const selectedRuntimeId = selectedRuntime?.id ?? "";
@@ -299,7 +299,7 @@ export function AgentConfigFields({
     fallbackModel !== null;
   const bakedEffort = React.useMemo(
     () =>
-      bakedEnv.find((e) => e.key === BUZZ_AGENT_THINKING_EFFORT)?.value ?? null,
+      bakedEnv.find((e) => e.key === MAJU_AGENT_THINKING_EFFORT)?.value ?? null,
     [bakedEnv],
   );
   const bakedGenericRows = React.useMemo<readonly InheritedEnvRow[]>(
@@ -330,7 +330,7 @@ export function AgentConfigFields({
     selectedRuntimeId,
   )
     ? selectedRuntimeId
-    : "buzz-agent";
+    : "maju-agent";
   const bakedEnvKeys = React.useMemo(
     () => bakedEnv.map((entry) => entry.key),
     [bakedEnv],
@@ -585,17 +585,17 @@ export function AgentConfigFields({
     onConfigChange({ ...config, env_vars: merged });
   }
 
-  // On internal Block builds, BUZZ_AGENT_PROVIDER is baked in and a boot
+  // On internal Block builds, MAJU_AGENT_PROVIDER is baked in and a boot
   // migration rewrites v1→v2. Hide the legacy v1 option so it is not offered
   // for new selections; OSS builds show it.
   const hideProviderIds = React.useMemo(() => {
     const hidden = new Set<string>();
-    if (bakedEnvKeys.includes("BUZZ_AGENT_PROVIDER")) {
+    if (bakedEnvKeys.includes("MAJU_AGENT_PROVIDER")) {
       for (const providerId of BLOCK_BUILD_HIDDEN_PROVIDER_IDS) {
         hidden.add(providerId);
       }
     }
-    if (selectedRuntimeId !== "buzz-agent") {
+    if (selectedRuntimeId !== "maju-agent") {
       hidden.add("relay-mesh");
     }
     return hidden;
@@ -917,7 +917,7 @@ export function AgentConfigFields({
                     requiredKeys={advancedRequiredEnvKeys}
                     value={Object.fromEntries(
                       Object.entries(config.env_vars).filter(
-                        ([k]) => k !== BUZZ_AGENT_THINKING_EFFORT,
+                        ([k]) => k !== MAJU_AGENT_THINKING_EFFORT,
                       ),
                     )}
                   />
@@ -935,7 +935,7 @@ export function AgentConfigFields({
               requiredKeys={advancedRequiredEnvKeys}
               value={Object.fromEntries(
                 Object.entries(config.env_vars).filter(
-                  ([k]) => k !== BUZZ_AGENT_THINKING_EFFORT,
+                  ([k]) => k !== MAJU_AGENT_THINKING_EFFORT,
                 ),
               )}
             />

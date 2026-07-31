@@ -318,7 +318,7 @@ String downloadedImageFilename(String imageUrl, String? contentType) {
     'image/webp' => '.webp',
     _ => '.jpg',
   };
-  return 'buzz-${DateTime.now().millisecondsSinceEpoch}$extension';
+  return 'maju-${DateTime.now().millisecondsSinceEpoch}$extension';
 }
 
 Future<void> _saveImage(
@@ -383,7 +383,7 @@ Future<void> _shareImage(
   }
 }
 
-/// Canonical `buzz://message` link for a timeline message, including thread
+/// Canonical `maju://message` link for a timeline message, including thread
 /// context when the message is a reply.
 String messageLinkFor({
   required TimelineMessage message,
@@ -473,7 +473,7 @@ class _FollowThreadTile extends ConsumerWidget {
 }
 
 /// Promoted actions for the three dominant mobile jobs: respond now (Reply),
-/// hand off context (Copy link — the `buzz://message` link is the workspace's
+/// hand off context (Copy link — the `maju://message` link is the workspace's
 /// context-transfer primitive), and defer (Remind me).
 class _FastActionsRow extends ConsumerWidget {
   final TimelineMessage message;

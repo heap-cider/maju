@@ -1,0 +1,37 @@
+[package]
+name = "maju-admin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Operator CLI for Maju relay administration"
+
+[[bin]]
+name = "maju-admin"
+path = "src/main.rs"
+
+[dependencies]
+maju-db = { workspace = true }
+maju-core = { workspace = true }
+maju-auth = { workspace = true }
+maju-pubsub = { workspace = true }
+maju-search = { workspace = true }
+maju-audit = { workspace = true }
+maju-workflow = { workspace = true }
+maju-media = { workspace = true }
+nostr = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+hex = { workspace = true }
+deadpool-redis = { workspace = true }
+# Redis TLS (rediss://, e.g. ElastiCache) uses rustls, which needs a process
+# CryptoProvider installed at startup. The workspace redis TLS feature compiles
+# both aws-lc-rs and ring in transitively, so rustls can't auto-select one — we
+# install ring explicitly in main(). Mirrors maju-relay's setup.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tracing = { workspace = true }
+sqlx = { workspace = true }
+url = { workspace = true }
+clap = { version = "4", features = ["derive"] }

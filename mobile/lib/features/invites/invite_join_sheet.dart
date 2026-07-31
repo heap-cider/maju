@@ -3,7 +3,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../shared/theme/theme.dart';
-import '../../shared/widgets/buzz_loading_indicator.dart';
+import '../../shared/widgets/maju_loading_indicator.dart';
 import '../pairing/pairing_page.dart';
 import 'invite_join_provider.dart';
 
@@ -40,7 +40,7 @@ class InviteJoinSheet extends ConsumerWidget {
             Icon(LucideIcons.userPlus, size: 40, color: context.colors.primary),
             const SizedBox(height: Grid.sm),
             Text(
-              'Join this Buzz community?',
+              'Join this Maju community?',
               style: context.textTheme.titleLarge,
             ),
             const SizedBox(height: Grid.xxs),
@@ -117,7 +117,7 @@ class InviteJoinSheet extends ConsumerWidget {
                         ? SizedBox(
                             width: 16,
                             height: 16,
-                            child: BuzzLoadingIndicator(
+                            child: MajuLoadingIndicator(
                               size: 16,
                               semanticLabel: 'Joining community',
                             ),

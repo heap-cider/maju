@@ -50,7 +50,7 @@ function buildProbeUrl(remoteUrl: string, attempt: number): string {
   try {
     const url = new URL(remoteUrl);
     url.searchParams.set(
-      "buzz_avatar_probe",
+      "maju_avatar_probe",
       `${Date.now()}-${attempt.toString()}`,
     );
     return url.toString();

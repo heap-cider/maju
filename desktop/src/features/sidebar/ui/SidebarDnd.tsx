@@ -148,7 +148,7 @@ export function SortableSectionShell({
 export function DragOverlayChannel({ name }: { name: string }) {
   return (
     <div
-      data-buzz-flat
+      data-maju-flat
       className="flex cursor-grabbing items-center gap-2 rounded-md bg-sidebar px-2 py-1.5 text-sm text-sidebar-foreground opacity-90 shadow-lg ring-1 ring-sidebar-border"
     >
       <Hash className="h-4 w-4 shrink-0 text-sidebar-foreground/60" />
@@ -160,7 +160,7 @@ export function DragOverlayChannel({ name }: { name: string }) {
 export function DragOverlaySection({ name }: { name: string }) {
   return (
     <div
-      data-buzz-flat
+      data-maju-flat
       className="flex cursor-grabbing items-center gap-1 rounded-md bg-sidebar px-2 py-1 text-xs font-medium uppercase tracking-wider text-sidebar-foreground/60 opacity-90 shadow-lg ring-1 ring-sidebar-border"
     >
       <span>{name}</span>

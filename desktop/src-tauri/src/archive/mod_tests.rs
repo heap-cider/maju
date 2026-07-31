@@ -624,7 +624,7 @@ fn test_commit_archive_rolls_back_when_scope_write_would_fail() {
 // ── Kind-44200 agent-turn-metric archive tests ───────────────────────────
 
 fn make_turn_metric_event(owner_keys: &Keys, agent_keys: &Keys) -> Event {
-    use buzz_core_pkg::agent_turn_metric::{
+    use maju_core_pkg::agent_turn_metric::{
         encrypt_agent_turn_metric, AgentTurnMetricPayload, TokenCounts,
     };
     let owner_pk = owner_keys.public_key().to_hex();
@@ -809,7 +809,7 @@ fn test_turn_metric_decrypt_fail_drops_fail_closed() {
 //
 // Run (Linux/macOS only):
 //
-//   RELAY_URL=ws://localhost:3000 cargo test -p buzz-desktop \
+//   RELAY_URL=ws://localhost:3000 cargo test -p maju-desktop \
 //       archive::tests::real_relay -- --ignored --nocapture
 //
 // The relay must be running with a Postgres backend (same docker compose

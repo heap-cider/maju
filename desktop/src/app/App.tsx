@@ -56,7 +56,7 @@ import { WelcomeSetup } from "@/features/communities/ui/WelcomeSetup";
 import { CommunityApplyErrorScreen } from "@/features/communities/ui/CommunityApplyErrorScreen";
 import { CommunityChangeOverlay } from "@/features/communities/ui/CommunityChangeOverlay";
 import { setAvatarProfileSyncQueryClient } from "@/features/profile/avatarProfileSync";
-import { createBuzzQueryClient } from "@/shared/api/queryClient";
+import { createMajuQueryClient } from "@/shared/api/queryClient";
 import { isSharedIdentity as isSharedIdentityCmd } from "@/shared/api/tauri";
 import { getProfile } from "@/shared/api/tauriProfiles";
 import {
@@ -64,9 +64,9 @@ import {
   listenForDeepLinks,
 } from "@/shared/deep-link";
 import { cn } from "@/shared/lib/cn";
-import { BuzzMark } from "@/shared/ui/buzz-logo/BuzzMark";
-import { FlappingBee } from "@/shared/ui/buzz-logo/FlappingBee";
-import { FuzzyLogo } from "@/shared/ui/buzz-logo/FuzzyLogo";
+import { MajuMark } from "@/shared/ui/maju-logo/MajuMark";
+import { FlappingBee } from "@/shared/ui/maju-logo/FlappingBee";
+import { FuzzyLogo } from "@/shared/ui/maju-logo/FuzzyLogo";
 import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";
 
 const LOADING_TEXT = "Setting up your community...";
@@ -93,13 +93,13 @@ function useInitialRenderReady() {
 }
 
 // E2E runs skip the hold (it would slow every spec's boot and block pointer
-// actionability); a spec can opt back in via __BUZZ_E2E__.bootSplashHoldMs.
+// actionability); a spec can opt back in via __MAJU_E2E__.bootSplashHoldMs.
 function bootSplashHoldMs(): number {
   const e2e = (
     window as Window & {
-      __BUZZ_E2E__?: { bootSplashHoldMs?: number };
+      __MAJU_E2E__?: { bootSplashHoldMs?: number };
     }
-  ).__BUZZ_E2E__;
+  ).__MAJU_E2E__;
   if (e2e) {
     return e2e.bootSplashHoldMs ?? 0;
   }
@@ -130,7 +130,7 @@ function useBootSplashHold(): BootSplashPhase {
   return phase;
 }
 
-// Animated Buzz mark for the loading gates. The static BuzzMark renders in
+// Animated Maju mark for the loading gates. The static MajuMark renders in
 // normal flow and sizes the box — it's plain SVG (no JS/SMIL), so it paints on
 // the very first frame even before scripting starts, avoiding a blank flash on
 // hard reload. The animated FuzzyLogo is layered on top and takes over once it
@@ -146,7 +146,7 @@ function BeeLoader({
 }) {
   return (
     <div className={cn("relative", tintClassName, className)}>
-      <BuzzMark className="block h-auto w-full" />
+      <MajuMark className="block h-auto w-full" />
       <FuzzyLogo
         ariaLabel={ariaLabel}
         className="absolute inset-0 h-full! w-full! [&>svg]:h-full [&>svg]:w-full [&>svg]:max-w-full"
@@ -159,13 +159,13 @@ function BeeLoader({
 }
 
 // Cold boot gate: the theme-adaptive grainient background with a single
-// centered Buzz bee flying over it — the same static mark as before, now with
-// its wings flapping (ported from the Buzz website's wing-flap). Replaces the
+// centered Maju bee flying over it — the same static mark as before, now with
+// its wings flapping (ported from the Maju website's wing-flap). Replaces the
 // old "Setting up your community" text, which stays as an sr-only caption.
 function AppLoadingGate() {
   return (
     <div
-      className="buzz-setup-loading-shell flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6 py-10"
+      className="maju-setup-loading-shell flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6 py-10"
       data-testid="app-loading-gate"
       role="status"
     >
@@ -207,23 +207,23 @@ function CommunitySwitchGate() {
 }
 
 function CommunityQueryProvider({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(createBuzzQueryClient);
+  const [queryClient] = useState(createMajuQueryClient);
 
   useEffect(() => setAvatarProfileSyncQueryClient(queryClient), [queryClient]);
 
   useEffect(() => {
     const e2eWindow = window as Window & {
-      __BUZZ_E2E__?: unknown;
-      __BUZZ_E2E_QUERY_CLIENT__?: typeof queryClient;
+      __MAJU_E2E__?: unknown;
+      __MAJU_E2E_QUERY_CLIENT__?: typeof queryClient;
     };
-    if (!e2eWindow.__BUZZ_E2E__) {
+    if (!e2eWindow.__MAJU_E2E__) {
       return;
     }
 
-    e2eWindow.__BUZZ_E2E_QUERY_CLIENT__ = queryClient;
+    e2eWindow.__MAJU_E2E_QUERY_CLIENT__ = queryClient;
     return () => {
-      if (e2eWindow.__BUZZ_E2E_QUERY_CLIENT__ === queryClient) {
-        delete e2eWindow.__BUZZ_E2E_QUERY_CLIENT__;
+      if (e2eWindow.__MAJU_E2E_QUERY_CLIENT__ === queryClient) {
+        delete e2eWindow.__MAJU_E2E_QUERY_CLIENT__;
       }
     };
   }, [queryClient]);
@@ -700,7 +700,7 @@ export function App() {
   useReloadShortcut();
   useInitialRenderReady();
   const [sharedIdentity, setSharedIdentity] = useState<boolean | null>(null);
-  const [queryClient] = useState(createBuzzQueryClient);
+  const [queryClient] = useState(createMajuQueryClient);
 
   useEffect(() => {
     isSharedIdentityCmd()

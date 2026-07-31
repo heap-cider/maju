@@ -11,7 +11,7 @@
 //! samples (the 2026-06-12 "blown out" report). Production now applies no
 //! gain — run this probe before reintroducing one.
 //!
-//! Run with model files in ~/.buzz/models/pocket-tts (override with arg 1):
+//! Run with model files in ~/.maju/models/pocket-tts (override with arg 1):
 //!   cargo run --release --example pocket_clip_probe
 
 use std::path::PathBuf;
@@ -39,7 +39,7 @@ fn main() {
     let model_dir = std::env::args().nth(1).unwrap_or_else(|| {
         dirs::home_dir()
             .expect("home dir")
-            .join(".buzz/models/pocket-tts")
+            .join(".maju/models/pocket-tts")
             .to_string_lossy()
             .into_owned()
     });

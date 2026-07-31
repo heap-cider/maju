@@ -22,21 +22,21 @@ import UserNotifications
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     let messenger = engineBridge.applicationRegistrar.messenger()
     mediaUploadChannel = FlutterMethodChannel(
-      name: "buzz/media_upload",
+      name: "maju/media_upload",
       binaryMessenger: messenger
     )
     mediaUploadChannel?.setMethodCallHandler { [weak self] call, result in
       self?.handleMediaUploadMethodCall(call, result: result)
     }
     qrScannerChannel = FlutterMethodChannel(
-      name: "buzz/qr_scanner",
+      name: "maju/qr_scanner",
       binaryMessenger: messenger
     )
     qrScannerChannel?.setMethodCallHandler { call, result in
       Self.handleQrScannerMethodCall(call, result: result)
     }
     inlinePhotoPickerSupportChannel = FlutterMethodChannel(
-      name: "buzz/inline_photo_picker",
+      name: "maju/inline_photo_picker",
       binaryMessenger: messenger
     )
     inlinePhotoPickerSupportChannel?.setMethodCallHandler { call, result in
@@ -52,19 +52,19 @@ import UserNotifications
     }
 
     if let inlinePhotoPickerRegistrar = engineBridge.pluginRegistry.registrar(
-      forPlugin: "BuzzInlinePhotoPicker"
+      forPlugin: "MajuInlinePhotoPicker"
     ) {
       inlinePhotoPickerRegistrar.register(
         InlinePhotoPickerFactory(
           messenger: messenger,
           parentViewController: inlinePhotoPickerRegistrar.viewController
         ),
-        withId: "buzz/inline_photo_picker"
+        withId: "maju/inline_photo_picker"
       )
     }
 
     let nativeAttachmentRegistrar = engineBridge.pluginRegistry.registrar(
-      forPlugin: "BuzzNativeAttachmentPopover"
+      forPlugin: "MajuNativeAttachmentPopover"
     )
     nativeAttachmentPopoverCoordinator = NativeAttachmentPopoverCoordinator(
       messenger: messenger,

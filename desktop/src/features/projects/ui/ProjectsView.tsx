@@ -632,7 +632,7 @@ export function ProjectsView() {
         projects={projects}
       />
       <div
-        className="buzz-content-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-scroll"
+        className="maju-content-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-scroll"
         onScroll={handleContentScroll}
       >
         <div className="px-4 pb-7 pt-7 sm:px-6 sm:pb-8 sm:pt-8">

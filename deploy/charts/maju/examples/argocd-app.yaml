@@ -1,0 +1,73 @@
+# ArgoCD Application — GitOps-safe Maju install.
+#
+# Prerequisite: a Secret named `maju-secrets` in namespace `maju` containing
+# (any subset of) the keys consumed by `secrets.existingSecret`. See
+# `secret-sample.yaml` for the schema.
+#
+# Why `existingSecret` and not chart autogen: ArgoCD renders manifests with
+# `helm template`, in which mode Helm's `lookup` function returns empty and
+# any chart-side `randAlphaNum` call regenerates on every sync. The
+# chart-managed Secret path is for `helm install` / `helm upgrade` only.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maju
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: oci://ghcr.io/heap-cider/maju/charts
+    chart: maju
+    targetRevision: 0.1.0
+    helm:
+      releaseName: maju
+      values: |
+        relayUrl: wss://maju.example.com
+        ownerPubkey: "0000000000000000000000000000000000000000000000000000000000000000"  # replace
+        replicaCount: 3
+
+        secrets:
+          existingSecret: maju-secrets
+
+        externalPostgresql:
+          # DATABASE_URL also lives in maju-secrets; this is here only if you
+          # prefer the URL stored in values vs. the Secret. Pick one.
+          url: ""
+
+        externalRedis:
+          url: ""
+
+
+        s3:
+          endpoint: "https://s3.us-east-1.amazonaws.com"
+          bucket: "maju-media"
+          # accessKey / secretKey live in maju-secrets
+
+        persistence:
+          git:
+            enabled: true
+            accessMode: ReadWriteOnce      # RWO is fine at any replicaCount (object-store-backed git)
+            storageClass: ""               # any RWO class; no shared/RWX filesystem needed
+            size: 50Gi
+
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+            # WebSocket: long-lived; raise proxy timeouts.
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+            nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+          tls:
+            - hosts: [maju.example.com]
+              secretName: maju-tls
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maju
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

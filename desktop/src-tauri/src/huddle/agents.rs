@@ -36,9 +36,9 @@ Your text is read aloud via TTS, message by message, in the order sent.
 
 Latency matters most: reply IMMEDIATELY — do not compose your full reply
 before sending anything. The moment your first sentence is formed, send it
-as its own `buzz messages send` tool call: it is what breaks the silence.
+as its own `maju messages send` tool call: it is what breaks the silence.
 Then send each following sentence the same way — one sentence per separate
-`buzz messages send` call. Never hold a finished sentence back to bundle it
+`maju messages send` call. Never hold a finished sentence back to bundle it
 with the next one.
 
 - If not addressed or relevant: do nothing. Do not respond.
@@ -48,7 +48,7 @@ with the next one.
 - When you need a tool, say one short sentence first (e.g. \"Let me check.\"), then run it, then summarize the key finding verbally.
 - If a new human message arrives mid-reply, you were interrupted: drop your unsent sentences and respond to the new message instead.
 - In multi-agent huddles, identify yourself only when needed.
-- Use your Buzz tools proactively when asked."
+- Use your Maju tools proactively when asked."
     )
 }
 
@@ -99,7 +99,7 @@ pub async fn add_agent_to_huddle(
             Ok(_) => (true, None),
             Err(e) => {
                 eprintln!(
-                    "buzz-desktop: add agent to parent channel failed (may already be member): {e}"
+                    "maju-desktop: add agent to parent channel failed (may already be member): {e}"
                 );
                 (false, Some(e))
             }

@@ -46,7 +46,7 @@ fn record(
         auth_tag: None,
         relay_url: "ws://localhost:3000".to_string(),
         avatar_url: None,
-        acp_command: "buzz-acp".to_string(),
+        acp_command: "maju-acp".to_string(),
         agent_command: "goose".to_string(),
         agent_command_override: None,
         agent_args: vec![],
@@ -589,7 +589,7 @@ fn whitespace_provider_in_global_triggers_mesh_decision() {
 fn legacy_record_falls_back_to_env_sniff() {
     let mut rec = record(None, None, None, None);
     rec.env_vars = BTreeMap::from([
-        ("BUZZ_AGENT_PROVIDER".to_string(), "openai".to_string()),
+        ("MAJU_AGENT_PROVIDER".to_string(), "openai".to_string()),
         (
             "OPENAI_COMPAT_BASE_URL".to_string(),
             "http://127.0.0.1:9337/v1/".to_string(),
@@ -667,7 +667,7 @@ fn legacy_record_falls_back_to_env_sniff_with_mixed_rename_sentinels() {
 fn legacy_record_falls_back_to_env_sniff_with_new_provider_and_old_api_key() {
     let mut rec = record(None, None, None, None);
     rec.env_vars = BTreeMap::from([
-        ("BUZZ_AGENT_PROVIDER".to_string(), "openai".to_string()),
+        ("MAJU_AGENT_PROVIDER".to_string(), "openai".to_string()),
         (
             "OPENAI_COMPAT_BASE_URL".to_string(),
             "http://127.0.0.1:9337/v1".to_string(),
@@ -693,7 +693,7 @@ fn legacy_record_falls_back_to_env_sniff_with_new_provider_and_old_api_key() {
 fn legacy_env_sniff_prefers_renamed_provider_key_over_stale_old_key() {
     let mut rec = record(None, None, None, None);
     rec.env_vars = BTreeMap::from([
-        ("BUZZ_AGENT_PROVIDER".to_string(), "anthropic".to_string()),
+        ("MAJU_AGENT_PROVIDER".to_string(), "anthropic".to_string()),
         ("SPROUT_AGENT_PROVIDER".to_string(), "openai".to_string()),
         (
             "OPENAI_COMPAT_BASE_URL".to_string(),
@@ -714,12 +714,12 @@ fn legacy_env_sniff_prefers_renamed_provider_key_over_stale_old_key() {
 }
 
 /// Class A negative: a user's own OpenAI-compatible provider on the same local
-/// port is not Buzz's preset — the placeholder API key is the discriminator.
+/// port is not Maju's preset — the placeholder API key is the discriminator.
 #[test]
 fn legacy_env_sniff_ignores_user_openai_on_same_local_port() {
     let mut rec = record(None, None, None, None);
     rec.env_vars = BTreeMap::from([
-        ("BUZZ_AGENT_PROVIDER".to_string(), "openai".to_string()),
+        ("MAJU_AGENT_PROVIDER".to_string(), "openai".to_string()),
         (
             "OPENAI_COMPAT_BASE_URL".to_string(),
             "http://127.0.0.1:9337/v1".to_string(),
@@ -731,7 +731,7 @@ fn legacy_env_sniff_ignores_user_openai_on_same_local_port() {
     assert_eq!(
         resolve_effective_relay_mesh_model_id(&rec, &[], &global(None, None)),
         None,
-        "a real user key on the mesh port must not be mistaken for Buzz's preset"
+        "a real user key on the mesh port must not be mistaken for Maju's preset"
     );
 }
 
@@ -784,7 +784,7 @@ fn definition_less_explicit_provider_wins_over_stale_legacy_mesh_bytes() {
         model_ref: "Qwen3".to_string(),
     });
     rec.env_vars = BTreeMap::from([
-        ("BUZZ_AGENT_PROVIDER".to_string(), "openai".to_string()),
+        ("MAJU_AGENT_PROVIDER".to_string(), "openai".to_string()),
         (
             "OPENAI_COMPAT_BASE_URL".to_string(),
             "http://127.0.0.1:9337/v1".to_string(),
@@ -822,7 +822,7 @@ fn linked_record_ignores_legacy_mesh_marker_and_env() {
         model_ref: "Qwen3".to_string(),
     });
     rec.env_vars = BTreeMap::from([
-        ("BUZZ_AGENT_PROVIDER".to_string(), "openai".to_string()),
+        ("MAJU_AGENT_PROVIDER".to_string(), "openai".to_string()),
         (
             "OPENAI_COMPAT_BASE_URL".to_string(),
             "http://127.0.0.1:9337/v1".to_string(),

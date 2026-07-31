@@ -15,11 +15,11 @@ async function waitForMockLiveSubscription(
         ({ ch }) =>
           (
             window as Window & {
-              __BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
+              __MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
                 channelName: string;
               }) => boolean;
             }
-          ).__BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({ channelName: ch }) ??
+          ).__MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({ channelName: ch }) ??
           false,
         { ch: channelName },
       ),
@@ -37,7 +37,7 @@ async function emitMockReply(
     ({ ch, msg, parent, pubkey }) =>
       (
         window as Window & {
-          __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+          __MAJU_E2E_EMIT_MOCK_MESSAGE__?: (input: {
             channelName: string;
             content: string;
             parentEventId?: string | null;
@@ -45,7 +45,7 @@ async function emitMockReply(
             createdAt?: number;
           }) => unknown;
         }
-      ).__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      ).__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: ch,
         content: msg,
         parentEventId: parent,

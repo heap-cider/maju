@@ -62,7 +62,7 @@ function GitBashCard({
         </div>
         {!prerequisite.available ? (
           <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-            <p>Required for buzz-agent shell tools on Windows.</p>
+            <p>Required for maju-agent shell tools on Windows.</p>
             <p>{prerequisite.installHint}</p>
           </div>
         ) : null}
@@ -114,7 +114,7 @@ export function HarnessesSettingsPanel() {
       <SectionHeader
         className="items-center"
         title="Agent runtimes"
-        description="Choose which agent tools Buzz can use on this device."
+        description="Choose which agent tools Maju can use on this device."
         action={
           <Button
             disabled={isRefreshing}

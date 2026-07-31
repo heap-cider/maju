@@ -135,7 +135,7 @@ export function BackupStep({ direction, onBack, onNext }: BackupStepProps) {
         )}
 
         {nsec ? (
-          <p className="mx-auto mt-6 flex max-w-[440px] items-start justify-center gap-1.5 text-center text-xs leading-5 text-[var(--buzz-onboarding-backup-ink)]">
+          <p className="mx-auto mt-6 flex max-w-[440px] items-start justify-center gap-1.5 text-center text-xs leading-5 text-[var(--maju-onboarding-backup-ink)]">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               Never share your private key. Anyone with this key can impersonate

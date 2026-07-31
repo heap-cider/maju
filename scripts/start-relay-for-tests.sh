@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# start-relay-for-tests.sh — Start the Buzz relay and its backing services
+# start-relay-for-tests.sh — Start the Maju relay and its backing services
 # =============================================================================
 # Shared script for CI jobs that need a running relay. Starts docker compose
 # services, waits for health, applies the schema, builds the relay, starts it,
@@ -82,29 +82,29 @@ wait_healthy() {
   return 1
 }
 
-wait_healthy "Postgres" "buzz-postgres"
-wait_healthy "Redis" "buzz-redis"
-wait_healthy "MinIO" "buzz-minio"
+wait_healthy "Postgres" "maju-postgres"
+wait_healthy "Redis" "maju-redis"
+wait_healthy "MinIO" "maju-minio"
 
 # ── Apply database schema ────────────────────────────────────────────────────
 
 log "Applying database schema..."
 export PGHOST=localhost
 export PGPORT=5432
-export PGUSER=buzz
-export PGPASSWORD=buzz_dev
-export PGDATABASE=buzz
+export PGUSER=maju
+export PGPASSWORD=maju_dev
+export PGDATABASE=maju
 
 # Use the already-running docker postgres for desired-state planning instead of
 # downloading an embedded Postgres from Maven Central (transient-fetch flake source).
 export PGSCHEMA_PLAN_HOST=localhost
 export PGSCHEMA_PLAN_PORT=5432
-export PGSCHEMA_PLAN_DB=buzz
-export PGSCHEMA_PLAN_USER=buzz
-export PGSCHEMA_PLAN_PASSWORD=buzz_dev
+export PGSCHEMA_PLAN_DB=maju
+export PGSCHEMA_PLAN_USER=maju
+export PGSCHEMA_PLAN_PASSWORD=maju_dev
 
 ./bin/pgschema apply --file schema/schema.sql --auto-approve
-docker exec -i -e PGPASSWORD="${PGPASSWORD}" buzz-postgres \
+docker exec -i -e PGPASSWORD="${PGPASSWORD}" maju-postgres \
   psql -U "${PGUSER}" -d "${PGDATABASE}" -v ON_ERROR_STOP=1 < scripts/attach-schema-partitions.sql
 ok "Schema applied"
 
@@ -116,13 +116,13 @@ ok "Schema applied"
 # (ensure_configured_community has no callers) and fails closed on an unmapped
 # host, so without this row every e2e connection would 404 at host-binding.
 # The unique index is on lower(host), so ON CONFLICT must target that expression.
-# psql is not on PATH in the hermit env; postgres runs as the buzz-postgres
+# psql is not on PATH in the hermit env; postgres runs as the maju-postgres
 # docker container, so exec into it (same fallback as setup-desktop-test-data.sh).
 log "Seeding deployment community (host=localhost:3000)..."
 if command -v psql >/dev/null 2>&1; then
   seed_psql() { PGPASSWORD="${PGPASSWORD}" psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -qtA "$@"; }
 else
-  seed_psql() { docker exec -e PGPASSWORD="${PGPASSWORD}" buzz-postgres psql -U "${PGUSER}" -d "${PGDATABASE}" -qtA "$@"; }
+  seed_psql() { docker exec -e PGPASSWORD="${PGPASSWORD}" maju-postgres psql -U "${PGUSER}" -d "${PGDATABASE}" -qtA "$@"; }
 fi
 seed_psql -c "
 INSERT INTO communities (id, host)
@@ -135,7 +135,7 @@ ok "Community seeded"
 # ── Build relay ──────────────────────────────────────────────────────────────
 
 if [[ "${SKIP_BUILD}" == "true" ]]; then
-  for bin in buzz-relay git-credential-nostr; do
+  for bin in maju-relay git-credential-nostr; do
     if [[ ! -x "./target/${CARGO_PROFILE}/${bin}" ]]; then
       err "--no-build: ./target/${CARGO_PROFILE}/${bin} missing or not executable"
       exit 1
@@ -144,7 +144,7 @@ if [[ "${SKIP_BUILD}" == "true" ]]; then
   log "Skipping relay build (--no-build); using existing target/${CARGO_PROFILE}/ binaries"
 else
   log "Building relay (profile: ${CARGO_PROFILE})..."
-  cargo build --profile "${CARGO_PROFILE}" -p buzz-relay -p git-credential-nostr
+  cargo build --profile "${CARGO_PROFILE}" -p maju-relay -p git-credential-nostr
   ok "Relay built"
 fi
 
@@ -152,23 +152,23 @@ fi
 
 log "Starting relay..."
 nohup env \
-  DATABASE_URL=postgres://buzz:buzz_dev@localhost:5432/buzz \
+  DATABASE_URL=postgres://maju:maju_dev@localhost:5432/maju \
   REDIS_URL=redis://localhost:6379 \
   RELAY_URL=ws://localhost:3000 \
-  BUZZ_BIND_ADDR=0.0.0.0:3000 \
-  BUZZ_REQUIRE_AUTH_TOKEN=false \
-  BUZZ_RECONCILE_CHANNELS=true \
-  BUZZ_GIT_PROBE_WRITERS=8 \
-  "./target/${CARGO_PROFILE}/buzz-relay" > /tmp/buzz-relay.log 2>&1 &
-echo $! > /tmp/buzz-relay.pid
+  MAJU_BIND_ADDR=0.0.0.0:3000 \
+  MAJU_REQUIRE_AUTH_TOKEN=false \
+  MAJU_RECONCILE_CHANNELS=true \
+  MAJU_GIT_PROBE_WRITERS=8 \
+  "./target/${CARGO_PROFILE}/maju-relay" > /tmp/maju-relay.log 2>&1 &
+echo $! > /tmp/maju-relay.pid
 
 # ── Poll readiness ───────────────────────────────────────────────────────────
 
 log "Waiting for relay readiness..."
 for attempt in $(seq 1 60); do
-  if ! kill -0 "$(cat /tmp/buzz-relay.pid)" 2>/dev/null; then
+  if ! kill -0 "$(cat /tmp/maju-relay.pid)" 2>/dev/null; then
     err "Relay process died"
-    cat /tmp/buzz-relay.log
+    cat /tmp/maju-relay.log
     exit 1
   fi
   status_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/_readiness || true)
@@ -181,5 +181,5 @@ for attempt in $(seq 1 60); do
 done
 
 err "Relay did not become ready within 60s"
-cat /tmp/buzz-relay.log
+cat /tmp/maju-relay.log
 exit 1

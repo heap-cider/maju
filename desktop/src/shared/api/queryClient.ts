@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 
-export function createBuzzQueryClient() {
+export function createMajuQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {

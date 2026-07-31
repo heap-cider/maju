@@ -7,7 +7,7 @@ const SHOTS = "test-results/agent-readiness";
 // An existing goose-runtime managed agent for the Edit-dialog shot.
 // Tyler's pubkey maps to gooseSurface in the mock bridge (runtimeId: "goose"),
 // which supports LLM provider selection — the edit dialog's provider/model
-// pickers render for it just as they do for buzz-agent.
+// pickers render for it just as they do for maju-agent.
 const EDIT_AGENT_PUBKEY = TEST_IDENTITIES.tyler.pubkey;
 
 /**
@@ -39,7 +39,7 @@ async function selectDropdownOption(
 }
 
 /**
- * Wait for the LLM provider field to become visible (buzz-agent
+ * Wait for the LLM provider field to become visible (maju-agent
  * auto-selected) then select the given provider option.
  */
 async function selectProvider(
@@ -65,8 +65,8 @@ async function setCustomModel(
     .poll(() =>
       page.evaluate(
         () =>
-          (window as Window & { __BUZZ_E2E_COMMANDS__?: string[] })
-            .__BUZZ_E2E_COMMANDS__ ?? [],
+          (window as Window & { __MAJU_E2E_COMMANDS__?: string[] })
+            .__MAJU_E2E_COMMANDS__ ?? [],
       ),
     )
     .toContain("discover_agent_models");
@@ -131,7 +131,7 @@ test.describe("agent readiness gate screenshots", () => {
 
   // Shot 01: inherited agent defaults are an explicit, valid choice. Provider and
   // model controls stay hidden until the user chooses to customize this agent.
-  test("01-create-buzzagent-uses-ai-defaults", async ({ page }) => {
+  test("01-create-majuagent-uses-ai-defaults", async ({ page }) => {
     await installMockBridge(page, {
       globalAgentConfig: {
         provider: "anthropic",
@@ -152,23 +152,23 @@ test.describe("agent readiness gate screenshots", () => {
     await settleAnimations(page);
 
     await page.getByRole("dialog").screenshot({
-      path: `${SHOTS}/01-create-buzzagent-uses-ai-defaults.png`,
+      path: `${SHOTS}/01-create-majuagent-uses-ai-defaults.png`,
     });
   });
 
   // Shot 02: customized Anthropic configuration uses Automatic model instead
   // of presenting an obsolete model-required error.
-  test("02-create-buzzagent-automatic-model", async ({ page }) => {
+  test("02-create-majuagent-automatic-model", async ({ page }) => {
     await installMockBridge(page);
     await openCreateDialog(page);
-    await selectProvider(page, "Buzz shared compute");
+    await selectProvider(page, "Maju shared compute");
 
     await expect(page.locator("#persona-model")).toContainText("Automatic");
     await expect(page.getByTestId("persona-dialog-submit")).toBeEnabled();
     await settleAnimations(page);
 
     await page.getByRole("dialog").screenshot({
-      path: `${SHOTS}/02-create-buzzagent-automatic-model.png`,
+      path: `${SHOTS}/02-create-majuagent-automatic-model.png`,
     });
   });
 
@@ -191,8 +191,8 @@ test.describe("agent readiness gate screenshots", () => {
     const createCountBefore = await page.evaluate(
       () =>
         (
-          window as Window & { __BUZZ_E2E_COMMANDS__?: string[] }
-        ).__BUZZ_E2E_COMMANDS__?.filter(
+          window as Window & { __MAJU_E2E_COMMANDS__?: string[] }
+        ).__MAJU_E2E_COMMANDS__?.filter(
           (command) => command === "create_persona",
         ).length ?? 0,
     );
@@ -204,8 +204,8 @@ test.describe("agent readiness gate screenshots", () => {
         page.evaluate(
           () =>
             (
-              window as Window & { __BUZZ_E2E_COMMANDS__?: string[] }
-            ).__BUZZ_E2E_COMMANDS__?.filter(
+              window as Window & { __MAJU_E2E_COMMANDS__?: string[] }
+            ).__MAJU_E2E_COMMANDS__?.filter(
               (command) => command === "create_persona",
             ).length ?? 0,
         ),
@@ -232,16 +232,16 @@ test.describe("agent readiness gate screenshots", () => {
     await installMockBridge(page, {
       acpRuntimesCatalog: [
         {
-          id: "buzz-agent",
-          label: "Buzz Agent",
+          id: "maju-agent",
+          label: "Maju Agent",
           avatar_url: "",
           availability: "available",
-          command: "buzz-agent",
-          binary_path: "/usr/local/bin/buzz-agent",
+          command: "maju-agent",
+          binary_path: "/usr/local/bin/maju-agent",
           default_args: [],
-          mcp_command: "buzz-dev-mcp",
-          install_hint: "Ships with the Buzz desktop app.",
-          install_instructions_url: "https://github.com/block/buzz",
+          mcp_command: "maju-dev-mcp",
+          install_hint: "Ships with the Maju desktop app.",
+          install_instructions_url: "https://github.com/heap-cider/maju",
           can_auto_install: false,
           underlying_cli_path: null,
         },
@@ -266,7 +266,7 @@ test.describe("agent readiness gate screenshots", () => {
     await openCreateDialog(page);
     await page.getByRole("tab", { name: "Customize for this agent" }).click();
 
-    // Switch the auto-selected buzz-agent runtime to Claude Code.
+    // Switch the auto-selected maju-agent runtime to Claude Code.
     await selectDropdownOption(
       page,
       page.locator("#persona-runtime"),
@@ -311,7 +311,7 @@ test.describe("agent readiness gate screenshots", () => {
     });
   });
 
-  // Shot 08: goose runtime, provider empty + no global → save BLOCKED (same rule as buzz-agent).
+  // Shot 08: goose runtime, provider empty + no global → save BLOCKED (same rule as maju-agent).
   test("08-create-goose-empty-provider-marker", async ({ page }) => {
     await installMockBridge(page);
     await openCreateDialog(page);

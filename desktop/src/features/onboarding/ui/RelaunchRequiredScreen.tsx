@@ -4,8 +4,8 @@ export function RelaunchRequiredScreen() {
   return (
     <RecoveryScreen
       testId="relaunch-required"
-      title="Restart Buzz to finish recovery"
-      body="Your identity was updated. Buzz needs to restart so syncing and agents run under it."
+      title="Restart Maju to finish recovery"
+      body="Your identity was updated. Maju needs to restart so syncing and agents run under it."
     />
   );
 }

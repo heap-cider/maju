@@ -90,11 +90,11 @@ fn merged_env_strips_reserved_keys_from_persona() {
     // persona data (e.g. older record from before validation existed),
     // it must be stripped before reaching the child process.
     let persona = map(&[
-        ("BUZZ_PRIVATE_KEY", "nsec1evil"),
+        ("MAJU_PRIVATE_KEY", "nsec1evil"),
         ("ANTHROPIC_API_KEY", "ok"),
     ]);
     let merged = merged_user_env(&persona, &BTreeMap::new());
-    assert!(!merged.contains_key("BUZZ_PRIVATE_KEY"));
+    assert!(!merged.contains_key("MAJU_PRIVATE_KEY"));
     assert_eq!(
         merged.get("ANTHROPIC_API_KEY").map(String::as_str),
         Some("ok")
@@ -105,12 +105,12 @@ fn merged_env_strips_reserved_keys_from_persona() {
 fn merged_env_strips_reserved_keys_from_agent() {
     let agent = map(&[
         ("NOSTR_PRIVATE_KEY", "nsec1evil"),
-        ("BUZZ_AUTH_TAG", "{}"),
+        ("MAJU_AUTH_TAG", "{}"),
         ("FOO", "1"),
     ]);
     let merged = merged_user_env(&BTreeMap::new(), &agent);
     assert!(!merged.contains_key("NOSTR_PRIVATE_KEY"));
-    assert!(!merged.contains_key("BUZZ_AUTH_TAG"));
+    assert!(!merged.contains_key("MAJU_AUTH_TAG"));
     assert_eq!(merged.get("FOO").map(String::as_str), Some("1"));
     assert_eq!(merged.len(), 1);
 }
@@ -118,9 +118,9 @@ fn merged_env_strips_reserved_keys_from_agent() {
 #[test]
 fn merged_env_strips_reserved_case_insensitive() {
     // Unix env vars are case-sensitive at the syscall level, but we
-    // refuse close-typo variants too — a lowercase `buzz_private_key`
+    // refuse close-typo variants too — a lowercase `maju_private_key`
     // is almost certainly a footgun, not a legitimate use.
-    let agent = map(&[("buzz_private_key", "x"), ("Buzz_Auth_Tag", "y")]);
+    let agent = map(&[("maju_private_key", "x"), ("Maju_Auth_Tag", "y")]);
     let merged = merged_user_env(&BTreeMap::new(), &agent);
     assert!(merged.is_empty());
 }
@@ -132,15 +132,15 @@ fn is_reserved_recognises_full_list() {
     }
     assert!(!is_reserved_env_key("GOOSE_MODE"));
     assert!(!is_reserved_env_key("ANTHROPIC_API_KEY"));
-    assert!(!is_reserved_env_key("BUZZ_ACP_MODEL")); // behavior knob
+    assert!(!is_reserved_env_key("MAJU_ACP_MODEL")); // behavior knob
 }
 
 #[test]
 fn reserved_keys_include_agent_owner_for_legacy_records() {
-    // Legacy records without auth_tag fall back to BUZZ_ACP_AGENT_OWNER
+    // Legacy records without auth_tag fall back to MAJU_ACP_AGENT_OWNER
     // to enforce the respond-to gate. Must not be user-overridable.
-    assert!(is_reserved_env_key("BUZZ_ACP_AGENT_OWNER"));
-    let agent = map(&[("BUZZ_ACP_AGENT_OWNER", "imposter")]);
+    assert!(is_reserved_env_key("MAJU_ACP_AGENT_OWNER"));
+    let agent = map(&[("MAJU_ACP_AGENT_OWNER", "imposter")]);
     let merged = merged_user_env(&BTreeMap::new(), &agent);
     assert!(merged.is_empty());
 }
@@ -150,7 +150,7 @@ fn reserved_keys_include_respond_to_gate() {
     // Respond-to mode + allowlist control who the agent answers.
     // Overriding via env_vars would let the running agent answer
     // anyone even when the UI/record says owner-only.
-    for key in ["BUZZ_ACP_RESPOND_TO", "BUZZ_ACP_RESPOND_TO_ALLOWLIST"] {
+    for key in ["MAJU_ACP_RESPOND_TO", "MAJU_ACP_RESPOND_TO_ALLOWLIST"] {
         assert!(is_reserved_env_key(key), "{key} should be reserved");
         let agent = map(&[(key, "anyone")]);
         let merged = merged_user_env(&BTreeMap::new(), &agent);
@@ -160,12 +160,12 @@ fn reserved_keys_include_respond_to_gate() {
 
 #[test]
 fn reserved_keys_include_code_execution_surface() {
-    // The agent/MCP command + args are what Buzz actually exec's.
+    // The agent/MCP command + args are what Maju actually exec's.
     // Overriding lets the user run arbitrary code as the agent.
     for key in [
-        "BUZZ_ACP_AGENT_COMMAND",
-        "BUZZ_ACP_AGENT_ARGS",
-        "BUZZ_ACP_MCP_COMMAND",
+        "MAJU_ACP_AGENT_COMMAND",
+        "MAJU_ACP_AGENT_ARGS",
+        "MAJU_ACP_MCP_COMMAND",
     ] {
         assert!(is_reserved_env_key(key), "{key} should be reserved");
     }
@@ -175,8 +175,8 @@ fn reserved_keys_include_code_execution_surface() {
 fn reserved_keys_include_relay_url() {
     // Overriding the relay URL could redirect the agent to an
     // attacker-controlled relay.
-    assert!(is_reserved_env_key("BUZZ_RELAY_URL"));
-    let agent = map(&[("BUZZ_RELAY_URL", "ws://attacker.example")]);
+    assert!(is_reserved_env_key("MAJU_RELAY_URL"));
+    let agent = map(&[("MAJU_RELAY_URL", "ws://attacker.example")]);
     let merged = merged_user_env(&BTreeMap::new(), &agent);
     assert!(merged.is_empty());
 }
@@ -191,21 +191,21 @@ fn validate_keys_accepts_normal_env() {
 
 #[test]
 fn validate_keys_rejects_reserved() {
-    let env = map(&[("BUZZ_PRIVATE_KEY", "nsec1evil")]);
+    let env = map(&[("MAJU_PRIVATE_KEY", "nsec1evil")]);
     let err = validate_user_env_keys(&env).unwrap_err();
-    assert!(err.contains("BUZZ_PRIVATE_KEY"), "got: {err}");
+    assert!(err.contains("MAJU_PRIVATE_KEY"), "got: {err}");
     assert!(err.contains("reserved"), "got: {err}");
 }
 
 #[test]
 fn validate_keys_lists_all_reserved_keys_found() {
     let env = map(&[
-        ("BUZZ_PRIVATE_KEY", "x"),
+        ("MAJU_PRIVATE_KEY", "x"),
         ("NOSTR_PRIVATE_KEY", "y"),
         ("ANTHROPIC_API_KEY", "ok"),
     ]);
     let err = validate_user_env_keys(&env).unwrap_err();
-    assert!(err.contains("BUZZ_PRIVATE_KEY"));
+    assert!(err.contains("MAJU_PRIVATE_KEY"));
     assert!(err.contains("NOSTR_PRIVATE_KEY"));
 }
 
@@ -227,8 +227,8 @@ fn validate_keys_accepts_empty_map() {
 // Rust's `Command::env(k, v)` will accept a key containing `=` and
 // pass it straight into the child's environ block, where
 // `getenv("PREFIX")` matches anything after the first `=`. Concretely:
-// `c.env("BUZZ_AUTH_TAG=x", "forged")` results in the child seeing
-// `BUZZ_AUTH_TAG=x=forged` and `getenv("BUZZ_AUTH_TAG") == "x=forged"`.
+// `c.env("MAJU_AUTH_TAG=x", "forged")` results in the child seeing
+// `MAJU_AUTH_TAG=x=forged` and `getenv("MAJU_AUTH_TAG") == "x=forged"`.
 // That bypasses our reserved-key check, which compares strings.
 // These tests pin the fix at the validator boundary.
 
@@ -251,8 +251,8 @@ fn is_well_formed_rejects_malformed_keys() {
     for key in [
         "",                  // empty
         "=",                 // bare equals
-        "BUZZ_AUTH_TAG=x",   // =-in-key bypass
-        "BUZZ_PRIVATE_KEY=", // trailing equals
+        "MAJU_AUTH_TAG=x",   // =-in-key bypass
+        "MAJU_PRIVATE_KEY=", // trailing equals
         "FOO BAR",           // space
         " FOO",              // leading whitespace
         "FOO\nBAR",          // newline
@@ -269,15 +269,15 @@ fn is_well_formed_rejects_malformed_keys() {
 
 #[test]
 fn validate_keys_rejects_equals_in_key_bypass() {
-    // The actual exploit: `BUZZ_AUTH_TAG=x` smuggles a value past
+    // The actual exploit: `MAJU_AUTH_TAG=x` smuggles a value past
     // the reserved-key string compare and into the child's environ.
-    let env = map(&[("BUZZ_AUTH_TAG=x", "forged")]);
+    let env = map(&[("MAJU_AUTH_TAG=x", "forged")]);
     let err = validate_user_env_keys(&env).unwrap_err();
     assert!(err.contains("[A-Za-z_]"), "got: {err}");
     // After P2 fix the key is truncated at `=` in the error to avoid
     // surfacing pasted secrets — only the prefix should appear, with an
     // ellipsis marking that we elided trailing content.
-    assert!(err.contains("BUZZ_AUTH_TAG"), "got: {err}");
+    assert!(err.contains("MAJU_AUTH_TAG"), "got: {err}");
     assert!(err.contains('…'), "expected ellipsis marker: {err}");
     assert!(!err.contains("=x"), "leak of value past `=`: {err}");
 }
@@ -295,7 +295,7 @@ fn validate_keys_reports_malformed_before_reserved() {
     // the way that other key is reserved" — they've got a typo to fix
     // first. Ordering is a UX detail but pinning it stops the message
     // from churning.
-    let env = map(&[("BUZZ_AUTH_TAG=x", "v"), ("BUZZ_PRIVATE_KEY", "v")]);
+    let env = map(&[("MAJU_AUTH_TAG=x", "v"), ("MAJU_PRIVATE_KEY", "v")]);
     let err = validate_user_env_keys(&env).unwrap_err();
     assert!(err.contains("[A-Za-z_]"), "got: {err}");
     assert!(!err.contains("reserved"), "got: {err}");
@@ -306,12 +306,12 @@ fn merged_env_drops_malformed_keys() {
     // Defense in depth: on-disk records written before the validator
     // tightened must not be able to smuggle reserved keys through.
     let agent = map(&[
-        ("BUZZ_AUTH_TAG=x", "forged"),
+        ("MAJU_AUTH_TAG=x", "forged"),
         ("FOO=bar", "v"),
         ("LEGIT", "ok"),
     ]);
     let merged = merged_user_env(&BTreeMap::new(), &agent);
-    assert!(!merged.contains_key("BUZZ_AUTH_TAG=x"));
+    assert!(!merged.contains_key("MAJU_AUTH_TAG=x"));
     assert!(!merged.contains_key("FOO=bar"));
     assert_eq!(merged.get("LEGIT").map(String::as_str), Some("ok"));
     assert_eq!(merged.len(), 1);
@@ -419,7 +419,7 @@ fn merged_env_drops_oversize_value() {
 // ── derived provider/model key filter ──────────────────────────────
 //
 // Pack import must strip derived env keys (GOOSE_MODEL, GOOSE_PROVIDER,
-// BUZZ_AGENT_MODEL, BUZZ_AGENT_PROVIDER) so they don't shadow the
+// MAJU_AGENT_MODEL, MAJU_AGENT_PROVIDER) so they don't shadow the
 // structured AgentDefinition.model / AgentDefinition.provider fields after
 // the user edits them in the UI.
 
@@ -437,8 +437,8 @@ fn is_derived_key_matches_all_known_keys() {
 fn is_derived_key_is_case_insensitive() {
     assert!(is_derived_provider_model_key("goose_model"));
     assert!(is_derived_provider_model_key("Goose_Provider"));
-    assert!(is_derived_provider_model_key("buzz_agent_model"));
-    assert!(is_derived_provider_model_key("BUZZ_AGENT_PROVIDER"));
+    assert!(is_derived_provider_model_key("maju_agent_model"));
+    assert!(is_derived_provider_model_key("MAJU_AGENT_PROVIDER"));
 }
 
 #[test]
@@ -446,7 +446,7 @@ fn is_derived_key_does_not_match_unrelated_keys() {
     assert!(!is_derived_provider_model_key("GOOSE_TEMPERATURE"));
     assert!(!is_derived_provider_model_key("GOOSE_CONTEXT_LIMIT"));
     assert!(!is_derived_provider_model_key("ANTHROPIC_API_KEY"));
-    assert!(!is_derived_provider_model_key("BUZZ_PRIVATE_KEY"));
+    assert!(!is_derived_provider_model_key("MAJU_PRIVATE_KEY"));
     assert!(!is_derived_provider_model_key("MODEL"));
     assert!(!is_derived_provider_model_key("PROVIDER"));
 }

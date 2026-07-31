@@ -25,8 +25,8 @@ async function seedCommunities(
 ) {
   await page.addInitScript(
     ({ list, active }) => {
-      window.localStorage.setItem("buzz-communities", JSON.stringify(list));
-      window.localStorage.setItem("buzz-active-community-id", active);
+      window.localStorage.setItem("maju-communities", JSON.stringify(list));
+      window.localStorage.setItem("maju-active-community-id", active);
     },
     { list: communities, active: activeId },
   );
@@ -96,7 +96,7 @@ test.describe("community rail", () => {
     await expect
       .poll(() =>
         page.evaluate(() =>
-          window.localStorage.getItem("buzz-active-community-id"),
+          window.localStorage.getItem("maju-active-community-id"),
         ),
       )
       .toBe(COMMUNITY_B.id);
@@ -268,7 +268,7 @@ test.describe("community rail", () => {
     await expect
       .poll(() =>
         page.evaluate(() => {
-          return (window.__BUZZ_E2E_COMMAND_LOG__ ?? []).findLast(
+          return (window.__MAJU_E2E_COMMAND_LOG__ ?? []).findLast(
             (entry) => entry.command === "copy_text_to_clipboard",
           )?.payload;
         }),
@@ -295,7 +295,7 @@ test.describe("community rail", () => {
     await expect
       .poll(() =>
         page.evaluate(() =>
-          window.localStorage.getItem("buzz-active-community-id"),
+          window.localStorage.getItem("maju-active-community-id"),
         ),
       )
       .toBe(COMMUNITY_B.id);
@@ -342,7 +342,7 @@ test.describe("community rail", () => {
     await expect(page.getByTestId("app-sidebar")).toBeVisible();
     const rememberedChannelId = await page.evaluate((communityId) => {
       const source = window.localStorage.getItem(
-        "buzz-channels.v1:ws://localhost:3000",
+        "maju-channels.v1:ws://localhost:3000",
       );
       if (!source) throw new Error("missing source channel snapshot");
       const snapshot = JSON.parse(source) as {
@@ -353,11 +353,11 @@ test.describe("community rail", () => {
       );
       if (!generalChannel) throw new Error("missing general channel snapshot");
       window.localStorage.setItem(
-        "buzz-channels.v1:ws://localhost:3001",
+        "maju-channels.v1:ws://localhost:3001",
         source,
       );
       window.localStorage.setItem(
-        "buzz-community-destinations",
+        "maju-community-destinations",
         JSON.stringify({
           [communityId]: {
             kind: "channel",
@@ -370,13 +370,13 @@ test.describe("community rail", () => {
 
     await page.evaluate(() => {
       const testWindow = window as typeof window & {
-        __BUZZ_E2E__?: { mock?: { channelsReadDelayMs?: number } };
+        __MAJU_E2E__?: { mock?: { channelsReadDelayMs?: number } };
       };
-      if (!testWindow.__BUZZ_E2E__) {
+      if (!testWindow.__MAJU_E2E__) {
         throw new Error("missing E2E config");
       }
-      testWindow.__BUZZ_E2E__.mock = {
-        ...testWindow.__BUZZ_E2E__.mock,
+      testWindow.__MAJU_E2E__.mock = {
+        ...testWindow.__MAJU_E2E__.mock,
         channelsReadDelayMs: 800,
       };
     });
@@ -398,7 +398,7 @@ test.describe("community rail", () => {
     await seedCommunities(page, [COMMUNITY_A, COMMUNITY_B], COMMUNITY_A.id);
     await page.addInitScript((communityId) => {
       window.localStorage.setItem(
-        "buzz-community-destinations",
+        "maju-community-destinations",
         JSON.stringify({
           [communityId]: { kind: "channel", channelId: "missing-channel" },
         }),
@@ -409,13 +409,13 @@ test.describe("community rail", () => {
     await expect
       .poll(() =>
         page.evaluate(() =>
-          window.localStorage.getItem("buzz-channels.v1:ws://localhost:3000"),
+          window.localStorage.getItem("maju-channels.v1:ws://localhost:3000"),
         ),
       )
       .not.toBeNull();
     await page.evaluate(() => {
       const source = window.localStorage.getItem(
-        "buzz-channels.v1:ws://localhost:3000",
+        "maju-channels.v1:ws://localhost:3000",
       );
       if (!source) throw new Error("missing source channel snapshot");
       const snapshot = JSON.parse(source);
@@ -424,7 +424,7 @@ test.describe("community rail", () => {
           index === 0 ? { ...channel, id: "missing-channel" } : channel,
       );
       window.localStorage.setItem(
-        "buzz-channels.v1:ws://localhost:3001",
+        "maju-channels.v1:ws://localhost:3001",
         JSON.stringify(snapshot),
       );
     });
@@ -435,7 +435,7 @@ test.describe("community rail", () => {
       .poll(() =>
         page.evaluate((communityId) => {
           const raw = window.localStorage.getItem(
-            "buzz-community-destinations",
+            "maju-community-destinations",
           );
           if (!raw) return null;
           return JSON.parse(raw)[communityId];
@@ -458,7 +458,7 @@ test.describe("community rail", () => {
     await seedCommunities(page, [COMMUNITY_A, COMMUNITY_B], COMMUNITY_A.id);
     await page.addInitScript((communityId) => {
       window.localStorage.setItem(
-        "buzz-community-destinations",
+        "maju-community-destinations",
         JSON.stringify({
           [communityId]: { kind: "channel", channelId: "general" },
         }),
@@ -469,13 +469,13 @@ test.describe("community rail", () => {
     await expect
       .poll(() =>
         page.evaluate(() =>
-          window.localStorage.getItem("buzz-channels.v1:ws://localhost:3000"),
+          window.localStorage.getItem("maju-channels.v1:ws://localhost:3000"),
         ),
       )
       .not.toBeNull();
     await page.evaluate(() => {
       const source = window.localStorage.getItem(
-        "buzz-channels.v1:ws://localhost:3000",
+        "maju-channels.v1:ws://localhost:3000",
       );
       if (!source) throw new Error("missing source channel snapshot");
       const snapshot = JSON.parse(source);
@@ -483,7 +483,7 @@ test.describe("community rail", () => {
         (channel: { id: string }) => channel.id !== "general",
       );
       window.localStorage.setItem(
-        "buzz-channels.v1:ws://localhost:3001",
+        "maju-channels.v1:ws://localhost:3001",
         JSON.stringify(snapshot),
       );
     });
@@ -494,7 +494,7 @@ test.describe("community rail", () => {
       .poll(() =>
         page.evaluate((communityId) => {
           const raw = window.localStorage.getItem(
-            "buzz-community-destinations",
+            "maju-community-destinations",
           );
           return raw ? JSON.parse(raw)[communityId] : null;
         }, COMMUNITY_B.id),
@@ -505,7 +505,7 @@ test.describe("community rail", () => {
       .poll(() =>
         page.evaluate((communityId) => {
           const raw = window.localStorage.getItem(
-            "buzz-community-destinations",
+            "maju-community-destinations",
           );
           return raw ? JSON.parse(raw)[communityId] : null;
         }, COMMUNITY_B.id),
@@ -517,7 +517,7 @@ test.describe("community rail", () => {
       .poll(() =>
         page.evaluate((communityId) => {
           const raw = window.localStorage.getItem(
-            "buzz-community-destinations",
+            "maju-community-destinations",
           );
           return raw ? JSON.parse(raw)[communityId] : null;
         }, COMMUNITY_B.id),
@@ -532,7 +532,7 @@ test.describe("community rail", () => {
     await seedCommunities(page, [COMMUNITY_A, COMMUNITY_B], COMMUNITY_A.id);
     await page.addInitScript((communityId) => {
       window.localStorage.setItem(
-        "buzz-community-destinations",
+        "maju-community-destinations",
         JSON.stringify({
           [communityId]: { kind: "channel", channelId: "general" },
         }),
@@ -567,7 +567,7 @@ test.describe("community rail", () => {
     await expect
       .poll(() =>
         page.evaluate(() =>
-          window.localStorage.getItem("buzz-active-community-id"),
+          window.localStorage.getItem("maju-active-community-id"),
         ),
       )
       .toBe(COMMUNITY_B.id);
@@ -663,10 +663,10 @@ test.describe("community rail", () => {
     const railBox = await page.getByTestId("community-rail").boundingBox();
     const searchBox = await page.getByTestId("open-search").boundingBox();
     const appSurfaceBox = await page
-      .locator(".buzz-huddle-app-surface")
+      .locator(".maju-huddle-app-surface")
       .boundingBox();
     const contentBox = await page
-      .locator("[data-buzz-content-surface]")
+      .locator("[data-maju-content-surface]")
       .first()
       .boundingBox();
     expect(buttonBox).not.toBeNull();
@@ -718,11 +718,11 @@ test.describe("community rail", () => {
     // Seed only if not already set so the persisted order survives page.reload().
     await page.addInitScript(
       ({ list, active }) => {
-        if (!window.localStorage.getItem("buzz-communities")) {
-          window.localStorage.setItem("buzz-communities", JSON.stringify(list));
+        if (!window.localStorage.getItem("maju-communities")) {
+          window.localStorage.setItem("maju-communities", JSON.stringify(list));
         }
-        if (!window.localStorage.getItem("buzz-active-community-id")) {
-          window.localStorage.setItem("buzz-active-community-id", active);
+        if (!window.localStorage.getItem("maju-active-community-id")) {
+          window.localStorage.setItem("maju-active-community-id", active);
         }
       },
       { list: [COMMUNITY_A, COMMUNITY_B], active: COMMUNITY_A.id },
@@ -755,7 +755,7 @@ test.describe("community rail", () => {
     await expect
       .poll(() =>
         page.evaluate(() => {
-          const raw = window.localStorage.getItem("buzz-communities");
+          const raw = window.localStorage.getItem("maju-communities");
           if (!raw) return null;
           const list = JSON.parse(raw) as Array<{ id: string }>;
           return list.map((c) => c.id);
@@ -779,7 +779,7 @@ test.describe("community rail", () => {
 
     // Storage must still be [B, A] after reload.
     const storedOrder = await page.evaluate(() => {
-      const raw = window.localStorage.getItem("buzz-communities");
+      const raw = window.localStorage.getItem("maju-communities");
       if (!raw) return null;
       const list = JSON.parse(raw) as Array<{ id: string }>;
       return list.map((c) => c.id);
@@ -846,7 +846,7 @@ test.describe("community rail", () => {
     await expect
       .poll(() =>
         page.evaluate(() => {
-          const raw = window.localStorage.getItem("buzz-communities");
+          const raw = window.localStorage.getItem("maju-communities");
           if (!raw) return null;
           const list = JSON.parse(raw) as Array<{ id: string }>;
           return list.map((c) => c.id);

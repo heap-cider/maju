@@ -1,7 +1,7 @@
 /**
  * First-run seeding for agent-turn-metric archive.
  *
- * When an internal build has `BUZZ_BUILD_AGENT_METRIC_ARCHIVE_DEFAULT` set and
+ * When an internal build has `MAJU_BUILD_AGENT_METRIC_ARCHIVE_DEFAULT` set and
  * the current identity has not yet made an explicit choice, this hook
  * auto-creates an `owner_p` save subscription including kind 44200 agent turn
  * metrics, scoped to the current identity's pubkey.

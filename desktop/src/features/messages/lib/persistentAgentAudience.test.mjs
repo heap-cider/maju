@@ -14,7 +14,7 @@ const agentB = "b".repeat(64);
 const agentC = "c".repeat(64);
 const ownerA = "1".repeat(64);
 const ownerB = "2".repeat(64);
-const storageKey = "buzz:persistent-agent-audiences:v2";
+const storageKey = "maju:persistent-agent-audiences:v2";
 
 let loadSequence = 0;
 

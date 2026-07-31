@@ -11,14 +11,14 @@
 --     with no tuple lock and no update; shared locks admit each other, so
 --     permanent-channel commits proceed concurrently.
 --   * Permanent->ephemeral (or TTL-change) transition (update_channel in
---     crates/buzz-db/src/channel.rs) takes the same key EXCLUSIVE before its
+--     crates/maju-db/src/channel.rs) takes the same key EXCLUSIVE before its
 --     UPDATE. Either the transition commits first and the event's read sees
 --     the TTL (and refreshes), or the event commits first and the
 --     transition's own deadline reset is later than anything the event would
 --     have written. No stale-NULL hole in either order.
 --   * Ephemeral channels still run the conditional UPDATE; their row updates
 --     serialize per channel, but only ephemeral channels pay that.
--- Lock key domain 'buzz_channel_ttl:' is distinct from 'buzz_push_gate:'
+-- Lock key domain 'maju_channel_ttl:' is distinct from 'maju_push_gate:'
 -- (migration 0023) and the audit/lease lock families. Lock order note: the
 -- deferred trigger acquires this key at COMMIT, after any push-gate shared
 -- lock taken during insert; no path acquires both domains exclusively.
@@ -31,7 +31,7 @@ BEGIN
     IF NEW.channel_id IS NOT NULL AND NEW.kind <> 9007 THEN
         BEGIN
             PERFORM pg_advisory_xact_lock_shared(hashtextextended(
-                'buzz_channel_ttl:' || NEW.community_id::text || ':' || NEW.channel_id::text, 0));
+                'maju_channel_ttl:' || NEW.community_id::text || ':' || NEW.channel_id::text, 0));
 
             SELECT ttl_seconds INTO channel_ttl
             FROM channels

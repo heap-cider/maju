@@ -14,14 +14,14 @@ import 'deep_link.dart';
 /// Navigation cannot always happen the moment a link arrives — the user may
 /// not be authenticated yet, or channels may still be loading — so the parsed
 /// link is parked here and consumed by the dispatcher once the app is ready.
-class PendingDeepLinkNotifier extends Notifier<BuzzDeepLink?> {
+class PendingDeepLinkNotifier extends Notifier<MajuDeepLink?> {
   @visibleForTesting
   static Stream<Uri>? debugUriStreamOverride;
 
   StreamSubscription<Uri>? _subscription;
 
   @override
-  BuzzDeepLink? build() {
+  MajuDeepLink? build() {
     final stream = debugUriStreamOverride ?? AppLinks().uriLinkStream;
     _subscription = stream.listen(handleUri);
     ref.onDispose(() {
@@ -34,7 +34,7 @@ class PendingDeepLinkNotifier extends Notifier<BuzzDeepLink?> {
   /// Parse and park an incoming URI. Unsupported links are ignored loudly.
   @visibleForTesting
   void handleUri(Uri uri) {
-    final link = parseBuzzDeepLink(uri);
+    final link = parseMajuDeepLink(uri);
     if (link == null) {
       debugPrint('deep-link: ignoring unsupported link: $uri');
       return;
@@ -47,6 +47,6 @@ class PendingDeepLinkNotifier extends Notifier<BuzzDeepLink?> {
 }
 
 final pendingDeepLinkProvider =
-    NotifierProvider<PendingDeepLinkNotifier, BuzzDeepLink?>(
+    NotifierProvider<PendingDeepLinkNotifier, MajuDeepLink?>(
       PendingDeepLinkNotifier.new,
     );

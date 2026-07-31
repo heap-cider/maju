@@ -12,7 +12,7 @@ const RUNTIME_OVERRIDE_PUBKEY = TEST_IDENTITIES.outsider.pubkey;
 // (matches PUBKEY_MULTI_ORIGIN in e2eBridge buildMockConfigSurface).
 const MULTI_ORIGIN_PUBKEY =
   "abc1230000000000000000000000000000000000000000000000000000000def";
-const BUZZ_AGENT_PUBKEY =
+const MAJU_AGENT_PUBKEY =
   "b0220000000000000000000000000000000000000000000000000000000000a9";
 
 const MANAGED_AGENTS = [
@@ -46,11 +46,11 @@ async function waitForInvokeBridge(page: import("@playwright/test").Page) {
   await page.waitForFunction(
     () => {
       const tauriWindow = window as Window & {
-        __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: unknown;
+        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: unknown;
         __TAURI_INTERNALS__?: { invoke?: unknown };
       };
       return (
-        typeof tauriWindow.__BUZZ_E2E_INVOKE_MOCK_COMMAND__ === "function" ||
+        typeof tauriWindow.__MAJU_E2E_INVOKE_MOCK_COMMAND__ === "function" ||
         typeof tauriWindow.__TAURI_INTERNALS__?.invoke === "function"
       );
     },
@@ -68,7 +68,7 @@ async function invokeMockCommand(
   return page.evaluate(
     async ({ command: cmd, payload: pl }) => {
       const tauriWindow = window as Window & {
-        __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
           command: string,
           payload?: Record<string, unknown>,
         ) => Promise<unknown>;
@@ -80,7 +80,7 @@ async function invokeMockCommand(
         };
       };
       const invoke =
-        tauriWindow.__BUZZ_E2E_INVOKE_MOCK_COMMAND__ ??
+        tauriWindow.__MAJU_E2E_INVOKE_MOCK_COMMAND__ ??
         tauriWindow.__TAURI_INTERNALS__?.invoke;
       if (!invoke) throw new Error("Mock invoke bridge is unavailable.");
       return invoke(cmd, pl);
@@ -178,7 +178,7 @@ test.describe("config bridge screenshots", () => {
     const panel = await openAgentProfileFromChannel(page, "Goose Agent");
 
     // The folded config panel: provenance sentences inline under each value.
-    await expect(panel.getByText("Set in Buzz").first()).toBeVisible();
+    await expect(panel.getByText("Set in Maju").first()).toBeVisible();
     await settleAnimations(panel);
 
     await panel.screenshot({ path: `${SHOTS}/01-folded-config-panel.png` });
@@ -211,7 +211,7 @@ test.describe("config bridge screenshots", () => {
     const panel = await openAgentProfileFromChannel(page, "Multi-Origin Agent");
 
     // Multiple distinct provenance origins visible at once.
-    await expect(panel.getByText("Set in Buzz").first()).toBeVisible();
+    await expect(panel.getByText("Set in Maju").first()).toBeVisible();
     await expect(panel.getByText("Inherited from template")).toBeVisible();
     await expect(
       panel.getByText("From environment variable (GOOSE_MODE)"),
@@ -259,19 +259,19 @@ test.describe("config bridge screenshots", () => {
     await panel.screenshot({ path: `${SHOTS}/05-advanced-expanded.png` });
   });
 
-  test("06 — buzz-agent empty MCP servers", async ({ page }) => {
+  test("06 — maju-agent empty MCP servers", async ({ page }) => {
     await installMockBridge(page, {
       managedAgents: [
         {
-          pubkey: BUZZ_AGENT_PUBKEY,
-          name: "Buzz Agent",
+          pubkey: MAJU_AGENT_PUBKEY,
+          name: "Maju Agent",
           status: "running" as const,
           channelNames: ["agents"],
         },
       ],
     });
 
-    const panel = await openAgentProfileFromChannel(page, "Buzz Agent");
+    const panel = await openAgentProfileFromChannel(page, "Maju Agent");
 
     await expect(
       panel.getByText("No custom servers configured", { exact: true }),

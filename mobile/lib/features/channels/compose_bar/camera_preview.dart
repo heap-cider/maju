@@ -207,7 +207,7 @@ class _CameraPlaceholder extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(Grid.sm),
           child: isInitializing
-              ? const BuzzLoadingIndicator(
+              ? const MajuLoadingIndicator(
                   size: 44,
                   color: Colors.white,
                   semanticLabel: 'Starting camera',
@@ -313,7 +313,7 @@ String _cameraErrorMessage(Object error) {
     return switch (error.code) {
       'CameraAccessDenied' ||
       'CameraAccessDeniedWithoutPrompt' ||
-      'CameraAccessRestricted' => 'Camera access is turned off for Buzz.',
+      'CameraAccessRestricted' => 'Camera access is turned off for Maju.',
       'no-cameras' => 'Camera isn’t available on this device.',
       _ => 'Camera couldn’t start. Try again.',
     };

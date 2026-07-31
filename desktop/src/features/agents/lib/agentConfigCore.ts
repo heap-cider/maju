@@ -2,7 +2,7 @@ import type {
   AcpRuntimeCatalogEntry,
   GlobalAgentConfig,
 } from "@/shared/api/types";
-import { BUZZ_AGENT_THINKING_EFFORT } from "../ui/buzzAgentConfig";
+import { MAJU_AGENT_THINKING_EFFORT } from "../ui/majuAgentConfig";
 
 export type AgentConfigScope =
   | "onboarding"
@@ -57,7 +57,7 @@ export type AgentConfigFieldDescriptor =
   | {
       kind: "effort";
       optionSource:
-        | "buzzAgentCatalog"
+        | "majuAgentCatalog"
         | "legacyProviderModelCatalog"
         | "harnessNative";
       currentPersistence:
@@ -131,16 +131,16 @@ export function deriveAgentConfigFieldModel({
     fields.push({
       kind: "effort",
       optionSource:
-        runtime.id === "buzz-agent"
-          ? "buzzAgentCatalog"
+        runtime.id === "maju-agent"
+          ? "majuAgentCatalog"
           : "legacyProviderModelCatalog",
       currentPersistence: {
         kind: "envVar",
-        key: BUZZ_AGENT_THINKING_EFFORT,
+        key: MAJU_AGENT_THINKING_EFFORT,
       },
       targetApplication: { kind: "envVar", key: runtime.thinkingEnvVar },
       render: "control",
-      value: valueFromEnv(config, BUZZ_AGENT_THINKING_EFFORT),
+      value: valueFromEnv(config, MAJU_AGENT_THINKING_EFFORT),
     });
   } else if (runtime?.id === "claude") {
     fields.push({

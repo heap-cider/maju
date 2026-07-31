@@ -91,8 +91,8 @@ test("completing both gates invokes sign_out", async ({ page }) => {
       page.evaluate(
         () =>
           (
-            window as Window & { __BUZZ_E2E_COMMANDS__?: string[] }
-          ).__BUZZ_E2E_COMMANDS__?.includes("sign_out") ?? false,
+            window as Window & { __MAJU_E2E_COMMANDS__?: string[] }
+          ).__MAJU_E2E_COMMANDS__?.includes("sign_out") ?? false,
       ),
     )
     .toBe(true);

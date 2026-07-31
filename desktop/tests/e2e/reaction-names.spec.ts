@@ -26,7 +26,7 @@ test("reaction popover resolves a reactor with no authored message in the window
   await expect(page.getByTestId("chat-title")).toHaveText("general");
   await page.waitForFunction(
     () =>
-      window.__BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
+      window.__MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
         channelName: "general",
         kind: 7,
       }) === true,
@@ -34,7 +34,7 @@ test("reaction popover resolves a reactor with no authored message in the window
 
   await page.evaluate(
     ({ pubkey, targetId }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "general",
         content: "🎉",
         extraTags: [["e", targetId]],

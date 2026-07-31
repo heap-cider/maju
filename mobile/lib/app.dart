@@ -16,7 +16,7 @@ import 'shared/auth/auth.dart';
 import 'shared/deeplink/pending_deep_link_provider.dart';
 import 'shared/relay/relay.dart';
 import 'shared/theme/theme.dart';
-import 'shared/widgets/buzz_loading_indicator.dart';
+import 'shared/widgets/maju_loading_indicator.dart';
 
 class App extends HookConsumerWidget {
   const App({super.key});
@@ -38,11 +38,11 @@ class App extends HookConsumerWidget {
     // Derive the gradient from the themes that produced each color scheme.
     // This keeps fallbacks and pinned brightness changes aligned with the
     // rendered palette rather than the raw persisted selection.
-    final buzzLightGradient = buzzTopSectionGradient(
+    final majuLightGradient = majuTopSectionGradient(
       resolved.lightTheme?.name ?? '',
       lightScheme.brightness,
     );
-    final buzzDarkGradient = buzzTopSectionGradient(
+    final majuDarkGradient = majuTopSectionGradient(
       resolved.darkTheme?.name ?? '',
       darkScheme.brightness,
     );
@@ -56,7 +56,7 @@ class App extends HookConsumerWidget {
       ref.watch(userStatusCacheProvider);
     }
 
-    // Start listening for buzz:// links immediately (even pre-auth) so a
+    // Start listening for maju:// links immediately (even pre-auth) so a
     // cold-start link survives until the authenticated UI can dispatch it.
     ref.watch(pendingDeepLinkProvider);
 
@@ -79,14 +79,14 @@ class App extends HookConsumerWidget {
     });
 
     return MaterialApp(
-      title: 'Buzz',
+      title: 'Maju',
       theme: AppTheme.light(
         colorScheme: lightScheme,
-        topSectionGradient: buzzLightGradient,
+        topSectionGradient: majuLightGradient,
       ),
       darkTheme: AppTheme.dark(
         colorScheme: darkScheme,
-        topSectionGradient: buzzDarkGradient,
+        topSectionGradient: majuDarkGradient,
       ),
       themeMode: effectiveMode,
       home: authState.when(
@@ -116,7 +116,7 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(
-        child: BuzzLoadingIndicator(size: 56, semanticLabel: 'Starting Buzz'),
+        child: MajuLoadingIndicator(size: 56, semanticLabel: 'Starting Maju'),
       ),
     );
   }

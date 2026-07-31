@@ -1,4 +1,4 @@
-const STORAGE_KEY_PREFIX = "buzz-channel-mutes.v1";
+const STORAGE_KEY_PREFIX = "maju-channel-mutes.v1";
 
 export type ChannelMuteEntry = {
   muted: boolean;

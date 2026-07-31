@@ -19,7 +19,7 @@ const PRESENCE_HEARTBEAT_INTERVAL_MS = 30_000;
 const PRESENCE_STATUS_TICK_INTERVAL_MS = 30_000;
 const PRESENCE_ACTIVITY_THROTTLE_MS = 1_000;
 const PRESENCE_TTL_SECONDS = 90;
-const PRESENCE_PREFERENCE_STORAGE_KEY = "buzz-presence-preference";
+const PRESENCE_PREFERENCE_STORAGE_KEY = "maju-presence-preference";
 
 type PresencePreference = "auto" | "away" | "offline" | null;
 

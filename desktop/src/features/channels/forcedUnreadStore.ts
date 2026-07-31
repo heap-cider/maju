@@ -20,7 +20,7 @@
 /** channelId → NIP-RS read marker (unix seconds) at force-time, or null */
 export type ForcedUnreadMap = Record<string, number | null>;
 
-const STORAGE_PREFIX = "buzz-forced-unread.v1";
+const STORAGE_PREFIX = "maju-forced-unread.v1";
 const storageKey = (pubkey: string) => `${STORAGE_PREFIX}:${pubkey}`;
 
 export const forcedUnreadStore = {

@@ -75,13 +75,13 @@ export function channelCatchUpEventKinds(
     : CHANNEL_MESSAGE_EVENT_KINDS;
 }
 
-const participationStore = makeRootIdStore("buzz-thread-participation.v1");
-const authoredStore = makeRootIdStore("buzz-thread-authored.v1");
+const participationStore = makeRootIdStore("maju-thread-participation.v1");
+const authoredStore = makeRootIdStore("maju-thread-authored.v1");
 // Thread roots where an external message @-mentioned the current user. The
 // badge gate ORs this in so a mention recipient who never participated,
 // authored, or followed still gets the thread-unread badge.
-const mentionedStore = makeRootIdStore("buzz-thread-mentioned.v1");
-const mutedStore = makeRootIdStore("buzz-thread-muted.v1");
+const mentionedStore = makeRootIdStore("maju-thread-mentioned.v1");
+const mutedStore = makeRootIdStore("maju-thread-muted.v1");
 
 function parseTimestamp(value: string | null | undefined) {
   if (!value) {
@@ -191,7 +191,7 @@ export function useUnreadChannels(
   // makes the badge appear without lowering synced read state. Each entry
   // stores the channel's NIP-RS read marker (unix seconds) at force-time, or
   // null if no marker existed yet. Persisted to localStorage
-  // (buzz-forced-unread.v1) so it survives reload and is visible to the rail
+  // (maju-forced-unread.v1) so it survives reload and is visible to the rail
   // observer for inactive communities.
   const forcedUnreadRef = React.useRef<ForcedUnreadMap>(
     pubkey ? forcedUnreadStore.read(pubkey) : {},

@@ -55,7 +55,7 @@ final class InlinePhotoPickerPlatformView: NSObject, FlutterPlatformView {
   ) {
     containerView = UIView(frame: frame)
     channel = FlutterMethodChannel(
-      name: "buzz/inline_photo_picker/\(viewId)",
+      name: "maju/inline_photo_picker/\(viewId)",
       binaryMessenger: messenger
     )
     self.parentViewController = parentViewController

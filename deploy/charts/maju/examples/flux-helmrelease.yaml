@@ -1,0 +1,61 @@
+# Flux HelmRelease — GitOps-safe Maju install.
+#
+# Prerequisite: a Secret named `maju-secrets` in namespace `maju`. See
+# `secret-sample.yaml`. Flux renders the chart server-side via the
+# helm-controller, which (like ArgoCD) treats chart-side `randAlphaNum`
+# autogen as non-idempotent. `existingSecret` is the only safe path.
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: maju
+  namespace: maju
+spec:
+  type: oci
+  url: oci://ghcr.io/heap-cider/maju/charts
+  interval: 10m
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: maju
+  namespace: maju
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: maju
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: maju
+  values:
+    relayUrl: wss://maju.example.com
+    ownerPubkey: "0000000000000000000000000000000000000000000000000000000000000000"  # replace
+    replicaCount: 3
+
+    secrets:
+      existingSecret: maju-secrets
+
+
+    s3:
+      endpoint: "https://s3.us-east-1.amazonaws.com"
+      bucket: "maju-media"
+
+    persistence:
+      git:
+        enabled: true
+        accessMode: ReadWriteOnce      # RWO is fine at any replicaCount (object-store-backed git)
+        storageClass: ""               # any RWO class; no shared/RWX filesystem needed
+        size: 50Gi
+
+    ingress:
+      enabled: true
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      tls:
+        - hosts: [maju.example.com]
+          secretName: maju-tls

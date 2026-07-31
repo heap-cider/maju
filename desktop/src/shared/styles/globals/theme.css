@@ -47,22 +47,22 @@
     --sidebar-accent-foreground: 234 16.02% 35.49%;
     --sidebar-border: 225 13.56% 76.86%;
     --sidebar-ring: 225 13.56% 76.86%;
-    /* Exact Buzz palette tokens; components consume these semantically. */
-    --buzz-gradient-light-top: #e6e6b6;
-    --buzz-gradient-light-bottom: #c4d0da;
-    --buzz-gradient-dark-top: #4a4616;
-    --buzz-gradient-dark-bottom: #0a1423;
-    --buzz-content-dark: 0 0% 10.1960784314%;
+    /* Exact Maju palette tokens; components consume these semantically. */
+    --maju-gradient-light-top: #e6e6b6;
+    --maju-gradient-light-bottom: #c4d0da;
+    --maju-gradient-dark-top: #4a4616;
+    --maju-gradient-dark-bottom: #0a1423;
+    --maju-content-dark: 0 0% 10.1960784314%;
     /* Hosted-community onboarding intentionally keeps this light palette in
        both app themes; semantic tokens keep component code color-agnostic. */
-    --buzz-hosted-community-surface-fg: 23 23 23;
-    --buzz-hosted-community-divider-border: 150 150 10;
-    --buzz-hosted-community-action-bg: 240 240 205;
-    --buzz-hosted-community-action-bg-hover: 232 232 188;
-    --buzz-hosted-community-input-bg: 255 255 255;
-    --buzz-hosted-community-modal-action-fg: 255 255 255;
-    --buzz-hosted-community-modal-overlay-bg: 0 0 0;
-    --buzz-hosted-community-identity-bg: 255 255 255;
+    --maju-hosted-community-surface-fg: 23 23 23;
+    --maju-hosted-community-divider-border: 150 150 10;
+    --maju-hosted-community-action-bg: 240 240 205;
+    --maju-hosted-community-action-bg-hover: 232 232 188;
+    --maju-hosted-community-input-bg: 255 255 255;
+    --maju-hosted-community-modal-action-fg: 255 255 255;
+    --maju-hosted-community-modal-overlay-bg: 0 0 0;
+    --maju-hosted-community-identity-bg: 255 255 255;
   }
 
   .dark {
@@ -181,12 +181,12 @@
 }
 
 /*
- * Buzz theme - sidebar gradient.
+ * Maju theme - sidebar gradient.
  *
- * Buzz reuses the GitHub Light palette for every base color; its one
+ * Maju reuses the GitHub Light palette for every base color; its one
  * distinguishing feature is this gradient painted across the sidebar/nav
  * canvas, replacing GitHub Light's flat grey. ThemeProvider toggles the
- * `data-buzz-sidebar` attribute on <html> when the Buzz theme is active.
+ * `data-maju-sidebar` attribute on <html> when the Maju theme is active.
  *
  * These rules are intentionally UNLAYERED: the `bg-sidebar` background-color
  * lives in Tailwind's `utilities` layer, and unlayered declarations win over
@@ -200,178 +200,178 @@
  * paint because it lives outside the app surface.
  *
  * Small transient `bg-sidebar` chips inside the shell that are NOT canvas
- * surfaces (the drag-overlay pills) opt out via `[data-buzz-flat]` - a
+ * surfaces (the drag-overlay pills) opt out via `[data-maju-flat]` - a
  * floating chip should retain its own fill rather than becoming transparent
  * over the full-app gradient.
  *
  * Item hover/active states use `bg-sidebar-accent` / `bg-sidebar-active`
  * (distinct tokens) and are intentionally left untouched.
  */
-:root[data-buzz-sidebar] {
-  --buzz-gradient-top: var(--buzz-gradient-light-top);
-  --buzz-gradient-bottom: var(--buzz-gradient-light-bottom);
-  --buzz-muted-foreground: rgb(0 0 0 / 40%);
-  --buzz-search-surface: rgb(0 0 0 / 4%);
-  --buzz-chrome-foreground: rgb(0 0 0 / 50%);
-  --buzz-channel-fg: inherit;
-  --buzz-dm-fg: inherit;
-  --buzz-nav-fg: inherit;
-  --buzz-hover-surface: rgb(0 0 0 / 4%);
-  --buzz-sidebar-scrollbar-thumb: var(--buzz-hover-surface);
-  --buzz-active-fill: 0 0% 0%;
-  --buzz-active-surface: rgb(0 0 0 / 7%);
-  --buzz-active-foreground: var(--foreground);
+:root[data-maju-sidebar] {
+  --maju-gradient-top: var(--maju-gradient-light-top);
+  --maju-gradient-bottom: var(--maju-gradient-light-bottom);
+  --maju-muted-foreground: rgb(0 0 0 / 40%);
+  --maju-search-surface: rgb(0 0 0 / 4%);
+  --maju-chrome-foreground: rgb(0 0 0 / 50%);
+  --maju-channel-fg: inherit;
+  --maju-dm-fg: inherit;
+  --maju-nav-fg: inherit;
+  --maju-hover-surface: rgb(0 0 0 / 4%);
+  --maju-sidebar-scrollbar-thumb: var(--maju-hover-surface);
+  --maju-active-fill: 0 0% 0%;
+  --maju-active-surface: rgb(0 0 0 / 7%);
+  --maju-active-foreground: var(--foreground);
 }
 
 /*
- * Dark variant (Buzz Dark). Reuses the GitHub Dark base palette; only the
- * Buzz color tokens change, so every downstream rule (gradient fill, hover,
+ * Dark variant (Maju Dark). Reuses the GitHub Dark base palette; only the
+ * Maju color tokens change, so every downstream rule (gradient fill, hover,
  * search box, muted labels, active pill) adapts automatically. The `.dark`
  * class is set on the document root whenever a dark theme is active.
  */
-:root[data-buzz-sidebar].dark {
-  --buzz-gradient-top: var(--buzz-gradient-dark-top);
-  --buzz-gradient-bottom: var(--buzz-gradient-dark-bottom);
-  --buzz-muted-foreground: rgb(255 255 255 / 40%);
-  --buzz-search-surface: rgb(255 255 255 / 4%);
-  --buzz-chrome-foreground: rgb(255 255 255 / 50%);
-  --buzz-hover-surface: rgb(255 255 255 / 4%);
-  --buzz-active-fill: 0 0% 100%;
-  --buzz-active-surface: color-mix(
+:root[data-maju-sidebar].dark {
+  --maju-gradient-top: var(--maju-gradient-dark-top);
+  --maju-gradient-bottom: var(--maju-gradient-dark-bottom);
+  --maju-muted-foreground: rgb(255 255 255 / 40%);
+  --maju-search-surface: rgb(255 255 255 / 4%);
+  --maju-chrome-foreground: rgb(255 255 255 / 50%);
+  --maju-hover-surface: rgb(255 255 255 / 4%);
+  --maju-active-fill: 0 0% 100%;
+  --maju-active-surface: color-mix(
     in srgb,
-    hsl(var(--buzz-active-fill)) 16%,
+    hsl(var(--maju-active-fill)) 16%,
     transparent
   );
-  --buzz-active-foreground: 0 0% 100%;
+  --maju-active-foreground: 0 0% 100%;
 }
 
 /*
- * Use the Buzz primary color for the floating selection-formatting tray.
+ * Use the Maju primary color for the floating selection-formatting tray.
  * Other themes retain the standard popover treatment.
  */
-:root[data-buzz-sidebar] [data-buzz-selection-formatting-tray] {
+:root[data-maju-sidebar] [data-maju-selection-formatting-tray] {
   border-color: hsl(var(--primary-foreground) / 0.18);
   background-color: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
 }
 
-:root[data-buzz-sidebar] [data-buzz-selection-formatting-tray] button {
+:root[data-maju-sidebar] [data-maju-selection-formatting-tray] button {
   color: hsl(var(--primary-foreground));
 }
 
-:root[data-buzz-sidebar] [data-buzz-selection-formatting-tray] button:hover,
-:root[data-buzz-sidebar]
-  [data-buzz-selection-formatting-tray]
+:root[data-maju-sidebar] [data-maju-selection-formatting-tray] button:hover,
+:root[data-maju-sidebar]
+  [data-maju-selection-formatting-tray]
   button[aria-pressed="true"] {
   background-color: hsl(var(--primary-foreground) / 0.16);
   color: hsl(var(--primary-foreground));
 }
 
-/* Keep the subtle content-card lift in Buzz Light only. */
-:root[data-buzz-sidebar]:not(.dark) [data-buzz-content-surface] {
+/* Keep the subtle content-card lift in Maju Light only. */
+:root[data-maju-sidebar]:not(.dark) [data-maju-content-surface] {
   box-shadow:
     -1px -1px 0 0 hsl(var(--sidebar-border) / 0.45),
     0 0 4px 0 rgb(0 0 0 / 7%);
 }
 
 /* Let the content card's shadow feather into the surrounding gradient. */
-:root[data-buzz-sidebar]:not(.dark) [data-buzz-shadow-viewport] {
+:root[data-maju-sidebar]:not(.dark) [data-maju-shadow-viewport] {
   overflow: visible;
 }
 
 /*
- * Buzz Dark uses a warmer neutral for the inset main/settings content canvas.
+ * Maju Dark uses a warmer neutral for the inset main/settings content canvas.
  * Override `--background` locally as well as the surface fill so descendant
  * headers and panes using `bg-background` remain visually continuous.
  */
-:root[data-buzz-sidebar].dark [data-buzz-content-surface] {
-  --background: var(--buzz-content-dark);
+:root[data-maju-sidebar].dark [data-maju-content-surface] {
+  --background: var(--maju-content-dark);
   background-color: hsl(var(--background));
 }
 
-:root[data-buzz-sidebar] .buzz-huddle-app-surface {
+:root[data-maju-sidebar] .maju-huddle-app-surface {
   background-color: transparent;
   background-image: none;
   isolation: isolate;
 }
 
 /*
- * Keep both Buzz gradients painted and switch only which layer is visible.
+ * Keep both Maju gradients painted and switch only which layer is visible.
  * WKWebView can retain the old raster when `background-image` is replaced on
  * a translucent surface. The center content already follows `.dark`, so using
  * that same state for layer visibility keeps both surfaces in lockstep.
  */
-:root[data-buzz-sidebar] .buzz-theme-gradient-layer-light {
+:root[data-maju-sidebar] .maju-theme-gradient-layer-light {
   background-image: linear-gradient(
     to bottom,
-    var(--buzz-gradient-light-top),
-    var(--buzz-gradient-light-bottom)
+    var(--maju-gradient-light-top),
+    var(--maju-gradient-light-bottom)
   );
   background-size: 100vw 100vh;
   background-repeat: no-repeat;
 }
 
-:root[data-buzz-sidebar] .buzz-theme-gradient-layer-dark {
+:root[data-maju-sidebar] .maju-theme-gradient-layer-dark {
   background-image: linear-gradient(
     to bottom,
-    var(--buzz-gradient-dark-top),
-    var(--buzz-gradient-dark-bottom)
+    var(--maju-gradient-dark-top),
+    var(--maju-gradient-dark-bottom)
   );
   background-size: 100vw 100vh;
   background-repeat: no-repeat;
 }
 
-:root[data-buzz-sidebar]:not(.dark) .buzz-theme-gradient-layer-light,
-:root[data-buzz-sidebar].dark .buzz-theme-gradient-layer-dark {
+:root[data-maju-sidebar]:not(.dark) .maju-theme-gradient-layer-light,
+:root[data-maju-sidebar].dark .maju-theme-gradient-layer-dark {
   opacity: 1;
 }
 
 /* The mobile sidebar is portaled outside the app surface. */
-:root[data-buzz-sidebar]:not(.dark)
+:root[data-maju-sidebar]:not(.dark)
   [data-sidebar="sidebar"][data-mobile="true"].bg-sidebar {
   background-color: transparent;
   background-image: linear-gradient(
     to bottom,
-    var(--buzz-gradient-light-top),
-    var(--buzz-gradient-light-bottom)
+    var(--maju-gradient-light-top),
+    var(--maju-gradient-light-bottom)
   );
   background-size: 100vw 100vh;
   background-repeat: no-repeat;
 }
 
-:root[data-buzz-sidebar].dark
+:root[data-maju-sidebar].dark
   [data-sidebar="sidebar"][data-mobile="true"].bg-sidebar {
   background-color: transparent;
   background-image: linear-gradient(
     to bottom,
-    var(--buzz-gradient-dark-top),
-    var(--buzz-gradient-dark-bottom)
+    var(--maju-gradient-dark-top),
+    var(--maju-gradient-dark-bottom)
   );
   background-size: 100vw 100vh;
   background-repeat: no-repeat;
 }
 
 /* All in-shell chrome reveals the single gradient painted above. */
-:root[data-buzz-sidebar] .group\/sidebar-wrapper,
-:root[data-buzz-sidebar] [data-testid="app-sidebar"],
-:root[data-buzz-sidebar] [data-buzz-glass-inset],
-:root[data-buzz-sidebar] [data-buzz-glass-footer-wrap],
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar] .group\/sidebar-wrapper,
+:root[data-maju-sidebar] [data-testid="app-sidebar"],
+:root[data-maju-sidebar] [data-maju-glass-inset],
+:root[data-maju-sidebar] [data-maju-glass-footer-wrap],
+:root[data-maju-sidebar]
   .group\/sidebar-wrapper
-  .bg-sidebar:not([data-buzz-flat]),
-:root[data-buzz-sidebar] [data-testid="community-rail"].bg-sidebar,
-:root[data-buzz-sidebar]
+  .bg-sidebar:not([data-maju-flat]),
+:root[data-maju-sidebar] [data-testid="community-rail"].bg-sidebar,
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="sidebar-pinned-header"],
-:root[data-buzz-sidebar] [data-testid="app-sidebar"] [data-sidebar="footer"] {
+:root[data-maju-sidebar] [data-testid="app-sidebar"] [data-sidebar="footer"] {
   background-color: transparent;
   background-image: none;
 }
 
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="sidebar-pinned-header"]::before,
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-sidebar="footer"]::before {
   background: none;
@@ -381,7 +381,7 @@
  * Active nav item. The accent system (`applyAccentColor` in ThemeProvider)
  * sets `--sidebar-active` to the theme foreground as an INLINE style on
  * :root, which renders the selected page as a solid black pill under GitHub
- * Light. For the Buzz theme we want a subtle theme-specific tint instead.
+ * Light. For the Maju theme we want a subtle theme-specific tint instead.
  * Override the two active tokens on the sidebar element itself; element-local
  * custom properties win over the inherited inline values from :root. Text
  * uses the theme foreground, and the derived
@@ -391,34 +391,34 @@
  * `text-sidebar-active-foreground` tokens are also consumed by non-sidebar
  * controls (avatar edit buttons in ProfileSettingsCard / AgentCreationPreview,
  * the selected persona row in PersonaCatalogDialog). A root-level override
- * turned those white (white-on-white under Buzz Dark); scoping keeps them on
+ * turned those white (white-on-white under Maju Dark); scoping keeps them on
  * the normal accent-driven active colors.
  */
-:root[data-buzz-sidebar] [data-testid="app-sidebar"],
-:root[data-buzz-sidebar] [data-testid="settings-sidebar"] {
-  --sidebar-active: var(--buzz-active-fill);
-  --sidebar-active-foreground: var(--buzz-active-foreground);
+:root[data-maju-sidebar] [data-testid="app-sidebar"],
+:root[data-maju-sidebar] [data-testid="settings-sidebar"] {
+  --sidebar-active: var(--maju-active-fill);
+  --sidebar-active-foreground: var(--maju-active-foreground);
 }
 
 /*
  * Dark variant: keep the active-pill foreground white on the dark gradient.
  * (The pill itself is repainted to a translucent tint by the rule below.)
  */
-:root[data-buzz-sidebar].dark [data-testid="app-sidebar"],
-:root[data-buzz-sidebar].dark [data-testid="settings-sidebar"] {
-  --sidebar-active: var(--buzz-active-fill);
-  --sidebar-active-foreground: var(--buzz-active-foreground);
+:root[data-maju-sidebar].dark [data-testid="app-sidebar"],
+:root[data-maju-sidebar].dark [data-testid="settings-sidebar"] {
+  --sidebar-active: var(--maju-active-fill);
+  --sidebar-active-foreground: var(--maju-active-foreground);
 }
 
 /*
  * Active nav pill: use a subtle 7% black tint in light mode and drop the drop
- * shadow so the selection sits flat on the gradient (Buzz-only; other themes
+ * shadow so the selection sits flat on the gradient (Maju-only; other themes
  * keep `shadow-xs`). Higher specificity than the active utilities and
  * unlayered, so it wins.
  */
-:root[data-buzz-sidebar] [data-testid="app-sidebar"] [data-active="true"],
-:root[data-buzz-sidebar] [data-testid="settings-sidebar"] [data-active="true"] {
-  background-color: var(--buzz-active-surface);
+:root[data-maju-sidebar] [data-testid="app-sidebar"] [data-active="true"],
+:root[data-maju-sidebar] [data-testid="settings-sidebar"] [data-active="true"] {
+  background-color: var(--maju-active-surface);
   box-shadow: none;
 }
 
@@ -428,32 +428,32 @@
  * they retain the active surface. Covers both top-level menu buttons and
  * channel sub-buttons, in the app nav and the settings nav.
  */
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-sidebar="menu-button"]:not([data-active="true"]):hover,
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-sidebar="menu-sub-button"]:not([data-active="true"]):hover,
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="settings-sidebar"]
   [data-sidebar="menu-button"]:not([data-active="true"]):hover,
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="settings-sidebar"]
   [data-sidebar="menu-sub-button"]:not([data-active="true"]):hover {
-  background-color: var(--buzz-hover-surface);
+  background-color: var(--maju-hover-surface);
 }
 
 /*
  * Row actions such as the DM close button are siblings of the menu button.
  * Hovering them still activates the row's Tailwind `group-hover` treatment,
  * so cover the whole menu item to keep that sibling-hover path on the same
- * Buzz neutral surface instead of falling back to the legacy accent.
+ * Maju neutral surface instead of falling back to the legacy accent.
  */
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   :where([data-sidebar="menu-item"]:hover)
   > [data-sidebar="menu-button"]:not([data-active="true"]) {
-  background-color: var(--buzz-hover-surface);
+  background-color: var(--maju-hover-surface);
 }
 
 /*
@@ -461,74 +461,74 @@
  * `bg-sidebar-border/35` fill. Its label, shortcut, and magnifying glass share
  * the 40% muted foreground at rest and on hover/focus.
  */
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="open-search"],
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="open-search"]:hover,
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="open-search"]:focus-visible {
-  background-color: var(--buzz-search-surface);
-  color: var(--buzz-muted-foreground);
+  background-color: var(--maju-search-surface);
+  color: var(--maju-muted-foreground);
 }
 
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="open-search"]
   > * {
-  color: var(--buzz-muted-foreground);
+  color: var(--maju-muted-foreground);
 }
 
 /*
  * App and settings sidebar section headings plus secondary footer text use the
  * same tint. Navigation rows keep their normal foreground in both sidebars.
  */
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-sidebar="group-label"],
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="settings-sidebar"]
   [data-sidebar="group-label"],
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
-  [data-buzz-sidebar-secondary],
-:root[data-buzz-sidebar]
+  [data-maju-sidebar-secondary],
+:root[data-maju-sidebar]
   [data-testid="settings-sidebar"]
-  [data-buzz-sidebar-secondary] {
-  color: var(--buzz-muted-foreground);
+  [data-maju-sidebar-secondary] {
+  color: var(--maju-muted-foreground);
 }
 
 /* Sidebar toggle plus back/forward navigation controls in the top chrome. */
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-top-chrome"]
   :is(
     [data-sidebar="trigger"],
     [data-testid="global-back"],
     [data-testid="global-forward"]
   ) {
-  color: var(--buzz-chrome-foreground);
+  color: var(--maju-chrome-foreground);
 }
 
 /*
  * Section action buttons (the "+" and "..." at the right edge of each sidebar
  * section header): match the same translucent white fill (see
- * `--buzz-hover-surface`) on hover/focus instead of the grey
- * `bg-sidebar-border/35` fill. Unlayered + `[data-buzz-sidebar]` prefix beats
- * the Tailwind utility so it only applies under the Buzz theme.
+ * `--maju-hover-surface`) on hover/focus instead of the grey
+ * `bg-sidebar-border/35` fill. Unlayered + `[data-maju-sidebar]` prefix beats
+ * the Tailwind utility so it only applies under the Maju theme.
  */
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   .sidebar-section-action:hover,
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   .sidebar-section-action:focus-visible {
-  background-color: var(--buzz-hover-surface);
+  background-color: var(--maju-hover-surface);
 }
 
 /*
- * Per-row-type text colors (Buzz theme).
+ * Per-row-type text colors (Maju theme).
  *
  * By default the whole sidebar inherits a single `--sidebar-foreground`, so
  * channels, direct messages, and the Inbox/Agents nav rows all share one text
@@ -536,39 +536,39 @@
  * keeping the default value unchanged.
  *
  * Each var defaults to `inherit`, so with nothing set the sidebar looks
- * exactly as before. Scoped to the Buzz sidebar container so other themes are
+ * exactly as before. Scoped to the Maju sidebar container so other themes are
  * untouched.
  */
 /* Channels: rows live inside the `stream-list` / `starred-list` menus. */
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="stream-list"]
   [data-sidebar="menu-button"]:not([data-active="true"]),
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="stream-list"]
   [data-sidebar="menu-sub-button"]:not([data-active="true"]),
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="starred-list"]
   [data-sidebar="menu-button"]:not([data-active="true"]),
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="starred-list"]
   [data-sidebar="menu-sub-button"]:not([data-active="true"]) {
-  color: var(--buzz-channel-fg);
+  color: var(--maju-channel-fg);
 }
 
 /* Direct messages: rows live inside the `dm-list` menu. */
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="dm-list"]
   [data-sidebar="menu-button"]:not([data-active="true"]),
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="dm-list"]
   [data-sidebar="menu-sub-button"]:not([data-active="true"]) {
-  color: var(--buzz-dm-fg);
+  color: var(--maju-dm-fg);
 }
 
 /*
@@ -576,40 +576,40 @@
  * Projects, Agents, Workflows). Excludes the active row so the active-pill
  * foreground still wins.
  */
-:root[data-buzz-sidebar]
+:root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   [data-testid="sidebar-primary-menu"]
   [data-sidebar="menu-button"]:not([data-active="true"]) {
-  color: var(--buzz-nav-fg);
+  color: var(--maju-nav-fg);
 }
 
 /*
- * Translucency (Buzz theme).
+ * Translucency (Maju theme).
  *
- * ThemeProvider toggles `data-buzz-translucent` for Buzz themes. Keep the
+ * ThemeProvider toggles `data-maju-translucent` for Maju themes. Keep the
  * frosted layer on the outer canvases only; nested sidebar/header/footer
  * surfaces pass through so the nav reads as one continuous pane.
  */
-:root[data-buzz-translucent] {
-  --buzz-translucency-gradient-alpha: 70%;
-  --buzz-translucency-wash-alpha: 2.4%;
+:root[data-maju-translucent] {
+  --maju-translucency-gradient-alpha: 70%;
+  --maju-translucency-wash-alpha: 2.4%;
 }
 
-:root[data-buzz-translucent] .buzz-theme-gradient-layer-light {
-  /* Buzz color wash above a neutral frost wash. */
+:root[data-maju-translucent] .maju-theme-gradient-layer-light {
+  /* Maju color wash above a neutral frost wash. */
   background-image:
     linear-gradient(
       to bottom,
       color-mix(
         in srgb,
-        var(--buzz-gradient-light-top)
-          var(--buzz-translucency-gradient-alpha, 70%),
+        var(--maju-gradient-light-top)
+          var(--maju-translucency-gradient-alpha, 70%),
         transparent
       ),
       color-mix(
         in srgb,
-        var(--buzz-gradient-light-bottom)
-          var(--buzz-translucency-gradient-alpha, 70%),
+        var(--maju-gradient-light-bottom)
+          var(--maju-translucency-gradient-alpha, 70%),
         transparent
       )
     ),
@@ -617,12 +617,12 @@
       to bottom,
       color-mix(
         in srgb,
-        #ffffff var(--buzz-translucency-wash-alpha, 2.4%),
+        #ffffff var(--maju-translucency-wash-alpha, 2.4%),
         transparent
       ),
       color-mix(
         in srgb,
-        #ffffff var(--buzz-translucency-wash-alpha, 2.4%),
+        #ffffff var(--maju-translucency-wash-alpha, 2.4%),
         transparent
       )
     );
@@ -632,20 +632,20 @@
   background-repeat: no-repeat, no-repeat;
 }
 
-:root[data-buzz-translucent] .buzz-theme-gradient-layer-dark {
+:root[data-maju-translucent] .maju-theme-gradient-layer-dark {
   background-image:
     linear-gradient(
       to bottom,
       color-mix(
         in srgb,
-        var(--buzz-gradient-dark-top)
-          var(--buzz-translucency-gradient-alpha, 70%),
+        var(--maju-gradient-dark-top)
+          var(--maju-translucency-gradient-alpha, 70%),
         transparent
       ),
       color-mix(
         in srgb,
-        var(--buzz-gradient-dark-bottom)
-          var(--buzz-translucency-gradient-alpha, 70%),
+        var(--maju-gradient-dark-bottom)
+          var(--maju-translucency-gradient-alpha, 70%),
         transparent
       )
     ),
@@ -653,12 +653,12 @@
       to bottom,
       color-mix(
         in srgb,
-        #12161d var(--buzz-translucency-wash-alpha, 2.4%),
+        #12161d var(--maju-translucency-wash-alpha, 2.4%),
         transparent
       ),
       color-mix(
         in srgb,
-        #12161d var(--buzz-translucency-wash-alpha, 2.4%),
+        #12161d var(--maju-translucency-wash-alpha, 2.4%),
         transparent
       )
     );
@@ -668,7 +668,7 @@
   background-repeat: no-repeat, no-repeat;
 }
 
-:root[data-buzz-translucent]:not(.dark)
+:root[data-maju-translucent]:not(.dark)
   [data-sidebar="sidebar"][data-mobile="true"].bg-sidebar {
   background-color: transparent;
   background-image:
@@ -676,14 +676,14 @@
       to bottom,
       color-mix(
         in srgb,
-        var(--buzz-gradient-light-top)
-          var(--buzz-translucency-gradient-alpha, 70%),
+        var(--maju-gradient-light-top)
+          var(--maju-translucency-gradient-alpha, 70%),
         transparent
       ),
       color-mix(
         in srgb,
-        var(--buzz-gradient-light-bottom)
-          var(--buzz-translucency-gradient-alpha, 70%),
+        var(--maju-gradient-light-bottom)
+          var(--maju-translucency-gradient-alpha, 70%),
         transparent
       )
     ),
@@ -691,12 +691,12 @@
       to bottom,
       color-mix(
         in srgb,
-        #ffffff var(--buzz-translucency-wash-alpha, 2.4%),
+        #ffffff var(--maju-translucency-wash-alpha, 2.4%),
         transparent
       ),
       color-mix(
         in srgb,
-        #ffffff var(--buzz-translucency-wash-alpha, 2.4%),
+        #ffffff var(--maju-translucency-wash-alpha, 2.4%),
         transparent
       )
     );
@@ -706,7 +706,7 @@
   background-repeat: no-repeat, no-repeat;
 }
 
-:root[data-buzz-translucent].dark
+:root[data-maju-translucent].dark
   [data-sidebar="sidebar"][data-mobile="true"].bg-sidebar {
   background-color: transparent;
   background-image:
@@ -714,14 +714,14 @@
       to bottom,
       color-mix(
         in srgb,
-        var(--buzz-gradient-dark-top)
-          var(--buzz-translucency-gradient-alpha, 70%),
+        var(--maju-gradient-dark-top)
+          var(--maju-translucency-gradient-alpha, 70%),
         transparent
       ),
       color-mix(
         in srgb,
-        var(--buzz-gradient-dark-bottom)
-          var(--buzz-translucency-gradient-alpha, 70%),
+        var(--maju-gradient-dark-bottom)
+          var(--maju-translucency-gradient-alpha, 70%),
         transparent
       )
     ),
@@ -729,12 +729,12 @@
       to bottom,
       color-mix(
         in srgb,
-        #12161d var(--buzz-translucency-wash-alpha, 2.4%),
+        #12161d var(--maju-translucency-wash-alpha, 2.4%),
         transparent
       ),
       color-mix(
         in srgb,
-        #12161d var(--buzz-translucency-wash-alpha, 2.4%),
+        #12161d var(--maju-translucency-wash-alpha, 2.4%),
         transparent
       )
     );
@@ -744,16 +744,16 @@
   background-repeat: no-repeat, no-repeat;
 }
 
-:root[data-buzz-translucent] [data-testid="app-sidebar"],
-:root[data-buzz-translucent] [data-buzz-glass-inset],
-:root[data-buzz-translucent] [data-buzz-glass-footer-wrap],
-:root[data-buzz-translucent]
+:root[data-maju-translucent] [data-testid="app-sidebar"],
+:root[data-maju-translucent] [data-maju-glass-inset],
+:root[data-maju-translucent] [data-maju-glass-footer-wrap],
+:root[data-maju-translucent]
   .group\/sidebar-wrapper
-  .bg-sidebar:not([data-buzz-flat]),
-:root[data-buzz-translucent]
+  .bg-sidebar:not([data-maju-flat]),
+:root[data-maju-translucent]
   [data-testid="app-sidebar"]
   [data-testid="sidebar-pinned-header"],
-:root[data-buzz-translucent]
+:root[data-maju-translucent]
   [data-testid="app-sidebar"]
   [data-sidebar="footer"] {
   background-color: transparent;
@@ -761,41 +761,41 @@
 }
 
 /* Remove edge fades and stacking contexts that made header/footer look separate. */
-:root[data-buzz-translucent]
+:root[data-maju-translucent]
   [data-testid="app-sidebar"]
   [data-testid="sidebar-pinned-header"],
-:root[data-buzz-translucent] [data-buzz-glass-inset],
-:root[data-buzz-translucent]
+:root[data-maju-translucent] [data-maju-glass-inset],
+:root[data-maju-translucent]
   [data-testid="app-sidebar"]
-  [data-buzz-glass-footer-wrap],
-:root[data-buzz-translucent]
+  [data-maju-glass-footer-wrap],
+:root[data-maju-translucent]
   [data-testid="app-sidebar"]
   [data-sidebar="footer"] {
   isolation: auto;
   z-index: auto;
 }
 
-:root[data-buzz-translucent]
+:root[data-maju-translucent]
   [data-testid="app-sidebar"]
   [data-testid="sidebar-pinned-header"]::before,
-:root[data-buzz-translucent]
+:root[data-maju-translucent]
   [data-testid="app-sidebar"]
   [data-sidebar="footer"]::before {
   background: none;
 }
 
 /* Let the native transparent window show through behind the sidebar glass. */
-:root[data-buzz-translucent],
-:root[data-buzz-translucent] body {
+:root[data-maju-translucent],
+:root[data-maju-translucent] body {
   background-color: transparent;
   background-image: none;
 }
 
 /* The outer shell stays clear; the app surface owns the gradient above. */
-:root[data-buzz-translucent] .buzz-huddle-shell {
+:root[data-maju-translucent] .maju-huddle-shell {
   background: transparent;
 }
 
-:root[data-buzz-translucent] .buzz-huddle-app-surface::after {
+:root[data-maju-translucent] .maju-huddle-app-surface::after {
   background: transparent;
 }

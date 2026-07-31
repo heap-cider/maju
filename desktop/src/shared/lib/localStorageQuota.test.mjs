@@ -36,47 +36,47 @@ function install(ls) {
 test("startup recovery removes disposable caches but preserves user state", () => {
   const ls = makeQuotaLocalStorage({ maxEntries: 5 });
   install(ls);
-  ls.store.set("buzz-channel-messages.v1:relay:chan", "big");
-  ls.store.set("buzz-channels.v1:relay", "big");
-  ls.store.set("buzz-timeline-skeleton-shape.v1:chan", "small");
-  ls.store.set("buzz-sidebar-skeleton-shape.v1:community:user", "small");
-  ls.store.set("buzz-communities", "keep");
+  ls.store.set("maju-channel-messages.v1:relay:chan", "big");
+  ls.store.set("maju-channels.v1:relay", "big");
+  ls.store.set("maju-timeline-skeleton-shape.v1:chan", "small");
+  ls.store.set("maju-sidebar-skeleton-shape.v1:community:user", "small");
+  ls.store.set("maju-communities", "keep");
 
   recoverLocalStorageQuotaOnStartup();
 
-  assert.equal(ls.getItem("buzz-channel-messages.v1:relay:chan"), null);
-  assert.equal(ls.getItem("buzz-channels.v1:relay"), null);
-  assert.equal(ls.getItem("buzz-timeline-skeleton-shape.v1:chan"), null);
+  assert.equal(ls.getItem("maju-channel-messages.v1:relay:chan"), null);
+  assert.equal(ls.getItem("maju-channels.v1:relay"), null);
+  assert.equal(ls.getItem("maju-timeline-skeleton-shape.v1:chan"), null);
   assert.equal(
-    ls.getItem("buzz-sidebar-skeleton-shape.v1:community:user"),
+    ls.getItem("maju-sidebar-skeleton-shape.v1:community:user"),
     null,
   );
-  assert.equal(ls.getItem("buzz-communities"), "keep");
-  assert.equal(ls.getItem("buzz-local-storage-quota-recovery.v1"), "1");
+  assert.equal(ls.getItem("maju-communities"), "keep");
+  assert.equal(ls.getItem("maju-local-storage-quota-recovery.v1"), "1");
 });
 
 test("healthy startup preserves disposable caches", () => {
   const ls = makeQuotaLocalStorage({ maxEntries: 10 });
   install(ls);
-  ls.store.set("buzz-channel-messages.v1:relay:new", "snapshot");
+  ls.store.set("maju-channel-messages.v1:relay:new", "snapshot");
 
   recoverLocalStorageQuotaOnStartup();
 
-  assert.equal(ls.getItem("buzz-channel-messages.v1:relay:new"), "snapshot");
-  assert.equal(ls.getItem("buzz-local-storage-quota-recovery.v1"), "1");
+  assert.equal(ls.getItem("maju-channel-messages.v1:relay:new"), "snapshot");
+  assert.equal(ls.getItem("maju-local-storage-quota-recovery.v1"), "1");
 });
 
 test("startup recovery does not remove namespace near misses", () => {
   const ls = makeQuotaLocalStorage({ maxEntries: 2 });
   install(ls);
-  ls.store.set("buzz-channels.v10:durable", "keep");
-  ls.store.set("buzz-channel-messages.v1-durable", "keep");
+  ls.store.set("maju-channels.v10:durable", "keep");
+  ls.store.set("maju-channel-messages.v1-durable", "keep");
 
   recoverLocalStorageQuotaOnStartup();
 
-  assert.equal(ls.getItem("buzz-channels.v10:durable"), "keep");
-  assert.equal(ls.getItem("buzz-channel-messages.v1-durable"), "keep");
-  assert.equal(ls.getItem("buzz-local-storage-quota-recovery.v1"), null);
+  assert.equal(ls.getItem("maju-channels.v10:durable"), "keep");
+  assert.equal(ls.getItem("maju-channel-messages.v1-durable"), "keep");
+  assert.equal(ls.getItem("maju-local-storage-quota-recovery.v1"), null);
 });
 
 test("startup recovery runs only once", () => {
@@ -84,11 +84,11 @@ test("startup recovery runs only once", () => {
   install(ls);
 
   recoverLocalStorageQuotaOnStartup();
-  ls.store.set("buzz-channel-messages.v1:relay:new", "new snapshot");
+  ls.store.set("maju-channel-messages.v1:relay:new", "new snapshot");
   recoverLocalStorageQuotaOnStartup();
 
   assert.equal(
-    ls.getItem("buzz-channel-messages.v1:relay:new"),
+    ls.getItem("maju-channel-messages.v1:relay:new"),
     "new snapshot",
   );
 });
@@ -96,28 +96,28 @@ test("startup recovery runs only once", () => {
 test("startup recovery retries after marker write fails", () => {
   const ls = makeQuotaLocalStorage({ maxEntries: 1 });
   install(ls);
-  ls.store.set("buzz-communities", "keep");
+  ls.store.set("maju-communities", "keep");
 
   recoverLocalStorageQuotaOnStartup();
-  assert.equal(ls.getItem("buzz-local-storage-quota-recovery.v1"), null);
+  assert.equal(ls.getItem("maju-local-storage-quota-recovery.v1"), null);
 
-  ls.store.delete("buzz-communities");
-  ls.store.set("buzz-channel-messages.v1:relay:chan", "big");
+  ls.store.delete("maju-communities");
+  ls.store.set("maju-channel-messages.v1:relay:chan", "big");
   recoverLocalStorageQuotaOnStartup();
 
-  assert.equal(ls.getItem("buzz-channel-messages.v1:relay:chan"), null);
-  assert.equal(ls.getItem("buzz-local-storage-quota-recovery.v1"), "1");
+  assert.equal(ls.getItem("maju-channel-messages.v1:relay:chan"), null);
+  assert.equal(ls.getItem("maju-local-storage-quota-recovery.v1"), "1");
 });
 
 test("global cache byte budget evicts only oldest entries needed", () => {
   const ls = makeQuotaLocalStorage({ maxEntries: 20 });
   install(ls);
-  ls.store.set("buzz-communities", "keep");
+  ls.store.set("maju-communities", "keep");
   const snapshot = (updatedAt) =>
     JSON.stringify({ updatedAt, payload: "x".repeat(400_000) });
-  const oldestKey = "buzz-channel-messages.v1:relay:oldest";
-  const newerKey = "buzz-channels.v1:relay-newer";
-  const newestKey = "buzz-channel-messages.v1:relay:newest";
+  const oldestKey = "maju-channel-messages.v1:relay:oldest";
+  const newerKey = "maju-channels.v1:relay-newer";
+  const newestKey = "maju-channel-messages.v1:relay:newest";
 
   assert.equal(setLocalStorageItemWithRecovery(oldestKey, snapshot(1)), true);
   assert.equal(setLocalStorageItemWithRecovery(newerKey, snapshot(2)), true);
@@ -126,42 +126,42 @@ test("global cache byte budget evicts only oldest entries needed", () => {
   assert.equal(ls.getItem(oldestKey), null);
   assert.notEqual(ls.getItem(newerKey), null);
   assert.notEqual(ls.getItem(newestKey), null);
-  assert.equal(ls.getItem("buzz-communities"), "keep");
+  assert.equal(ls.getItem("maju-communities"), "keep");
 });
 
 test("global cache byte budget spans relays and preserves durable state", () => {
   const ls = makeQuotaLocalStorage({ maxEntries: 20 });
   install(ls);
-  ls.store.set("buzz-communities", "keep");
+  ls.store.set("maju-communities", "keep");
   const largeSnapshot = "x".repeat(600_000);
 
   assert.equal(
     setLocalStorageItemWithRecovery(
-      "buzz-channel-messages.v1:relay-one:chan",
+      "maju-channel-messages.v1:relay-one:chan",
       largeSnapshot,
     ),
     true,
   );
   assert.equal(
     setLocalStorageItemWithRecovery(
-      "buzz-channel-messages.v1:relay-two:chan",
+      "maju-channel-messages.v1:relay-two:chan",
       largeSnapshot,
     ),
     true,
   );
 
-  assert.equal(ls.getItem("buzz-channel-messages.v1:relay-one:chan"), null);
+  assert.equal(ls.getItem("maju-channel-messages.v1:relay-one:chan"), null);
   assert.equal(
-    ls.getItem("buzz-channel-messages.v1:relay-two:chan"),
+    ls.getItem("maju-channel-messages.v1:relay-two:chan"),
     largeSnapshot,
   );
-  assert.equal(ls.getItem("buzz-communities"), "keep");
+  assert.equal(ls.getItem("maju-communities"), "keep");
 });
 
 test("rejects a single cache entry larger than the global byte budget", () => {
   const ls = makeQuotaLocalStorage({ maxEntries: 10 });
   install(ls);
-  const key = "buzz-channel-messages.v1:relay:oversized";
+  const key = "maju-channel-messages.v1:relay:oversized";
   ls.store.set(key, "previous snapshot");
 
   assert.equal(
@@ -181,22 +181,22 @@ test("writes normally when under quota", () => {
 test("evicts pure caches and retries on quota failure", () => {
   const ls = makeQuotaLocalStorage({ maxEntries: 2 });
   install(ls);
-  ls.store.set("buzz-channel-messages.v1:relay:chan", "big");
-  ls.store.set("buzz-channels.v1:relay", "big");
+  ls.store.set("maju-channel-messages.v1:relay:chan", "big");
+  ls.store.set("maju-channels.v1:relay", "big");
 
   assert.equal(setLocalStorageItemWithRecovery("k", "v"), true);
   assert.equal(ls.getItem("k"), "v");
-  assert.equal(ls.getItem("buzz-channel-messages.v1:relay:chan"), null);
-  assert.equal(ls.getItem("buzz-channels.v1:relay"), null);
+  assert.equal(ls.getItem("maju-channel-messages.v1:relay:chan"), null);
+  assert.equal(ls.getItem("maju-channels.v1:relay"), null);
 });
 
 test("returns false when eviction frees nothing", () => {
   const ls = makeQuotaLocalStorage({ maxEntries: 2 });
   install(ls);
-  ls.store.set("buzz-workspaces", "keep");
-  ls.store.set("buzz-active-workspace-id", "keep");
+  ls.store.set("maju-workspaces", "keep");
+  ls.store.set("maju-active-workspace-id", "keep");
 
   assert.equal(setLocalStorageItemWithRecovery("k", "v"), false);
   assert.equal(ls.getItem("k"), null);
-  assert.equal(ls.getItem("buzz-workspaces"), "keep");
+  assert.equal(ls.getItem("maju-workspaces"), "keep");
 });

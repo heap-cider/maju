@@ -4,10 +4,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:buzz/features/channels/channel_messages_provider.dart';
-import 'package:buzz/features/channels/pending_local_messages_provider.dart';
-import 'package:buzz/features/channels/thread_replies_provider.dart';
-import 'package:buzz/shared/relay/relay.dart';
+import 'package:maju/features/channels/channel_messages_provider.dart';
+import 'package:maju/features/channels/pending_local_messages_provider.dart';
+import 'package:maju/features/channels/thread_replies_provider.dart';
+import 'package:maju/shared/relay/relay.dart';
 
 void main() {
   test(

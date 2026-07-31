@@ -1,7 +1,7 @@
 import * as React from "react";
 
-const ENABLED_STORAGE_KEY = "buzz:keep-addressed-agents-active";
-const AUDIENCES_STORAGE_KEY = "buzz:persistent-agent-audiences:v2";
+const ENABLED_STORAGE_KEY = "maju:keep-addressed-agents-active";
+const AUDIENCES_STORAGE_KEY = "maju:persistent-agent-audiences:v2";
 
 const listeners = new Set<() => void>();
 const revisions = new Map<string, number>();

@@ -3,17 +3,17 @@ import { expect, test, type Page } from "@playwright/test";
 import { installBridge } from "../helpers/bridge";
 import { TwoRelayHarness, type RelaySpec } from "./helpers/twoRelayHarness";
 
-// Live gate: boots a REAL buzz-relay process, points the app at it, SIGTERMs
+// Live gate: boots a REAL maju-relay process, points the app at it, SIGTERMs
 // the relay mid-session, restarts it on the same port, and asserts the client
 // converges back to "connected". This proves the full restart story end to
 // end: the relay's graceful-drain 1012 close broadcast (server side) and the
 // client's dial-failure retry + 1012 fast-reconnect (desktop side) — the two
 // halves that synthetic mock-websocket specs cannot compose.
 //
-// Requires: BUZZ_E2E_RELAY_RESTART=1, BUZZ_E2E_RELAY_BIN, and
-// BUZZ_E2E_DATABASE_URL (plus reachable Redis and media object store, same
+// Requires: MAJU_E2E_RELAY_RESTART=1, MAJU_E2E_RELAY_BIN, and
+// MAJU_E2E_DATABASE_URL (plus reachable Redis and media object store, same
 // infra as the agents-everywhere live gate).
-const enabled = process.env.BUZZ_E2E_RELAY_RESTART === "1";
+const enabled = process.env.MAJU_E2E_RELAY_RESTART === "1";
 
 function required(name: string, value: string | undefined): string {
   if (!value) throw new Error(`${name} is required for the live gate`);
@@ -23,14 +23,14 @@ function required(name: string, value: string | undefined): string {
 async function connectionState(page: Page): Promise<string> {
   return page.evaluate(() => {
     const win = window as Window & {
-      __BUZZ_E2E_GET_RELAY_CONNECTION_STATE__?: () => string;
+      __MAJU_E2E_GET_RELAY_CONNECTION_STATE__?: () => string;
     };
-    return win.__BUZZ_E2E_GET_RELAY_CONNECTION_STATE__?.() ?? "uninstalled";
+    return win.__MAJU_E2E_GET_RELAY_CONNECTION_STATE__?.() ?? "uninstalled";
   });
 }
 
 test.describe("relay restart live gate", () => {
-  test.skip(!enabled, "set BUZZ_E2E_RELAY_RESTART=1 to run live gate");
+  test.skip(!enabled, "set MAJU_E2E_RELAY_RESTART=1 to run live gate");
 
   test("client reconnects after the relay is SIGTERMed and restarted", async ({
     page,
@@ -45,11 +45,11 @@ test.describe("relay restart live gate", () => {
         metrics: portBase + 6_000,
       },
       databaseUrl: required(
-        "BUZZ_E2E_DATABASE_URL",
-        process.env.BUZZ_E2E_DATABASE_URL,
+        "MAJU_E2E_DATABASE_URL",
+        process.env.MAJU_E2E_DATABASE_URL,
       ),
       redisUrl:
-        process.env.BUZZ_E2E_REDIS_RESTART ?? "redis://127.0.0.1:6379/13",
+        process.env.MAJU_E2E_REDIS_RESTART ?? "redis://127.0.0.1:6379/13",
     };
     const harness = await TwoRelayHarness.create([spec]);
     try {

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tauri::AppHandle;
 
-use super::agent_env::build_buzz_agent_provider_defaults;
+use super::agent_env::build_maju_agent_provider_defaults;
 
 use crate::{
     managed_agents::{
@@ -36,14 +36,14 @@ pub(crate) use sweep::sweep_untracked_bundle_harnesses;
 type RespondToEnv = (Vec<(&'static str, String)>, Vec<&'static str>);
 
 mod process;
+pub(crate) use process::{
+    current_instance_id, process_belongs_to_us, process_has_maju_marker, process_is_running,
+    terminate_process, terminate_untracked_pair_runtime, valid_agent_runtime_receipt,
+};
 #[cfg(test)]
 use process::{
-    buzz_marker_entry, name_matches_interpreter, name_matches_known_binary,
+    maju_marker_entry, name_matches_interpreter, name_matches_known_binary,
     terminate_runtime_receipt_with, valid_agent_runtime_receipt_with,
-};
-pub(crate) use process::{
-    current_instance_id, process_belongs_to_us, process_has_buzz_marker, process_is_running,
-    terminate_process, terminate_untracked_pair_runtime, valid_agent_runtime_receipt,
 };
 
 mod orphan_sweep;
@@ -393,29 +393,29 @@ pub(crate) fn build_respond_to_env(
     let mut remove: Vec<&'static str> = Vec::new();
 
     set.push((
-        "BUZZ_ACP_RESPOND_TO",
+        "MAJU_ACP_RESPOND_TO",
         record.respond_to.as_str().to_string(),
     ));
 
     if record.respond_to == super::types::RespondTo::Allowlist {
-        set.push(("BUZZ_ACP_RESPOND_TO_ALLOWLIST", normalized.join(",")));
+        set.push(("MAJU_ACP_RESPOND_TO_ALLOWLIST", normalized.join(",")));
     } else {
-        remove.push("BUZZ_ACP_RESPOND_TO_ALLOWLIST");
+        remove.push("MAJU_ACP_RESPOND_TO_ALLOWLIST");
     }
 
     // Legacy fallback: agents created before NIP-OA lack `auth_tag`. Without
     // it the harness can't resolve the owner, and owner-dependent gate modes
     // would drop every event. Forwarding the workspace owner pubkey via
-    // BUZZ_ACP_AGENT_OWNER keeps those records functional. Modern records
-    // (`auth_tag = Some(...)`) use `BUZZ_AUTH_TAG` as before.
+    // MAJU_ACP_AGENT_OWNER keeps those records functional. Modern records
+    // (`auth_tag = Some(...)`) use `MAJU_AUTH_TAG` as before.
     if record.auth_tag.is_none() {
         if let Some(owner) = owner_hex {
-            set.push(("BUZZ_ACP_AGENT_OWNER", owner.to_string()));
+            set.push(("MAJU_ACP_AGENT_OWNER", owner.to_string()));
         } else {
-            remove.push("BUZZ_ACP_AGENT_OWNER");
+            remove.push("MAJU_ACP_AGENT_OWNER");
         }
     } else {
-        remove.push("BUZZ_ACP_AGENT_OWNER");
+        remove.push("MAJU_ACP_AGENT_OWNER");
     }
 
     Ok((set, remove))
@@ -534,7 +534,7 @@ pub fn spawn_agent_child(
             Some(path) => Some(path),
             None => {
                 eprintln!(
-                    "buzz-desktop: mcp_command {effective_mcp_command:?} not found, skipping"
+                    "maju-desktop: mcp_command {effective_mcp_command:?} not found, skipping"
                 );
                 None
             }
@@ -552,7 +552,7 @@ pub fn spawn_agent_child(
     // Augment PATH for DMG launches so child processes can find:
     //   - bundled CLI via ~/.local/bin symlink
     //   - nvm-managed node/npm (nvm initializes only in interactive shells)
-    //   - bundled sidecars (buzz, buzz-acp, etc.) via exe parent (Contents/MacOS/)
+    //   - bundled sidecars (maju, maju-acp, etc.) via exe parent (Contents/MacOS/)
     //   - runtimes (node, python, etc.) via login shell PATH
     let nvm_bin = dirs::home_dir()
         .as_deref()
@@ -577,21 +577,21 @@ pub fn spawn_agent_child(
         command.env("PATH", path);
     }
     command.env("RUST_LOG", child_rust_log_filter());
-    command.env("BUZZ_PRIVATE_KEY", &record.private_key_nsec);
-    command.env("BUZZ_RELAY_URL", &effective_relay_url);
-    command.env("BUZZ_ACP_LAZY_POOL", if lazy { "true" } else { "false" });
-    command.env("BUZZ_ACP_AGENT_COMMAND", &resolved_agent_command);
-    command.env("BUZZ_ACP_AGENT_ARGS", agent_args.join(","));
+    command.env("MAJU_PRIVATE_KEY", &record.private_key_nsec);
+    command.env("MAJU_RELAY_URL", &effective_relay_url);
+    command.env("MAJU_ACP_LAZY_POOL", if lazy { "true" } else { "false" });
+    command.env("MAJU_ACP_AGENT_COMMAND", &resolved_agent_command);
+    command.env("MAJU_ACP_AGENT_ARGS", agent_args.join(","));
     match &resolved_mcp_command {
         Some(mcp_cmd) => {
-            command.env("BUZZ_ACP_MCP_COMMAND", mcp_cmd);
+            command.env("MAJU_ACP_MCP_COMMAND", mcp_cmd);
         }
         None => {
-            command.env("BUZZ_ACP_MCP_COMMAND", "");
+            command.env("MAJU_ACP_MCP_COMMAND", "");
         }
     }
     // Enable MCP hook tools (_Stop, _PostCompact) for agents that need them.
-    // Uses "*" because build_mcp_servers() hard-codes the server name to "buzz-mcp".
+    // Uses "*" because build_mcp_servers() hard-codes the server name to "maju-mcp".
     let runtime_meta = known_acp_runtime(effective_command);
     if runtime_meta.is_some_and(|r| r.mcp_hooks) {
         command.env("MCP_HOOK_SERVERS", "*");
@@ -601,16 +601,16 @@ pub fn spawn_agent_child(
     //
     // Build the effective env the agent would have at start-time, run the
     // readiness predicate, and if anything is missing, serialize the payload
-    // into BUZZ_ACP_SETUP_PAYLOAD.  buzz-acp detects this env var on startup
+    // into MAJU_ACP_SETUP_PAYLOAD.  maju-acp detects this env var on startup
     // and enters the minimal setup-listener mode instead of the agent pool.
     //
-    // SECURITY: BUZZ_ACP_SETUP_PAYLOAD is in RESERVED_ENV_KEYS so user env
+    // SECURITY: MAJU_ACP_SETUP_PAYLOAD is in RESERVED_ENV_KEYS so user env
     // cannot set it, but we also explicitly remove it after writing user env
     // to guard against the parent-process environment. We then set it only
     // when desktop has computed NotReady — the desktop is the sole readiness
-    // source and buzz-acp only transports the payload.
+    // source and maju-acp only transports the payload.
     //
-    // The JSON format mirrors `setup_mode::SetupPayload` in buzz-acp:
+    // The JSON format mirrors `setup_mode::SetupPayload` in maju-acp:
     //   { "agent_name": "...", "agent_pubkey": "...", "requirements": [{ "surface": "...", ... }] }
     //
     // `spawned_setup_mode` is captured outside the block so it can be stamped
@@ -680,7 +680,7 @@ pub fn spawn_agent_child(
                     Ok(json) => Some(json),
                     Err(e) => {
                         eprintln!(
-                            "buzz-desktop: failed to serialize setup payload for {}: {e}",
+                            "maju-desktop: failed to serialize setup payload for {}: {e}",
                             record.name
                         );
                         None
@@ -694,7 +694,7 @@ pub fn spawn_agent_child(
 
         // Strip the key from the process-spawned command on every path.
         // Two independent guards protect the invariant:
-        //   1. BUZZ_ACP_SETUP_PAYLOAD is in RESERVED_ENV_KEYS, so
+        //   1. MAJU_ACP_SETUP_PAYLOAD is in RESERVED_ENV_KEYS, so
         //      merged_user_env() can never write it via saved/persona env.
         //   2. This env_remove() clears any ambient parent-process value
         //      inherited by std::process::Command before we conditionally
@@ -702,33 +702,33 @@ pub fn spawn_agent_child(
         // Note: merged_user_env() is written further below in this function;
         // ordering relative to that call is NOT what makes this safe — the
         // reserved-key strip (guard 1) handles user env regardless of order.
-        command.env_remove("BUZZ_ACP_SETUP_PAYLOAD");
+        command.env_remove("MAJU_ACP_SETUP_PAYLOAD");
 
         // Set the payload only when desktop computed NotReady.
         if let Some(json) = setup_payload_json {
-            command.env("BUZZ_ACP_SETUP_PAYLOAD", json);
+            command.env("MAJU_ACP_SETUP_PAYLOAD", json);
             eprintln!(
-                "buzz-desktop: agent {} not ready — spawning in setup-listener mode",
+                "maju-desktop: agent {} not ready — spawning in setup-listener mode",
                 record.name
             );
         }
     }
-    // Only emit BUZZ_ACP_IDLE_TIMEOUT when the user has explicitly set an
-    // override. When unset, the buzz-acp harness applies its own default
-    // (see `DEFAULT_IDLE_TIMEOUT_SECS` in crates/buzz-acp/src/config.rs),
+    // Only emit MAJU_ACP_IDLE_TIMEOUT when the user has explicitly set an
+    // override. When unset, the maju-acp harness applies its own default
+    // (see `DEFAULT_IDLE_TIMEOUT_SECS` in crates/maju-acp/src/config.rs),
     // which is the single source of truth. The previously-emitted
-    // `BUZZ_ACP_TURN_TIMEOUT` is deprecated upstream and was pinning every
+    // `MAJU_ACP_TURN_TIMEOUT` is deprecated upstream and was pinning every
     // agent to the desktop's stale default (320s), bypassing harness bumps.
     if let Some(idle) = record.idle_timeout_seconds {
-        command.env("BUZZ_ACP_IDLE_TIMEOUT", idle.to_string());
+        command.env("MAJU_ACP_IDLE_TIMEOUT", idle.to_string());
     }
 
     if let Some(max_dur) = record.max_turn_duration_seconds {
-        command.env("BUZZ_ACP_MAX_TURN_DURATION", max_dur.to_string());
+        command.env("MAJU_ACP_MAX_TURN_DURATION", max_dur.to_string());
     }
-    command.env("BUZZ_ACP_AGENTS", record.parallelism.to_string());
-    command.env("BUZZ_ACP_MULTIPLE_EVENT_HANDLING", "steer");
-    command.env("BUZZ_ACP_DEDUP", "queue");
+    command.env("MAJU_ACP_AGENTS", record.parallelism.to_string());
+    command.env("MAJU_ACP_MULTIPLE_EVENT_HANDLING", "steer");
+    command.env("MAJU_ACP_DEDUP", "queue");
     if let Some(meta) = runtime_meta {
         for (key, value) in meta.default_env {
             if std::env::var(key).is_err() {
@@ -738,9 +738,9 @@ pub fn spawn_agent_child(
     }
     let team_instructions = super::spawn_hash::effective_team_instructions(record, &teams);
     if let Some(instructions) = &team_instructions {
-        command.env("BUZZ_ACP_TEAM_INSTRUCTIONS", instructions);
+        command.env("MAJU_ACP_TEAM_INSTRUCTIONS", instructions);
     } else {
-        command.env_remove("BUZZ_ACP_TEAM_INSTRUCTIONS");
+        command.env_remove("MAJU_ACP_TEAM_INSTRUCTIONS");
     }
 
     // Prompt, model, and provider all come from the single `effective_cfg`
@@ -760,14 +760,14 @@ pub fn spawn_agent_child(
     let effective_provider = effective_cfg.provider.value;
 
     if let Some(prompt) = &effective_prompt {
-        command.env("BUZZ_ACP_SYSTEM_PROMPT", prompt);
+        command.env("MAJU_ACP_SYSTEM_PROMPT", prompt);
     } else {
-        command.env_remove("BUZZ_ACP_SYSTEM_PROMPT");
+        command.env_remove("MAJU_ACP_SYSTEM_PROMPT");
     }
     if let Some(model) = effective_model.as_deref() {
-        command.env("BUZZ_ACP_MODEL", model);
+        command.env("MAJU_ACP_MODEL", model);
     } else {
-        command.env_remove("BUZZ_ACP_MODEL");
+        command.env_remove("MAJU_ACP_MODEL");
     }
     // Session title for the harness to pass out-of-band on `session/new`. The
     // adapter names the session after it; it never reaches the prompt, so this
@@ -778,7 +778,7 @@ pub fn spawn_agent_child(
     } else {
         command.env_remove(SESSION_TITLE_ENV_VAR);
     }
-    build_buzz_agent_provider_defaults(&mut command);
+    build_maju_agent_provider_defaults(&mut command);
     if let Some(meta) = runtime_meta {
         for (key, value) in runtime_metadata_env_vars(
             meta.model_env_var,
@@ -790,14 +790,14 @@ pub fn spawn_agent_child(
             command.env(key, value);
         }
     }
-    command.env_remove("BUZZ_ACP_PRIVATE_KEY");
-    command.env_remove("BUZZ_ACP_API_TOKEN");
-    command.env_remove("BUZZ_API_TOKEN");
+    command.env_remove("MAJU_ACP_PRIVATE_KEY");
+    command.env_remove("MAJU_ACP_API_TOKEN");
+    command.env_remove("MAJU_API_TOKEN");
 
     if let Some(ref auth_tag) = record.auth_tag {
-        command.env("BUZZ_AUTH_TAG", auth_tag);
+        command.env("MAJU_AUTH_TAG", auth_tag);
     } else {
-        command.env_remove("BUZZ_AUTH_TAG");
+        command.env_remove("MAJU_AUTH_TAG");
     }
 
     // Inbound author gate: who is this agent allowed to respond to?
@@ -812,11 +812,11 @@ pub fn spawn_agent_child(
         command.env_remove(key);
     }
 
-    command.env("BUZZ_ACP_RELAY_OBSERVER", "true");
+    command.env("MAJU_ACP_RELAY_OBSERVER", "true");
 
-    // ── Git credential helper for Buzz relay ──────────────────────────
+    // ── Git credential helper for Maju relay ──────────────────────────
     //
-    // Agents need to clone/push repos hosted on the Buzz relay's git
+    // Agents need to clone/push repos hosted on the Maju relay's git
     // server, which authenticates via NIP-98. The `git-credential-nostr`
     // binary signs auth events using the agent's nostr key.
     //
@@ -824,7 +824,7 @@ pub fn spawn_agent_child(
     // filesystem writes) scoped to the relay's git URL so we don't
     // interfere with other remotes (e.g. GitHub).
     //
-    // NOSTR_PRIVATE_KEY mirrors BUZZ_PRIVATE_KEY — keep in sync.
+    // NOSTR_PRIVATE_KEY mirrors MAJU_PRIVATE_KEY — keep in sync.
     if let Some(cred_helper) = resolve_command("git-credential-nostr") {
         let relay_http_url = crate::relay::relay_http_base_url(&effective_relay_url);
 
@@ -844,7 +844,7 @@ pub fn spawn_agent_child(
         command.env("GIT_CONFIG_VALUE_1", "true");
     } else {
         eprintln!(
-            "buzz-desktop: git-credential-nostr not found — agent {} will not have automatic Buzz git auth",
+            "maju-desktop: git-credential-nostr not found — agent {} will not have automatic Maju git auth",
             record.name,
         );
     }
@@ -854,15 +854,15 @@ pub fn spawn_agent_child(
     // `descriptor.env` is the fully-layered result from `resolve_effective_harness_descriptor`:
     // baked floor → runtime metadata → definition env (harness author defaults) →
     // global → live persona → per-agent, with reserved-key and malformed-key filtering
-    // applied. Writing it last lets user-provided values win over every Buzz-set env
+    // applied. Writing it last lets user-provided values win over every Maju-set env
     // written above — reserved keys were already stripped from descriptor.env so they
-    // cannot clobber BUZZ_PRIVATE_KEY, NOSTR_PRIVATE_KEY, etc.
+    // cannot clobber MAJU_PRIVATE_KEY, NOSTR_PRIVATE_KEY, etc.
     for (key, value) in &descriptor.env {
         command.env(key, value);
     }
     configure_runtime_cli(&mut command, runtime_meta);
 
-    // Buzz shared compute is stored as a native provider; derive the OpenAI-compatible
+    // Maju shared compute is stored as a native provider; derive the OpenAI-compatible
     // transport at spawn time and scrub any unrelated ambient OpenAI key.
     // Gate on `mesh_model_id` (derived from `effective_cfg.relay_mesh_model_id()`
     // above) — not on `effective_provider` directly — so the mesh gate here
@@ -884,8 +884,8 @@ pub fn spawn_agent_child(
     // Stamp desktop ownership and an unpredictable harness-generation identity.
     let start_nonce = uuid::Uuid::new_v4().simple().to_string();
     command
-        .env("BUZZ_MANAGED_AGENT", current_instance_id(app))
-        .env("BUZZ_MANAGED_AGENT_START_NONCE", &start_nonce);
+        .env("MAJU_MANAGED_AGENT", current_instance_id(app))
+        .env("MAJU_MANAGED_AGENT_START_NONCE", &start_nonce);
 
     // Spawn the harness in its own process group so we can kill the entire
     // tree (harness + MCP servers + agent subprocesses) on shutdown.
@@ -895,7 +895,7 @@ pub fn spawn_agent_child(
         command.process_group(0);
     }
     // Windows: suppress the harness console window. Without this a bare
-    // terminal pops for buzz-acp.exe and lingers (the app itself sets
+    // terminal pops for maju-acp.exe and lingers (the app itself sets
     // windows_subsystem="windows", but the spawned child does not inherit it).
     #[cfg(windows)]
     {
@@ -965,9 +965,9 @@ pub fn spawn_agent_child(
 
 fn child_rust_log_filter() -> String {
     match std::env::var("RUST_LOG") {
-        Ok(existing) if existing.contains("buzz_acp") => existing,
-        Ok(existing) if !existing.trim().is_empty() => format!("{existing},buzz_acp=info"),
-        _ => "buzz_acp=info".to_string(),
+        Ok(existing) if existing.contains("maju_acp") => existing,
+        Ok(existing) if !existing.trim().is_empty() => format!("{existing},maju_acp=info"),
+        _ => "maju_acp=info".to_string(),
     }
 }
 

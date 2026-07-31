@@ -71,7 +71,7 @@ fn test_record() -> ManagedAgentRecord {
         auth_tag: None,
         relay_url: "ws://localhost:3000".to_string(),
         avatar_url: None,
-        acp_command: "buzz-acp".to_string(),
+        acp_command: "maju-acp".to_string(),
         agent_command: "goose".to_string(),
         agent_args: vec![],
         mcp_command: "".to_string(),
@@ -158,11 +158,11 @@ fn surface_reports_mcp_specific_config_path() {
 fn goose_mcp_config_path_follows_path_root_override() {
     let record = test_record();
     let runtime = test_runtime();
-    let surface = with_goose_path_root(Some("/tmp/buzz-goose-root"), || {
+    let surface = with_goose_path_root(Some("/tmp/maju-goose-root"), || {
         read_config_surface(&record, Some(runtime), None, None)
     });
 
-    let expected_path = Path::new("/tmp/buzz-goose-root")
+    let expected_path = Path::new("/tmp/maju-goose-root")
         .join("config")
         .join("config.yaml");
     assert_eq!(
@@ -206,7 +206,7 @@ fn record_model_overrides_file_model() {
     let surface = read_config_surface(&record, Some(runtime), None, None);
     let model = surface.normalized.model.unwrap();
     assert_eq!(model.value.as_deref(), Some("explicit-model"));
-    assert_eq!(model.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(model.origin, ConfigOrigin::MajuExplicit);
 }
 
 #[test]
@@ -279,7 +279,7 @@ fn acp_model_overrides_file_model_with_override_tracking() {
 //
 // These simulate the call-site pattern in agent_config.rs:
 // 1. Inject persona-resolved values into the record (as if absent)
-// 2. Call read_config_surface (reader tags them BuzzExplicit)
+// 2. Call read_config_surface (reader tags them MajuExplicit)
 // 3. Re-tag injected fields to PersonaDefault
 //
 // This exercises the same logic path as get_agent_config_surface without
@@ -295,14 +295,14 @@ fn persona_model_injection_produces_persona_default_origin() {
 
     let mut surface = read_config_surface(&record, Some(runtime), None, None);
 
-    // Reader sees injected model as BuzzExplicit.
+    // Reader sees injected model as MajuExplicit.
     let model = surface.normalized.model.as_ref().unwrap();
     assert_eq!(model.value.as_deref(), Some("persona-model"));
-    assert_eq!(model.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(model.origin, ConfigOrigin::MajuExplicit);
 
     // Call-site re-tags (simulating had_model == false).
     if let Some(ref mut field) = surface.normalized.model {
-        if field.origin == ConfigOrigin::BuzzExplicit {
+        if field.origin == ConfigOrigin::MajuExplicit {
             field.origin = ConfigOrigin::PersonaDefault;
         }
     }
@@ -354,7 +354,7 @@ fn runtime_override_wins_display_when_model_overridden_is_true() {
 
 #[test]
 fn no_runtime_override_when_model_overridden_is_false() {
-    // At spawn the session's current_model == persona model (BUZZ_ACP_MODEL
+    // At spawn the session's current_model == persona model (MAJU_ACP_MODEL
     // is set to the persona model) and model_overridden is false. No override;
     // the field falls through to normal precedence.
     let record = test_record();
@@ -431,14 +431,14 @@ fn persona_provider_injection_produces_persona_default_origin() {
 
     let mut surface = read_config_surface(&record, Some(runtime), None, None);
 
-    // Reader sees injected provider as BuzzExplicit.
+    // Reader sees injected provider as MajuExplicit.
     let provider = surface.normalized.provider.as_ref().unwrap();
     assert_eq!(provider.value.as_deref(), Some("anthropic"));
-    assert_eq!(provider.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(provider.origin, ConfigOrigin::MajuExplicit);
 
     // Call-site re-tags (simulating had_provider == false).
     if let Some(ref mut field) = surface.normalized.provider {
-        if field.origin == ConfigOrigin::BuzzExplicit {
+        if field.origin == ConfigOrigin::MajuExplicit {
             field.origin = ConfigOrigin::PersonaDefault;
         }
     }
@@ -452,26 +452,26 @@ fn persona_provider_injection_produces_persona_default_origin() {
 fn persona_system_prompt_injection_produces_persona_default_origin() {
     let mut record = test_record();
     // Simulate: record has no system_prompt, persona provides one via env var.
-    // The call-site injects it as BUZZ_ACP_SYSTEM_PROMPT before calling the reader.
+    // The call-site injects it as MAJU_ACP_SYSTEM_PROMPT before calling the reader.
     record.env_vars.insert(
-        "BUZZ_ACP_SYSTEM_PROMPT".to_string(),
+        "MAJU_ACP_SYSTEM_PROMPT".to_string(),
         "You are a helpful assistant.".to_string(),
     );
     let runtime = test_runtime();
 
     let mut surface = read_config_surface(&record, Some(runtime), None, None);
 
-    // Reader sees injected prompt as BuzzExplicit.
+    // Reader sees injected prompt as MajuExplicit.
     let prompt = surface.normalized.system_prompt.as_ref().unwrap();
     assert_eq!(
         prompt.value.as_deref(),
         Some("You are a helpful assistant.")
     );
-    assert_eq!(prompt.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(prompt.origin, ConfigOrigin::MajuExplicit);
 
     // Call-site re-tags (simulating had_prompt == false).
     if let Some(ref mut field) = surface.normalized.system_prompt {
-        if field.origin == ConfigOrigin::BuzzExplicit {
+        if field.origin == ConfigOrigin::MajuExplicit {
             field.origin = ConfigOrigin::PersonaDefault;
         }
     }
@@ -503,7 +503,7 @@ fn record_system_prompt_shadows_config_file_prompt_as_secondary() {
     )
     .unwrap();
     assert_eq!(field.value.as_deref(), Some("Record prompt."));
-    assert_eq!(field.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(field.origin, ConfigOrigin::MajuExplicit);
     assert_eq!(field.overridden_value.as_deref(), Some("File prompt."));
     assert_eq!(field.overridden_origin, Some(ConfigOrigin::ConfigFile));
 }
@@ -522,14 +522,14 @@ fn explicit_record_model_not_retagged_when_already_present() {
 
     let surface = read_config_surface(&record, Some(runtime), None, None);
 
-    // had_model == true, so no re-tagging occurs. Origin stays BuzzExplicit.
+    // had_model == true, so no re-tagging occurs. Origin stays MajuExplicit.
     let model = surface.normalized.model.unwrap();
     assert_eq!(model.value.as_deref(), Some("explicit-model"));
-    assert_eq!(model.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(model.origin, ConfigOrigin::MajuExplicit);
 }
 
 #[test]
-fn extra_env_vars_appear_in_advanced_as_buzz_explicit() {
+fn extra_env_vars_appear_in_advanced_as_maju_explicit() {
     let mut record = test_record();
     // Normalized keys — must NOT appear in advanced.
     record
@@ -537,7 +537,7 @@ fn extra_env_vars_appear_in_advanced_as_buzz_explicit() {
         .insert("GOOSE_MODEL".to_string(), "some-model".to_string());
     record
         .env_vars
-        .insert("BUZZ_ACP_SYSTEM_PROMPT".to_string(), "hello".to_string());
+        .insert("MAJU_ACP_SYSTEM_PROMPT".to_string(), "hello".to_string());
     // Non-normalized key — MUST appear in advanced.
     record
         .env_vars
@@ -556,7 +556,7 @@ fn extra_env_vars_appear_in_advanced_as_buzz_explicit() {
         "normalized model key must not appear in advanced"
     );
     assert!(
-        !advanced_keys.contains(&"BUZZ_ACP_SYSTEM_PROMPT"),
+        !advanced_keys.contains(&"MAJU_ACP_SYSTEM_PROMPT"),
         "normalized system prompt key must not appear in advanced"
     );
 
@@ -566,7 +566,7 @@ fn extra_env_vars_appear_in_advanced_as_buzz_explicit() {
         .find(|f| f.key == "SPROUT_ACP_MEMORY")
         .unwrap();
     assert_eq!(field.value.as_deref(), Some("mem-value"));
-    assert_eq!(field.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(field.origin, ConfigOrigin::MajuExplicit);
     assert!(matches!(
         field.write_via,
         ConfigWriteMechanism::RespawnWithEnvVar { ref env_key } if env_key == "SPROUT_ACP_MEMORY"
@@ -598,18 +598,18 @@ fn extra_env_var_skipped_when_already_in_file_config_extra() {
     );
 }
 
-// ── buzz-agent normalized env-var field tests ───────────────────────────────
+// ── maju-agent normalized env-var field tests ───────────────────────────────
 //
-// buzz-agent uses env vars (not a config file) for max_output_tokens and
-// context_limit. build_numeric_env_field must surface these as BuzzExplicit
+// maju-agent uses env vars (not a config file) for max_output_tokens and
+// context_limit. build_numeric_env_field must surface these as MajuExplicit
 // when the env var is present in record.env_vars, and must not double-surface
 // them in the advanced tier.
 
-fn buzz_agent_runtime() -> &'static KnownAcpRuntime {
+fn maju_agent_runtime() -> &'static KnownAcpRuntime {
     &KnownAcpRuntime {
-        id: "buzz-agent",
-        label: "Buzz Agent",
-        commands: &["buzz-agent"],
+        id: "maju-agent",
+        label: "Maju Agent",
+        commands: &["maju-agent"],
         aliases: &[],
         avatar_url: "",
         mcp_command: None,
@@ -624,16 +624,16 @@ fn buzz_agent_runtime() -> &'static KnownAcpRuntime {
         adapter_install_hint: "",
         skill_dir: None,
         supports_acp_model_switching: true,
-        model_env_var: Some("BUZZ_AGENT_MODEL"),
-        provider_env_var: Some("BUZZ_AGENT_PROVIDER"),
+        model_env_var: Some("MAJU_AGENT_MODEL"),
+        provider_env_var: Some("MAJU_AGENT_PROVIDER"),
         provider_locked: false,
         default_env: &[],
         config_file_path: None,
         config_file_format: None,
         supports_acp_native_config: false,
-        thinking_env_var: Some("BUZZ_AGENT_THINKING_EFFORT"),
-        max_tokens_env_var: Some("BUZZ_AGENT_MAX_OUTPUT_TOKENS"),
-        context_limit_env_var: Some("BUZZ_AGENT_MAX_CONTEXT_TOKENS"),
+        thinking_env_var: Some("MAJU_AGENT_THINKING_EFFORT"),
+        max_tokens_env_var: Some("MAJU_AGENT_MAX_OUTPUT_TOKENS"),
+        context_limit_env_var: Some("MAJU_AGENT_MAX_CONTEXT_TOKENS"),
         required_normalized_fields: &["model", "provider"],
         login_hint: None,
         auth_probe_args: None,
@@ -641,52 +641,52 @@ fn buzz_agent_runtime() -> &'static KnownAcpRuntime {
 }
 
 #[test]
-fn buzz_agent_max_output_tokens_from_env_is_buzz_explicit() {
+fn maju_agent_max_output_tokens_from_env_is_maju_explicit() {
     let mut record = test_record();
     record.env_vars.insert(
-        "BUZZ_AGENT_MAX_OUTPUT_TOKENS".to_string(),
+        "MAJU_AGENT_MAX_OUTPUT_TOKENS".to_string(),
         "8192".to_string(),
     );
-    let runtime = buzz_agent_runtime();
+    let runtime = maju_agent_runtime();
 
     let surface = read_config_surface(&record, Some(runtime), None, None);
 
     let field = surface.normalized.max_output_tokens.unwrap();
     assert_eq!(field.value.as_deref(), Some("8192"));
-    assert_eq!(field.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(field.origin, ConfigOrigin::MajuExplicit);
     assert!(matches!(
         field.write_via,
         ConfigWriteMechanism::RespawnWithEnvVar { ref env_key }
-            if env_key == "BUZZ_AGENT_MAX_OUTPUT_TOKENS"
+            if env_key == "MAJU_AGENT_MAX_OUTPUT_TOKENS"
     ));
 }
 
 #[test]
-fn buzz_agent_context_limit_from_env_is_buzz_explicit() {
+fn maju_agent_context_limit_from_env_is_maju_explicit() {
     let mut record = test_record();
     record.env_vars.insert(
-        "BUZZ_AGENT_MAX_CONTEXT_TOKENS".to_string(),
+        "MAJU_AGENT_MAX_CONTEXT_TOKENS".to_string(),
         "100000".to_string(),
     );
-    let runtime = buzz_agent_runtime();
+    let runtime = maju_agent_runtime();
 
     let surface = read_config_surface(&record, Some(runtime), None, None);
 
     let field = surface.normalized.context_limit.unwrap();
     assert_eq!(field.value.as_deref(), Some("100000"));
-    assert_eq!(field.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(field.origin, ConfigOrigin::MajuExplicit);
     assert!(matches!(
         field.write_via,
         ConfigWriteMechanism::RespawnWithEnvVar { ref env_key }
-            if env_key == "BUZZ_AGENT_MAX_CONTEXT_TOKENS"
+            if env_key == "MAJU_AGENT_MAX_CONTEXT_TOKENS"
     ));
 }
 
 #[test]
-fn buzz_agent_max_tokens_absent_when_no_env_var_or_file() {
-    // buzz-agent has no config file, and env var is not set.
+fn maju_agent_max_tokens_absent_when_no_env_var_or_file() {
+    // maju-agent has no config file, and env var is not set.
     let record = test_record();
-    let runtime = buzz_agent_runtime();
+    let runtime = maju_agent_runtime();
 
     let surface = read_config_surface(&record, Some(runtime), None, None);
 
@@ -701,65 +701,65 @@ fn buzz_agent_max_tokens_absent_when_no_env_var_or_file() {
 }
 
 #[test]
-fn buzz_agent_max_tokens_env_var_not_double_surfaced_in_advanced() {
+fn maju_agent_max_tokens_env_var_not_double_surfaced_in_advanced() {
     let mut record = test_record();
     record.env_vars.insert(
-        "BUZZ_AGENT_MAX_OUTPUT_TOKENS".to_string(),
+        "MAJU_AGENT_MAX_OUTPUT_TOKENS".to_string(),
         "4096".to_string(),
     );
     record.env_vars.insert(
-        "BUZZ_AGENT_MAX_CONTEXT_TOKENS".to_string(),
+        "MAJU_AGENT_MAX_CONTEXT_TOKENS".to_string(),
         "50000".to_string(),
     );
-    let runtime = buzz_agent_runtime();
+    let runtime = maju_agent_runtime();
 
     let surface = read_config_surface(&record, Some(runtime), None, None);
 
     let advanced_keys: Vec<&str> = surface.advanced.iter().map(|f| f.key.as_str()).collect();
     assert!(
-        !advanced_keys.contains(&"BUZZ_AGENT_MAX_OUTPUT_TOKENS"),
+        !advanced_keys.contains(&"MAJU_AGENT_MAX_OUTPUT_TOKENS"),
         "max_output_tokens must not appear in advanced when normalized"
     );
     assert!(
-        !advanced_keys.contains(&"BUZZ_AGENT_MAX_CONTEXT_TOKENS"),
+        !advanced_keys.contains(&"MAJU_AGENT_MAX_CONTEXT_TOKENS"),
         "context_limit must not appear in advanced when normalized"
     );
 }
 
 #[test]
-fn buzz_agent_thinking_effort_from_env_is_buzz_explicit() {
+fn maju_agent_thinking_effort_from_env_is_maju_explicit() {
     let mut record = test_record();
     record
         .env_vars
-        .insert("BUZZ_AGENT_THINKING_EFFORT".to_string(), "high".to_string());
-    let runtime = buzz_agent_runtime();
+        .insert("MAJU_AGENT_THINKING_EFFORT".to_string(), "high".to_string());
+    let runtime = maju_agent_runtime();
 
     let surface = read_config_surface(&record, Some(runtime), None, None);
 
     let field = surface.normalized.thinking_effort.unwrap();
     assert_eq!(field.value.as_deref(), Some("high"));
-    assert_eq!(field.origin, ConfigOrigin::BuzzExplicit);
+    assert_eq!(field.origin, ConfigOrigin::MajuExplicit);
     assert!(matches!(
         field.write_via,
         ConfigWriteMechanism::RespawnWithEnvVar { ref env_key }
-            if env_key == "BUZZ_AGENT_THINKING_EFFORT"
+            if env_key == "MAJU_AGENT_THINKING_EFFORT"
     ));
 }
 
 #[test]
-fn buzz_agent_thinking_effort_env_var_not_double_surfaced_in_advanced() {
+fn maju_agent_thinking_effort_env_var_not_double_surfaced_in_advanced() {
     let mut record = test_record();
     record.env_vars.insert(
-        "BUZZ_AGENT_THINKING_EFFORT".to_string(),
+        "MAJU_AGENT_THINKING_EFFORT".to_string(),
         "medium".to_string(),
     );
-    let runtime = buzz_agent_runtime();
+    let runtime = maju_agent_runtime();
 
     let surface = read_config_surface(&record, Some(runtime), None, None);
 
     let advanced_keys: Vec<&str> = surface.advanced.iter().map(|f| f.key.as_str()).collect();
     assert!(
-        !advanced_keys.contains(&"BUZZ_AGENT_THINKING_EFFORT"),
+        !advanced_keys.contains(&"MAJU_AGENT_THINKING_EFFORT"),
         "thinking_effort must not appear in advanced when normalized"
     );
 }

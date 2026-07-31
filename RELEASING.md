@@ -1,17 +1,17 @@
-# Releasing Buzz
+# Releasing Maju
 
-Buzz has three independent release lanes. Desktop and relay use release PRs.
+Maju has three independent release lanes. Desktop and relay use release PRs.
 Mobile uses immutable release-candidate tags cut directly from remote `main`:
 
 | Lane | Entry point | Artifact |
 |------|-------------|----------|
 | Desktop | `just release-desktop` | Signed desktop app (macOS/Linux) |
-| Relay | `just release-relay` | `ghcr.io/block/buzz` container image |
+| Relay | `just release-relay` | `ghcr.io/heap-cider/maju` container image |
 | Mobile | `scripts/mobile-release.sh candidate X.Y.Z` | Exact `mobile-vX.Y.Z-rc.N` source identity |
 
 The lanes version independently. Desktop reads its manifests, relay reads its
 crate manifest, and mobile derives both source and marketing version from the
-exact candidate tag. The mobile handoff to the private `buzz-releases` pipeline
+exact candidate tag. The mobile handoff to the private `maju-releases` pipeline
 remains manual because OSS CI cannot trigger private CI.
 
 ## Quick Start
@@ -52,7 +52,7 @@ or mobile GitHub Release.
 ### Relay
 
 1. **`just release-relay`** runs locally on `main`, creates or updates a
-   `relay-release/<version>` PR, bumps `crates/buzz-relay/Cargo.toml`,
+   `relay-release/<version>` PR, bumps `crates/maju-relay/Cargo.toml`,
    regenerates `Cargo.lock`, and updates the relay changelog.
 2. **Merge the PR.** `auto-tag-on-release-pr-merge` pushes
    `relay-v<version>`.
@@ -68,15 +68,15 @@ Every push to `main` continues to publish the rolling relay `:main` and
 ### Mobile
 
 1. **Publish a candidate.** From a clean checkout whose `origin` is the
-   canonical `block/buzz` repository, run
+   canonical `heap-cider/maju` repository, run
    `scripts/mobile-release.sh candidate X.Y.Z`. The script resolves and fetches
    the exact current `origin/main` commit, derives the next number from exact
    remote tags for that marketing version, and publishes an annotated
-   `mobile-vX.Y.Z-rc.N` tag there through the dedicated `buzz-release-bot`
+   `mobile-vX.Y.Z-rc.N` tag there through the dedicated `maju-release-bot`
    GitHub App. It never uses the operator's checked-out commit and never moves
    an existing candidate.
 2. **Build the exact tag.** Enter the candidate tag as `mobile_ref` in the
-   private Buzz mobile Buildkite pipeline. OSS CI deliberately cannot trigger
+   private Maju mobile Buildkite pipeline. OSS CI deliberately cannot trigger
    that private pipeline. The tag supplies both source commit and release
    version. Flutter receives clean marketing version `X.Y.Z`; Buildkite's
    monotonically increasing build number supplies the platform build number.
@@ -107,7 +107,7 @@ release data. It is not a release ledger for this flow.
 | Lane | Release version authority |
 |------|---------------------------|
 | Desktop | `desktop/package.json` and synchronized desktop manifests |
-| Relay | `crates/buzz-relay/Cargo.toml` |
+| Relay | `crates/maju-relay/Cargo.toml` |
 | Mobile | Exact `mobile-vX.Y.Z-rc.N` remote tag |
 
 `just bump-desktop-version <version>` updates the desktop manifests and
@@ -123,7 +123,7 @@ Use the manual **Signed macOS Canary** workflow when you need an Apple Silicon
 build of current `main` for explicit testing without publishing a release:
 
 ```sh
-gh workflow run signed-macos-canary.yml --repo block/buzz --ref main
+gh workflow run signed-macos-canary.yml --repo heap-cider/maju --ref main
 ```
 
 The workflow derives a `-test.<run-number>` version, signs and notarizes the
@@ -131,12 +131,12 @@ DMG, verifies it with Gatekeeper, and uploads it as a short-lived Actions
 artifact with seven-day retention. Because this is a public repository, any
 signed-in GitHub user can download that artifact while it exists; it is
 unpublished, not private. The workflow has no release permissions, does not
-create or move tags, and cannot update `buzz-desktop-latest` or `latest.json`.
+create or move tags, and cannot update `maju-desktop-latest` or `latest.json`.
 
 Download the artifact from the completed run:
 
 ```sh
-gh run download <run-id> --repo block/buzz --name <artifact-name>
+gh run download <run-id> --repo heap-cider/maju --name <artifact-name>
 ```
 
 The workflow intentionally accepts only `main`. Use the normal release process
@@ -159,10 +159,10 @@ Buildkite pipeline accepts only an exact candidate tag.
 ## Internal Releases
 
 For mobile, trigger the private
-[Release Mobile pipeline](https://buildkite.com/runway/buzz-mobile-releases) with
+[Release Mobile pipeline](https://buildkite.com/runway/maju-mobile-releases) with
 an exact RC tag for the platform build being cut. For desktop, use
 [Release Desktop](https://buildkite.com/runway/sprout-releases). See the
-[buzz-releases README](https://github.com/squareup/buzz-releases#cutting-a-release)
+[maju-releases README](https://github.com/squareup/maju-releases#cutting-a-release)
 for the private pipeline contract.
 
 ---
@@ -172,7 +172,7 @@ for the private pipeline contract.
 Desktop publishes two GitHub releases:
 
 1. **`v<version>`**: the user-facing release with installers.
-2. **`buzz-desktop-latest`**: the rolling auto-updater release.
+2. **`maju-desktop-latest`**: the rolling auto-updater release.
 
 Mobile publishes only annotated `mobile-vX.Y.Z-rc.N` git tags. Store artifacts
 and rollout records retain the exact tag they used. Mobile does not publish a
@@ -201,27 +201,27 @@ host's Wayland/GStreamer/graphics stack and requires GLib >= 2.72
 
 ## Prerequisites
 
-- **Write access** to the `block/buzz` GitHub repository
-- An `origin` remote whose configured URL is the canonical `block/buzz`
+- **Write access** to the `heap-cider/maju` GitHub repository
+- An `origin` remote whose configured URL is the canonical `heap-cider/maju`
   repository
 - `gh` CLI version 2.87.0 or newer, authenticated with permission to dispatch
   the candidate workflow
-- Release tag ruleset [`14378754`](https://github.com/block/buzz/rules/14378754)
+- Release tag ruleset [`14378754`](https://github.com/heap-cider/maju/rules/14378754)
   active for `mobile-v*`, with creation, update, deletion, and non-fast-forward
-  protections and `buzz-release-bot` as its sole always-bypass actor
-- The `buzz-release-bot` App credentials configured for GitHub Actions
+  protections and `maju-release-bot` as its sole always-bypass actor
+- The `maju-release-bot` App credentials configured for GitHub Actions
 - The following **GitHub Actions secrets** must also be configured for the
   desktop release lane:
 
   | Secret | Purpose |
   |--------|---------|
-  | `BUZZ_UPDATER_PUBLIC_KEY` | Tauri updater public key (minisign) |
+  | `MAJU_UPDATER_PUBLIC_KEY` | Tauri updater public key (minisign) |
   | `TAURI_SIGNING_PRIVATE_KEY` | Tauri updater private key |
   | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password for the private key |
 
 Mobile candidate publication requires workflow-dispatch access and the existing
 release App because strict tag protection denies direct human creation. The App
-must be installed on `block/buzz`, have Contents write and Metadata read, and
+must be installed on `heap-cider/maju`, have Contents write and Metadata read, and
 retain an `always` bypass on the immutable `mobile-v*` tag rules. It does not
 require GitHub Releases permissions, repository Administration permission, or a
 mobile release-branch ruleset. The publisher validates the App token's effective
@@ -262,13 +262,13 @@ increasing remote identities.
 
 ### A mobile candidate publication is rejected by repository rules
 
-Confirm `buzz-release-bot` remains the sole always-bypass actor for the active
+Confirm `maju-release-bot` remains the sole always-bypass actor for the active
 `mobile-v*` ruleset and that its Actions credentials are available. Do not grant
 direct human creation or weaken update or deletion protection. Existing
 candidate tags must remain immutable.
 
 ### Auto-updater reports "no update available"
-Verify that the `buzz-desktop-latest` release exists and contains a
+Verify that the `maju-desktop-latest` release exists and contains a
 valid `latest.json`. The manifest covers all four platform keys
 (`darwin-aarch64`, `darwin-x86_64`, `linux-x86_64`,
 `windows-x86_64`); a missing entry usually means that platform's

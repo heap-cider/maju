@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use crate::managed_agents::{
-    buzz_managed_command_path, buzz_managed_node_bin_dir, buzz_managed_npm_bin_dir,
+    maju_managed_command_path, maju_managed_node_bin_dir, maju_managed_npm_bin_dir,
     AcpAvailabilityStatus, AcpRuntimeCatalogEntry, AuthStatus, CommandAvailabilityInfo,
     HarnessSource,
 };
@@ -17,8 +17,8 @@ pub(crate) use runtime_metadata::KnownAcpRuntime;
 const GOOSE_AVATAR_URL: &str = "https://goose-docs.ai/img/logo_dark.png";
 const CLAUDE_CODE_AVATAR_URL: &str = "https://anthropic.gallerycdn.vsassets.io/extensions/anthropic/claude-code/2.1.77/1773707456892/Microsoft.VisualStudio.Services.Icons.Default";
 const CODEX_AVATAR_URL: &str = "https://openai.gallerycdn.vsassets.io/extensions/openai/chatgpt/26.5313.41514/1773706730621/Microsoft.VisualStudio.Services.Icons.Default";
-const BUZZ_AGENT_AVATAR_URL: &str =
-    "https://raw.githubusercontent.com/block/buzz/refs/heads/main/crates/buzz-agent/buzz-agent.png";
+const MAJU_AGENT_AVATAR_URL: &str =
+    "https://raw.githubusercontent.com/heap-cider/maju/refs/heads/main/crates/maju-agent/maju-agent.png";
 fn common_binary_paths() -> &'static [PathBuf] {
     static PATHS: OnceLock<Vec<PathBuf>> = OnceLock::new();
     PATHS.get_or_init(|| {
@@ -28,10 +28,10 @@ fn common_binary_paths() -> &'static [PathBuf] {
             PathBuf::from("/usr/bin"),
             PathBuf::from("/home/linuxbrew/.linuxbrew/bin"),
         ];
-        if let Some(managed_node_bin) = buzz_managed_node_bin_dir() {
+        if let Some(managed_node_bin) = maju_managed_node_bin_dir() {
             paths.insert(0, managed_node_bin);
         }
-        if let Some(managed_bin) = buzz_managed_npm_bin_dir() {
+        if let Some(managed_bin) = maju_managed_npm_bin_dir() {
             paths.insert(0, managed_bin);
         }
         if let Some(home) = dirs::home_dir() {
@@ -86,7 +86,7 @@ const KNOWN_ACP_RUNTIMES: &[KnownAcpRuntime] = &[
         adapter_install_commands: &[],
         cli_install_instructions_url: "https://goose-docs.ai/docs/getting-started/installation/",
         adapter_install_instructions_url: "",
-        cli_install_hint: "Buzz talks to Goose through the Goose CLI.",
+        cli_install_hint: "Maju talks to Goose through the Goose CLI.",
         adapter_install_hint: "",
         skill_dir: Some(".goose/skills"),
         supports_acp_model_switching: false,
@@ -118,8 +118,8 @@ const KNOWN_ACP_RUNTIMES: &[KnownAcpRuntime] = &[
         adapter_install_commands: &["npm install -g @agentclientprotocol/claude-agent-acp"],
         cli_install_instructions_url: "https://code.claude.com/docs/en/getting-started",
         adapter_install_instructions_url: "https://github.com/agentclientprotocol/claude-agent-acp",
-        cli_install_hint: "Buzz talks to Claude Code through the Claude Code CLI.",
-        adapter_install_hint: "Buzz talks to the Claude Code CLI through an ACP adapter. Install it with: npm install -g @agentclientprotocol/claude-agent-acp.",
+        cli_install_hint: "Maju talks to Claude Code through the Claude Code CLI.",
+        adapter_install_hint: "Maju talks to the Claude Code CLI through an ACP adapter. Install it with: npm install -g @agentclientprotocol/claude-agent-acp.",
         skill_dir: Some(".claude/skills"),
         supports_acp_model_switching: false,
         model_env_var: None,
@@ -142,7 +142,7 @@ const KNOWN_ACP_RUNTIMES: &[KnownAcpRuntime] = &[
         commands: &["codex-acp"],
         aliases: &[],
         avatar_url: CODEX_AVATAR_URL,
-        mcp_command: Some("buzz-dev-mcp"),
+        mcp_command: Some("maju-dev-mcp"),
         mcp_hooks: false,
         underlying_cli: Some("codex"),
         cli_install_commands: &["curl -fsSL https://chatgpt.com/codex/install.sh | sh"],
@@ -150,8 +150,8 @@ const KNOWN_ACP_RUNTIMES: &[KnownAcpRuntime] = &[
         adapter_install_commands: &["npm install -g @agentclientprotocol/codex-acp"],
         cli_install_instructions_url: "https://developers.openai.com/codex/cli/",
         adapter_install_instructions_url: "https://github.com/agentclientprotocol/codex-acp",
-        cli_install_hint: "Buzz talks to Codex through the Codex CLI.",
-        adapter_install_hint: "Buzz talks to the Codex CLI through an ACP adapter. Install it with: npm install -g @agentclientprotocol/codex-acp.",
+        cli_install_hint: "Maju talks to Codex through the Codex CLI.",
+        adapter_install_hint: "Maju talks to the Codex CLI through an ACP adapter. Install it with: npm install -g @agentclientprotocol/codex-acp.",
         skill_dir: Some(".codex/skills"),
         supports_acp_model_switching: false,
         model_env_var: None,
@@ -170,33 +170,33 @@ const KNOWN_ACP_RUNTIMES: &[KnownAcpRuntime] = &[
         auth_probe_args: Some(&["codex", "login", "status"]),
     },
     KnownAcpRuntime {
-        id: "buzz-agent",
-        label: "Buzz Agent",
-        commands: &["buzz-agent"],
+        id: "maju-agent",
+        label: "Maju Agent",
+        commands: &["maju-agent"],
         aliases: &[],
-        avatar_url: BUZZ_AGENT_AVATAR_URL,
-        mcp_command: Some("buzz-dev-mcp"),
+        avatar_url: MAJU_AGENT_AVATAR_URL,
+        mcp_command: Some("maju-dev-mcp"),
         mcp_hooks: true,
         underlying_cli: None,
         cli_install_commands: &[],
         cli_install_commands_windows: &[],
         adapter_install_commands: &[],
-        cli_install_instructions_url: "https://github.com/block/buzz",
-        adapter_install_instructions_url: "https://github.com/block/buzz",
-        cli_install_hint: "Ships with the Buzz desktop app.",
+        cli_install_instructions_url: "https://github.com/heap-cider/maju",
+        adapter_install_instructions_url: "https://github.com/heap-cider/maju",
+        cli_install_hint: "Ships with the Maju desktop app.",
         adapter_install_hint: "",
         skill_dir: None,
         supports_acp_model_switching: true,
-        model_env_var: Some("BUZZ_AGENT_MODEL"),
-        provider_env_var: Some("BUZZ_AGENT_PROVIDER"),
+        model_env_var: Some("MAJU_AGENT_MODEL"),
+        provider_env_var: Some("MAJU_AGENT_PROVIDER"),
         provider_locked: false,
         default_env: &[],
         config_file_path: None,
         config_file_format: None,
         supports_acp_native_config: false,
-        thinking_env_var: Some("BUZZ_AGENT_THINKING_EFFORT"),
-        max_tokens_env_var: Some("BUZZ_AGENT_MAX_OUTPUT_TOKENS"),
-        context_limit_env_var: Some("BUZZ_AGENT_MAX_CONTEXT_TOKENS"),
+        thinking_env_var: Some("MAJU_AGENT_THINKING_EFFORT"),
+        max_tokens_env_var: Some("MAJU_AGENT_MAX_OUTPUT_TOKENS"),
+        context_limit_env_var: Some("MAJU_AGENT_MAX_CONTEXT_TOKENS"),
         required_normalized_fields: &["model", "provider"],
         login_hint: None,
         auth_probe_args: None,
@@ -273,17 +273,17 @@ pub(crate) fn known_acp_runtime_exact(id: &str) -> Option<&'static KnownAcpRunti
 }
 
 /// The agent command a freshly-created agent defaults to when the create
-/// request supplies none. Resolves the bundled `buzz-agent` from the catalog so
+/// request supplies none. Resolves the bundled `maju-agent` from the catalog so
 /// the default cannot drift from the provider definition. Falls back to the id
 /// if the catalog entry is missing.
 ///
 /// The previous default was the bare global `goose`, which is not on PATH on a
 /// stock Windows install: every worker failed with `program not found`. The
-/// bundled `buzz-agent` ships with the app and resolves on every platform.
+/// bundled `maju-agent` ships with the app and resolves on every platform.
 pub fn default_agent_command() -> String {
-    known_acp_runtime_exact("buzz-agent")
+    known_acp_runtime_exact("maju-agent")
         .and_then(|p| p.commands.first().copied())
-        .unwrap_or("buzz-agent")
+        .unwrap_or("maju-agent")
         .to_string()
 }
 
@@ -408,7 +408,7 @@ pub(crate) fn dangling_harness_display(id: &str) -> String {
 /// resolved (i.e. the definition was deleted after the agent was created).
 ///
 /// Returns `Err("DANGLING_HARNESS_ID:<id>")` so callers can surface the error
-/// without falling through to `buzz-agent`.  When there is no runtime id at all
+/// without falling through to `maju-agent`.  When there is no runtime id at all
 /// the fallback to `default_agent_command()` is intentional (legacy agents
 /// pre-date the unified harness model).
 pub fn try_record_agent_command(
@@ -464,7 +464,7 @@ fn default_agent_args(command: &str) -> Option<Vec<String>> {
     match normalize_command_identity(command).as_str() {
         "goose" => Some(vec!["acp".to_string()]),
         "codex" | "codex-acp" | "claude-agent-acp" | "claude-code-acp" | "claude-code"
-        | "claudecode" | "buzz-agent" => Some(Vec::new()),
+        | "claudecode" | "maju-agent" => Some(Vec::new()),
         _ => None,
     }
 }
@@ -565,7 +565,7 @@ fn resolve_cache() -> &'static std::sync::Mutex<std::collections::HashMap<String
 /// The cache eliminates redundant login-shell spawns when multiple agents share
 /// the same binaries (e.g. `npx`, `uvx`).
 pub fn resolve_command(command: &str) -> Option<PathBuf> {
-    if let Some(managed) = resolve_buzz_managed_command(command) {
+    if let Some(managed) = resolve_maju_managed_command(command) {
         return Some(managed);
     }
 
@@ -683,11 +683,11 @@ fn command_basenames(command: &str) -> Vec<String> {
     candidates
 }
 
-fn resolve_buzz_managed_command(command: &str) -> Option<PathBuf> {
+fn resolve_maju_managed_command(command: &str) -> Option<PathBuf> {
     let basenames = command_basenames(command);
     basenames
         .iter()
-        .find_map(|basename| buzz_managed_command_path(command, basename))
+        .find_map(|basename| maju_managed_command_path(command, basename))
 }
 
 fn resolve_command_uncached(command: &str) -> Option<PathBuf> {
@@ -702,7 +702,7 @@ fn resolve_command_uncached(command: &str) -> Option<PathBuf> {
         return path.exists().then_some(path);
     }
 
-    if let Some(managed) = resolve_buzz_managed_command(command) {
+    if let Some(managed) = resolve_maju_managed_command(command) {
         return Some(managed);
     }
 
@@ -780,7 +780,7 @@ fn path_candidates_from_env_raw(basename: &str) -> Vec<PathBuf> {
 /// Collect login shell candidates for the current platform.
 ///
 /// On Unix: `/bin/zsh`, `/bin/bash` (the historical defaults).
-/// On Windows: Git Bash via `resolve_bash_path` — skips `BUZZ_SHELL` because
+/// On Windows: Git Bash via `resolve_bash_path` — skips `MAJU_SHELL` because
 /// login-shell callers use bash-only `-l -c` syntax.
 fn login_shell_candidates() -> Vec<PathBuf> {
     #[cfg(not(windows))]
@@ -1009,7 +1009,7 @@ fn runtime_needs_npm(runtime: &KnownAcpRuntime) -> bool {
 
 /// Returns `true` when `cmd` is an npm global install/uninstall invocation.
 ///
-/// Buzz rewrites these catalog commands to an app-private npm prefix before
+/// Maju rewrites these catalog commands to an app-private npm prefix before
 /// execution; the global shape remains in the catalog so existing install plans
 /// and Doctor's Node.js-required detection stay simple.
 pub(crate) fn is_npm_global_install(cmd: &str) -> bool {
@@ -1163,10 +1163,10 @@ pub(crate) fn classify_runtime(
     }
 }
 
-/// The oldest `codex-acp` version supported by Buzz managed agents.
+/// The oldest `codex-acp` version supported by Maju managed agents.
 ///
 /// Older 1.x adapters are detected successfully, but can still bundle a Codex runtime
-/// that does not reliably give `buzz` CLI subprocesses outbound relay access.
+/// that does not reliably give `maju` CLI subprocesses outbound relay access.
 ///
 /// Bump policy: raise this only when a newer adapter fixes a defect that breaks managed
 /// agents, and only to a version already published on npm — every user below the floor is
@@ -1385,14 +1385,14 @@ fn discover_acp_runtime_phase1(runtime: &'static KnownAcpRuntime) -> PartialEntr
         | AcpAvailabilityStatus::NotInstalled => runtime.cli_install_instructions_url,
     };
 
-    // node_required now means Buzz cannot provide npm for this platform.
-    // On supported desktop platforms, Buzz downloads a private Node/npm
+    // node_required now means Maju cannot provide npm for this platform.
+    // On supported desktop platforms, Maju downloads a private Node/npm
     // runtime into app data before running npm-backed adapter installs.
     let node_required = matches!(
         availability,
         AcpAvailabilityStatus::AdapterMissing | AcpAvailabilityStatus::NotInstalled
     ) && runtime_needs_npm(runtime)
-        && buzz_managed_node_bin_dir().is_none()
+        && maju_managed_node_bin_dir().is_none()
         && resolve_command("npm").is_none()
         && resolve_command("node").is_none();
 
@@ -1544,7 +1544,7 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         command: "cursor-agent",
         args: &["acp"],
         install_instructions_url: "https://cursor.com/downloads",
-        install_hint: "Buzz talks to Cursor through the cursor-agent CLI's ACP mode.",
+        install_hint: "Maju talks to Cursor through the cursor-agent CLI's ACP mode.",
         underlying_cli: None,
     },
     PresetHarness {
@@ -1553,7 +1553,7 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         command: "omp",
         args: &["acp"],
         install_instructions_url: "https://github.com/can1357/oh-my-pi",
-        install_hint: "Buzz talks to Oh My Pi through its CLI's ACP mode (omp acp).",
+        install_hint: "Maju talks to Oh My Pi through its CLI's ACP mode (omp acp).",
         underlying_cli: None,
     },
     PresetHarness {
@@ -1562,7 +1562,7 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         command: "grok",
         args: &["agent", "--always-approve", "stdio"],
         install_instructions_url: "https://build.x.ai/docs",
-        install_hint: "Buzz talks to Grok Build through its CLI's agent stdio mode.",
+        install_hint: "Maju talks to Grok Build through its CLI's agent stdio mode.",
         underlying_cli: None,
     },
     PresetHarness {
@@ -1571,7 +1571,7 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         command: "opencode",
         args: &["acp"],
         install_instructions_url: "https://opencode.ai/docs",
-        install_hint: "Buzz talks to OpenCode through its CLI's ACP mode (opencode acp).",
+        install_hint: "Maju talks to OpenCode through its CLI's ACP mode (opencode acp).",
         underlying_cli: None,
     },
     PresetHarness {
@@ -1580,7 +1580,7 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         command: "kimi",
         args: &["acp"],
         install_instructions_url: "https://kimi.ai/download",
-        install_hint: "Buzz talks to Kimi Code through its CLI's ACP mode (kimi acp).",
+        install_hint: "Maju talks to Kimi Code through its CLI's ACP mode (kimi acp).",
         underlying_cli: None,
     },
     PresetHarness {
@@ -1589,7 +1589,7 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         command: "amp-acp",
         args: &[],
         install_instructions_url: "https://github.com/tao12345666333/amp-acp",
-        install_hint: "Buzz talks to the Amp CLI through the amp-acp adapter. Follow the setup guide to install the adapter so the amp-acp command is on your PATH.",
+        install_hint: "Maju talks to the Amp CLI through the amp-acp adapter. Follow the setup guide to install the adapter so the amp-acp command is on your PATH.",
         underlying_cli: Some("amp"),
     },
     PresetHarness {
@@ -1598,7 +1598,7 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         command: "hermes-acp",
         args: &[],
         install_instructions_url: "https://hermes-agent.nousresearch.com",
-        install_hint: "Buzz talks to Hermes Agent through its hermes-acp command.",
+        install_hint: "Maju talks to Hermes Agent through its hermes-acp command.",
         underlying_cli: None,
     },
     PresetHarness {
@@ -1607,13 +1607,13 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         command: "openclaw",
         args: &["acp"],
         install_instructions_url: "https://docs.openclaw.ai/start/getting-started",
-        install_hint: "Buzz talks to OpenClaw through its ACP mode (openclaw acp), which relies on the OpenClaw Gateway daemon. Follow the setup guide to install both.\n\n\
+        install_hint: "Maju talks to OpenClaw through its ACP mode (openclaw acp), which relies on the OpenClaw Gateway daemon. Follow the setup guide to install both.\n\n\
             ⚠️  Execution-locus note: `openclaw acp` runs tools inside the \
             OpenClaw Gateway daemon, not in the Desktop process. \
-            Desktop-injected BUZZ_* env vars are visible to the `openclaw` \
+            Desktop-injected MAJU_* env vars are visible to the `openclaw` \
             harness process itself, but do NOT automatically reach the \
             Gateway's execution environment. If your tools or agent logic \
-            needs BUZZ_* credentials at execution time, set them on the \
+            needs MAJU_* credentials at execution time, set them on the \
             Gateway's own environment separately.",
         underlying_cli: None,
     },

@@ -1,9 +1,9 @@
 //! Runtime-owned shared-compute coordinator.
 //!
-//! Buzz publishes a client-signed, replaceable discovery note containing the
+//! Maju publishes a client-signed, replaceable discovery note containing the
 //! member's MeshLLM owner identity and current iroh endpoint. MeshLLM itself
 //! performs transport (direct QUIC or its encrypted iroh relays) and admission.
-//! The Buzz relay is only a generic Nostr store for membership and discovery;
+//! The Maju relay is only a generic Nostr store for membership and discovery;
 //! it does not coordinate connections or require mesh-specific handlers.
 
 use std::time::Duration;
@@ -14,11 +14,11 @@ use tauri::{AppHandle, Manager};
 use crate::app_state::AppState;
 
 /// Client-owned parameterized-replaceable discovery note. We use the standard
-/// NIP-51 bookmark-set kind with a reserved d-tag so existing Buzz relays accept
+/// NIP-51 bookmark-set kind with a reserved d-tag so existing Maju relays accept
 /// and store it through their generic user-state path. The relay needs no mesh
 /// handler or kind-registry change.
-pub const KIND_BUZZ_MESH_MEMBER_STATUS: u16 = buzz_core_pkg::kind::KIND_BOOKMARK_SET as u16;
-const STATUS_D_TAG_PREFIX: &str = "buzz-mesh-member-status";
+pub const KIND_MAJU_MESH_MEMBER_STATUS: u16 = maju_core_pkg::kind::KIND_BOOKMARK_SET as u16;
+const STATUS_D_TAG_PREFIX: &str = "maju-mesh-member-status";
 const ROSTER_POLL_INTERVAL: Duration = Duration::from_secs(60);
 const STATUS_PUBLISH_INTERVAL: Duration = Duration::from_secs(45);
 const STATUS_PUBLISH_TIMEOUT: Duration = Duration::from_secs(10);
@@ -28,7 +28,7 @@ const STATUS_PUBLISH_TIMEOUT: Duration = Duration::from_secs(10);
 const INGRESS_WATCHDOG_BASE: Duration = Duration::from_secs(15);
 const INGRESS_WATCHDOG_MAX: Duration = Duration::from_secs(120);
 /// A Share Compute node may start before another member's signed status reaches
-/// the relay. Recheck promptly so simultaneous starts converge into one Buzz
+/// the relay. Recheck promptly so simultaneous starts converge into one Maju
 /// mesh instead of remaining independent islands.
 const MESH_JOIN_POLL_INTERVAL: Duration = Duration::from_secs(15);
 const MESH_JOIN_RETRY_MAX: Duration = Duration::from_secs(120);
@@ -69,7 +69,7 @@ pub async fn start_coordinator(app: AppHandle) {
         loop {
             tokio::time::sleep(ROSTER_POLL_INTERVAL).await;
             if let Err(error) = reconcile_roster(&roster_app, &mut pending_shrink).await {
-                eprintln!("buzz-mesh: roster reconcile failed: {error}");
+                eprintln!("maju-mesh: roster reconcile failed: {error}");
             }
         }
     });
@@ -78,10 +78,10 @@ pub async fn start_coordinator(app: AppHandle) {
         let mut sleep_for = MESH_JOIN_POLL_INTERVAL;
         loop {
             tokio::time::sleep(sleep_for).await;
-            match reconcile_buzz_mesh_join(&join_app).await {
+            match reconcile_maju_mesh_join(&join_app).await {
                 Ok(()) => sleep_for = MESH_JOIN_POLL_INTERVAL,
                 Err(error) => {
-                    eprintln!("buzz-mesh: community mesh join reconcile failed: {error}");
+                    eprintln!("maju-mesh: community mesh join reconcile failed: {error}");
                     sleep_for = (sleep_for * 2).min(MESH_JOIN_RETRY_MAX);
                 }
             }
@@ -89,7 +89,7 @@ pub async fn start_coordinator(app: AppHandle) {
     });
 
     // Brad #2304 / #2062: ensure_relay_mesh_for_record only runs on explicit
-    // start + launch restore. After launch, local buzz-agent processes talk
+    // start + launch restore. After launch, local maju-agent processes talk
     // directly to :9337; there is no desktop "turn dispatch" hook. This
     // watchdog is the post-launch seam: probe ingress, drop a zombie handle,
     // re-arm via ensure_relay_mesh_for_record, surface last_error on failure.
@@ -103,7 +103,7 @@ pub async fn start_coordinator(app: AppHandle) {
                     sleep_for = INGRESS_WATCHDOG_BASE;
                 }
                 Err(error) => {
-                    eprintln!("buzz-mesh: ingress re-arm watchdog: {error}");
+                    eprintln!("maju-mesh: ingress re-arm watchdog: {error}");
                     sleep_for = (sleep_for * 2).min(INGRESS_WATCHDOG_MAX);
                 }
             }
@@ -127,10 +127,10 @@ pub async fn start_coordinator(app: AppHandle) {
     }
 }
 
-/// Join an isolated runtime to the existing Buzz community mesh. The relay is
+/// Join an isolated runtime to the existing Maju community mesh. The relay is
 /// discovery only: the selected endpoint is member-signed and validated, then
 /// MeshLLM establishes the encrypted peer transport itself.
-async fn reconcile_buzz_mesh_join(app: &AppHandle) -> Result<(), String> {
+async fn reconcile_maju_mesh_join(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     let peer_ids = {
         let runtime = state.mesh_llm_runtime.lock().await;
@@ -144,7 +144,7 @@ async fn reconcile_buzz_mesh_join(app: &AppHandle) -> Result<(), String> {
         visible_peer_ids(&payload)
     };
 
-    let targets = crate::commands::mesh_llm::resolve_buzz_mesh_join_targets(&state).await?;
+    let targets = crate::commands::mesh_llm::resolve_maju_mesh_join_targets(&state).await?;
     let Some(target) = targets
         .into_iter()
         .find(|target| !target_is_visible(target, &peer_ids))
@@ -235,7 +235,7 @@ fn roster_reconcile_action(
     let fresh = match query {
         Err(error) => {
             eprintln!(
-                "buzz-mesh: roster reconcile query failed; keeping current allowlist: {error}"
+                "maju-mesh: roster reconcile query failed; keeping current allowlist: {error}"
             );
             return RosterReconcileAction::Keep;
         }
@@ -290,7 +290,7 @@ async fn reconcile_roster(
             return Ok(());
         }
         RosterReconcileAction::AwaitConfirm(reduced) => {
-            eprintln!("buzz-mesh: roster shrink observed; awaiting confirmation before restart");
+            eprintln!("maju-mesh: roster shrink observed; awaiting confirmation before restart");
             *pending_shrink = Some(reduced);
             return Ok(());
         }
@@ -307,7 +307,7 @@ async fn reconcile_roster(
     // left or to a device whose iroh identity rotated while offline. Resolve a
     // fresh validated peer for this restart; starting isolated is safe because
     // the join watcher will converge it when a member next publishes.
-    request.join_token = match crate::commands::mesh_llm::resolve_buzz_mesh_join_targets(&state)
+    request.join_token = match crate::commands::mesh_llm::resolve_maju_mesh_join_targets(&state)
         .await
     {
         Ok(targets) => targets
@@ -316,7 +316,7 @@ async fn reconcile_roster(
             .map(|target| target.endpoint_addr),
         Err(error) => {
             eprintln!(
-                "buzz-mesh: could not refresh bootstrap endpoint for roster restart; starting isolated: {error}"
+                "maju-mesh: could not refresh bootstrap endpoint for roster restart; starting isolated: {error}"
             );
             None
         }
@@ -328,7 +328,7 @@ async fn reconcile_roster(
     };
     if startup_pending {
         eprintln!(
-            "buzz-mesh: membership roster changed while client management startup is pending; deferring restart"
+            "maju-mesh: membership roster changed while client management startup is pending; deferring restart"
         );
         return Ok(());
     }
@@ -345,11 +345,11 @@ async fn reconcile_roster(
     let Some(running) = guard.take() else {
         return Ok(());
     };
-    eprintln!("buzz-mesh: membership roster changed; restarting mesh node with fresh allowlist");
+    eprintln!("maju-mesh: membership roster changed; restarting mesh node with fresh allowlist");
     if let Err(error) = running.stop().await {
         drop(guard);
         eprintln!(
-            "buzz-mesh: stopping mesh node for roster restart failed; restarting Buzz instead of racing the occupied ingress: {error}"
+            "maju-mesh: stopping mesh node for roster restart failed; restarting Maju instead of racing the occupied ingress: {error}"
         );
         app.request_restart();
         return Err(format!(
@@ -372,8 +372,8 @@ pub(crate) async fn publish_current_status_once(app: &AppHandle, reason: &str) {
     .await
     {
         Ok(Ok(())) => {}
-        Ok(Err(error)) => eprintln!("buzz-mesh: status report after {reason} failed: {error}"),
-        Err(_) => eprintln!("buzz-mesh: status report after {reason} timed out"),
+        Ok(Err(error)) => eprintln!("maju-mesh: status report after {reason} failed: {error}"),
+        Err(_) => eprintln!("maju-mesh: status report after {reason} timed out"),
     }
 }
 
@@ -387,9 +387,9 @@ pub(crate) async fn publish_stopped_status_once(app: &AppHandle, reason: &str) {
     {
         Ok(Ok(())) => {}
         Ok(Err(error)) => {
-            eprintln!("buzz-mesh: stopped status report after {reason} failed: {error}");
+            eprintln!("maju-mesh: stopped status report after {reason} failed: {error}");
         }
-        Err(_) => eprintln!("buzz-mesh: stopped status report after {reason} timed out"),
+        Err(_) => eprintln!("maju-mesh: stopped status report after {reason} timed out"),
     }
 }
 
@@ -461,9 +461,9 @@ pub(crate) fn build_status_report_event(
         .ok_or_else(|| "mesh discovery status is missing ownerId".to_string())?;
     let d_tag = format!("{STATUS_D_TAG_PREFIX}:{owner_id}");
     let d = Tag::parse(["d", d_tag.as_str()]).map_err(|error| error.to_string())?;
-    let k = Tag::parse(["k", "buzz-mesh-status"]).map_err(|error| error.to_string())?;
+    let k = Tag::parse(["k", "maju-mesh-status"]).map_err(|error| error.to_string())?;
     Ok(nostr::EventBuilder::new(
-        nostr::Kind::Custom(KIND_BUZZ_MESH_MEMBER_STATUS),
+        nostr::Kind::Custom(KIND_MAJU_MESH_MEMBER_STATUS),
         payload.to_string(),
     )
     .tags([d, k]))
@@ -649,7 +649,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             event.kind,
-            nostr::Kind::Custom(KIND_BUZZ_MESH_MEMBER_STATUS)
+            nostr::Kind::Custom(KIND_MAJU_MESH_MEMBER_STATUS)
         );
         assert_eq!(event.pubkey, keys.public_key());
         assert!(event

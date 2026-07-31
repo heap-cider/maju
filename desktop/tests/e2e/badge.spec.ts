@@ -16,12 +16,12 @@ async function waitForMockLiveSubscription(
           return (
             (
               window as Window & {
-                __BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
+                __MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
                   channelName: string;
                   kind?: number;
                 }) => boolean;
               }
-            ).__BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
+            ).__MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
               channelName: currentChannelName,
               kind: k,
             }) ?? false
@@ -36,12 +36,12 @@ async function waitForMockLiveSubscription(
 async function getBadgeState(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
     const w = window as Window & {
-      __BUZZ_E2E_APP_BADGE_STATE__?: string;
-      __BUZZ_E2E_APP_BADGE_COUNT__?: number;
+      __MAJU_E2E_APP_BADGE_STATE__?: string;
+      __MAJU_E2E_APP_BADGE_COUNT__?: number;
     };
     return {
-      state: w.__BUZZ_E2E_APP_BADGE_STATE__ ?? "none",
-      count: w.__BUZZ_E2E_APP_BADGE_COUNT__ ?? 0,
+      state: w.__MAJU_E2E_APP_BADGE_STATE__ ?? "none",
+      count: w.__MAJU_E2E_APP_BADGE_COUNT__ ?? 0,
     };
   });
 }
@@ -90,7 +90,7 @@ test("regular message bolds inactive channel without numeric badge", async ({
 
   await page.evaluate(
     ({ pubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "random",
         content: "Regular message, no mention",
         kind: 40002,
@@ -120,7 +120,7 @@ test("numeric badge increments for @mention in inactive channel", async ({
 
   await page.evaluate(
     ({ pubkey, mentionPubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "random",
         content: "Hey @tyler check this out",
         kind: 40002,
@@ -147,7 +147,7 @@ test("numeric badge increments for DM message", async ({ page }) => {
   const baselineBadge = await getSettledBadgeState(page);
 
   await page.evaluate((pubkey) => {
-    window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+    window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
       channelName: "alice-tyler",
       content: "Hey, got a minute?",
       pubkey,
@@ -168,7 +168,7 @@ test("numeric badge increments for interested thread reply in inactive channel",
   const baselineBadge = await getSettledBadgeState(page);
 
   const rootEventId = await page.evaluate(() => {
-    const root = window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+    const root = window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
       channelName: "random",
       content: "Conversation I started",
       kind: 40002,
@@ -179,7 +179,7 @@ test("numeric badge increments for interested thread reply in inactive channel",
 
   await page.evaluate(
     ({ parentEventId, pubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "random",
         content: "Thread reply to a followed conversation",
         kind: 40002,
@@ -205,7 +205,7 @@ test("numeric badge increments for broadcast reply in inactive channel", async (
 
   await page.evaluate(
     ({ pubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "random",
         content: "Broadcast reply to the channel",
         kind: 40002,
@@ -238,7 +238,7 @@ test("mark-as-read via context menu clears channel unread indicator", async ({
 
   await page.evaluate(
     ({ pubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "random",
         content: "Message to be marked read",
         kind: 40002,
@@ -301,12 +301,12 @@ test("remote read-state rollback is ignored while local mark-unread still increm
         return (
           (
             window as Window & {
-              __BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
+              __MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
                 channelName: string;
                 kind?: number;
               }) => boolean;
             }
-          ).__BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
+          ).__MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
             channelName: "general",
             kind: 30078,
           }) ?? false
@@ -326,14 +326,14 @@ test("remote read-state rollback is ignored while local mark-unread still increm
     ({ clientId, slotId, channelId, ts }) => {
       (
         window as Window & {
-          __BUZZ_E2E_EMIT_MOCK_READ_STATE__?: (input: {
+          __MAJU_E2E_EMIT_MOCK_READ_STATE__?: (input: {
             clientId: string;
             contexts: Record<string, number>;
             createdAt: number;
             slotId: string;
           }) => unknown;
         }
-      ).__BUZZ_E2E_EMIT_MOCK_READ_STATE__?.({
+      ).__MAJU_E2E_EMIT_MOCK_READ_STATE__?.({
         clientId,
         slotId,
         contexts: { [channelId]: ts },
@@ -354,14 +354,14 @@ test("remote read-state rollback is ignored while local mark-unread still increm
     ({ clientId, slotId, channelId, ts, createdAt }) => {
       (
         window as Window & {
-          __BUZZ_E2E_EMIT_MOCK_READ_STATE__?: (input: {
+          __MAJU_E2E_EMIT_MOCK_READ_STATE__?: (input: {
             clientId: string;
             contexts: Record<string, number>;
             createdAt: number;
             slotId: string;
           }) => unknown;
         }
-      ).__BUZZ_E2E_EMIT_MOCK_READ_STATE__?.({
+      ).__MAJU_E2E_EMIT_MOCK_READ_STATE__?.({
         clientId,
         slotId,
         contexts: { [channelId]: ts },
@@ -391,14 +391,14 @@ test("remote read-state rollback is ignored while local mark-unread still increm
     ({ clientId, slotId, channelId, ts, createdAt }) => {
       (
         window as Window & {
-          __BUZZ_E2E_EMIT_MOCK_READ_STATE__?: (input: {
+          __MAJU_E2E_EMIT_MOCK_READ_STATE__?: (input: {
             clientId: string;
             contexts: Record<string, number>;
             createdAt: number;
             slotId: string;
           }) => unknown;
         }
-      ).__BUZZ_E2E_EMIT_MOCK_READ_STATE__?.({
+      ).__MAJU_E2E_EMIT_MOCK_READ_STATE__?.({
         clientId,
         slotId,
         contexts: { [channelId]: ts },

@@ -1,6 +1,6 @@
 //! Signed-event builders for desktop write operations.
 //!
-//! Mirrors the buzz-sdk builder patterns but uses nostr 0.37 API
+//! Mirrors the maju-sdk builder patterns but uses nostr 0.37 API
 //! (the desktop is excluded from the workspace which pins nostr 0.36).
 //!
 //! Mental model:
@@ -9,19 +9,19 @@
 //! Each function validates inputs and returns a nostr::EventBuilder.
 //! Signing and submission happen in relay::submit_event.
 
-use buzz_core_pkg::kind::{KIND_IA_ARCHIVE_REQUEST, KIND_IA_UNARCHIVE_REQUEST};
+use maju_core_pkg::kind::{KIND_IA_ARCHIVE_REQUEST, KIND_IA_UNARCHIVE_REQUEST};
 use nostr::{EventBuilder, EventId, Kind, Tag};
 use uuid::Uuid;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-/// Maximum content size — matches buzz-sdk (64 KiB).
+/// Maximum content size — matches maju-sdk (64 KiB).
 const MAX_CONTENT_BYTES: usize = 64 * 1024;
 
-/// Maximum mention count — matches buzz-sdk.
+/// Maximum mention count — matches maju-sdk.
 const MAX_MENTIONS: usize = 50;
 
-/// Maximum emoji length in characters — matches buzz-sdk.
+/// Maximum emoji length in characters — matches maju-sdk.
 const MAX_EMOJI_CHARS: usize = 64;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ pub fn build_create_channel(
     about: Option<&str>,
     ttl_seconds: Option<i32>,
 ) -> Result<EventBuilder, String> {
-    let name = buzz_sdk_pkg::canonical_channel_name(name);
+    let name = maju_sdk_pkg::canonical_channel_name(name);
     if name.trim().is_empty() {
         return Err("channel name is required".into());
     }
@@ -198,7 +198,7 @@ pub fn build_update_channel(
             return Err("visibility must be \"open\" or \"private\"".into());
         }
     }
-    let name = name.map(buzz_sdk_pkg::canonical_channel_name);
+    let name = name.map(maju_sdk_pkg::canonical_channel_name);
     if name.is_some_and(|name| name.trim().is_empty()) {
         return Err("channel name is required".into());
     }

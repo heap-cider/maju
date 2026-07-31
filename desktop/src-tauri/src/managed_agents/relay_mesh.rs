@@ -1,12 +1,12 @@
 pub const RELAY_MESH_API_BASE_URL: &str = "http://127.0.0.1:9337/v1";
-pub const RELAY_MESH_API_KEY_PLACEHOLDER: &str = "buzz-mesh-local";
+pub const RELAY_MESH_API_KEY_PLACEHOLDER: &str = "maju-mesh-local";
 pub const RELAY_MESH_PROVIDER_ID: &str = "relay-mesh";
 pub const RELAY_MESH_AUTO_MODEL_ID: &str = "auto";
 #[cfg(feature = "mesh-llm")]
-pub const RELAY_MESH_PREFER_MESH_FOR_AUTO_ENV: &str = "BUZZ_AGENT_PREFER_MESH_FOR_AUTO";
+pub const RELAY_MESH_PREFER_MESH_FOR_AUTO_ENV: &str = "MAJU_AGENT_PREFER_MESH_FOR_AUTO";
 
-/// Translate the native Buzz shared compute provider into the OpenAI-compatible
-/// transport understood by buzz-agent. These are derived runtime details, not
+/// Translate the native Maju shared compute provider into the OpenAI-compatible
+/// transport understood by maju-agent. These are derived runtime details, not
 /// user-owned agent configuration.
 #[cfg(feature = "mesh-llm")]
 pub fn apply_relay_mesh_env(
@@ -22,8 +22,8 @@ pub fn apply_relay_mesh_env(
         .filter(|value| !value.is_empty())
         .unwrap_or(RELAY_MESH_AUTO_MODEL_ID)
         .to_string();
-    env.insert("BUZZ_AGENT_PROVIDER".to_string(), "openai".to_string());
-    env.insert("BUZZ_AGENT_MODEL".to_string(), model.clone());
+    env.insert("MAJU_AGENT_PROVIDER".to_string(), "openai".to_string());
+    env.insert("MAJU_AGENT_MODEL".to_string(), model.clone());
     env.insert(
         "OPENAI_COMPAT_BASE_URL".to_string(),
         RELAY_MESH_API_BASE_URL.to_string(),
@@ -34,7 +34,7 @@ pub fn apply_relay_mesh_env(
         RELAY_MESH_API_KEY_PLACEHOLDER.to_string(),
     );
     env.insert("OPENAI_COMPAT_API".to_string(), "chat".to_string());
-    // Buzz owns the meaning of relay-mesh `auto`: buzz-agent dynamically uses
+    // Maju owns the meaning of relay-mesh `auto`: maju-agent dynamically uses
     // mesh-llm's virtual Mixture-of-Agents model whenever the live catalog says
     // at least two distinct models are available, and otherwise keeps the
     // router's normal single-model `auto` behavior.
@@ -47,10 +47,10 @@ pub fn apply_relay_mesh_env(
     // Without both settings Qwen3 either fails the router's fit check at the
     // agent default (32K) or can consume a tight cap before serializing a tool.
     env.insert(
-        "BUZZ_AGENT_MAX_OUTPUT_TOKENS".to_string(),
+        "MAJU_AGENT_MAX_OUTPUT_TOKENS".to_string(),
         "4096".to_string(),
     );
-    env.insert("BUZZ_AGENT_THINKING_EFFORT".to_string(), "none".to_string());
+    env.insert("MAJU_AGENT_THINKING_EFFORT".to_string(), "none".to_string());
 }
 
 #[cfg(all(test, feature = "mesh-llm"))]
@@ -69,11 +69,11 @@ mod tests {
         );
 
         assert_eq!(
-            env.get("BUZZ_AGENT_MAX_OUTPUT_TOKENS").map(String::as_str),
+            env.get("MAJU_AGENT_MAX_OUTPUT_TOKENS").map(String::as_str),
             Some("4096")
         );
         assert_eq!(
-            env.get("BUZZ_AGENT_THINKING_EFFORT").map(String::as_str),
+            env.get("MAJU_AGENT_THINKING_EFFORT").map(String::as_str),
             Some("none")
         );
         assert_eq!(

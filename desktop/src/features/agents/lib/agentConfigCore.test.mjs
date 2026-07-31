@@ -4,7 +4,7 @@ import test from "node:test";
 import { deriveAgentConfigFieldModel } from "./agentConfigCore.ts";
 
 const config = {
-  env_vars: { BUZZ_AGENT_THINKING_EFFORT: "high" },
+  env_vars: { MAJU_AGENT_THINKING_EFFORT: "high" },
   model: "test-model",
   preferred_runtime: null,
   provider: "anthropic",
@@ -38,13 +38,13 @@ function field(model, kind) {
   return model.fields.find((candidate) => candidate.kind === kind);
 }
 
-test("Buzz Agent exposes provider, model, and Buzz-owned effort", () => {
+test("Maju Agent exposes provider, model, and Maju-owned effort", () => {
   const model = deriveAgentConfigFieldModel({
     config,
-    runtime: runtime("buzz-agent", {
-      modelEnvVar: "BUZZ_AGENT_MODEL",
-      providerEnvVar: "BUZZ_AGENT_PROVIDER",
-      thinkingEnvVar: "BUZZ_AGENT_THINKING_EFFORT",
+    runtime: runtime("maju-agent", {
+      modelEnvVar: "MAJU_AGENT_MODEL",
+      providerEnvVar: "MAJU_AGENT_PROVIDER",
+      thinkingEnvVar: "MAJU_AGENT_THINKING_EFFORT",
     }),
     scope: "global",
   });
@@ -53,10 +53,10 @@ test("Buzz Agent exposes provider, model, and Buzz-owned effort", () => {
     model.fields.map((item) => item.kind),
     ["provider", "model", "effort"],
   );
-  assert.equal(field(model, "effort").optionSource, "buzzAgentCatalog");
+  assert.equal(field(model, "effort").optionSource, "majuAgentCatalog");
   assert.deepEqual(field(model, "effort").targetApplication, {
     kind: "envVar",
-    key: "BUZZ_AGENT_THINKING_EFFORT",
+    key: "MAJU_AGENT_THINKING_EFFORT",
   });
 });
 
@@ -77,7 +77,7 @@ test("Goose exposes provider, model, and its real effort application key", () =>
   );
   assert.deepEqual(field(model, "effort").currentPersistence, {
     kind: "envVar",
-    key: "BUZZ_AGENT_THINKING_EFFORT",
+    key: "MAJU_AGENT_THINKING_EFFORT",
   });
   assert.deepEqual(field(model, "effort").targetApplication, {
     kind: "envVar",
@@ -127,10 +127,10 @@ test("Codex omits separate effort because model IDs own it", () => {
 });
 
 test("catalog mismatch cleanup is named and restricted to onboarding", () => {
-  const selectedRuntime = runtime("buzz-agent", {
-    modelEnvVar: "BUZZ_AGENT_MODEL",
-    providerEnvVar: "BUZZ_AGENT_PROVIDER",
-    thinkingEnvVar: "BUZZ_AGENT_THINKING_EFFORT",
+  const selectedRuntime = runtime("maju-agent", {
+    modelEnvVar: "MAJU_AGENT_MODEL",
+    providerEnvVar: "MAJU_AGENT_PROVIDER",
+    thinkingEnvVar: "MAJU_AGENT_THINKING_EFFORT",
   });
   const onboarding = deriveAgentConfigFieldModel({
     config,

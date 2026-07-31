@@ -4,7 +4,7 @@
  * data-URLs (or http URLs) from the relay's NIP-11 `icon` field.
  */
 
-const ICON_CACHE_KEY = "buzz-community-icons";
+const ICON_CACHE_KEY = "maju-community-icons";
 
 function loadCache(): Record<string, string> {
   try {

@@ -60,7 +60,7 @@ export function ProfileAvatarModeTabs({
           <TabsTrigger
             className={cn(
               isOnboardingModal
-                ? "relative z-10 h-10 rounded-[6px] px-4 text-sm font-normal shadow-none transition-colors data-[state=active]:bg-[rgb(var(--buzz-onboarding-avatar-action-bg))] data-[state=active]:text-[rgb(var(--buzz-onboarding-avatar-action-fg))] data-[state=active]:shadow-none"
+                ? "relative z-10 h-10 rounded-[6px] px-4 text-sm font-normal shadow-none transition-colors data-[state=active]:bg-[rgb(var(--maju-onboarding-avatar-action-bg))] data-[state=active]:text-[rgb(var(--maju-onboarding-avatar-action-fg))] data-[state=active]:shadow-none"
                 : "relative z-10 h-full rounded-full bg-transparent text-sm font-medium shadow-none transition-colors data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none",
             )}
             disabled={disabled}

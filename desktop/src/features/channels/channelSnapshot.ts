@@ -15,7 +15,7 @@ import type { Channel } from "@/shared/api/types";
 import { normalizeRelayUrl } from "@/features/profile/lib/selfProfileStorage";
 import { setLocalStorageItemWithRecovery } from "@/shared/lib/localStorageQuota";
 
-const STORAGE_KEY_PREFIX = "buzz-channels.v1";
+const STORAGE_KEY_PREFIX = "maju-channels.v1";
 
 export function channelSnapshotKey(relayUrl: string): string {
   return `${STORAGE_KEY_PREFIX}:${normalizeRelayUrl(relayUrl)}`;

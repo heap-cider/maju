@@ -5,16 +5,16 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'community.dart';
 
 class CommunityStorage {
-  static const _keyCommunities = 'buzz_communities';
-  static const _keyActiveId = 'buzz_active_community_id';
+  static const _keyCommunities = 'maju_communities';
+  static const _keyActiveId = 'maju_active_community_id';
 
   // Legacy keys for migration.
-  static const _legacyCommunities = 'buzz_workspaces';
-  static const _legacyActiveId = 'buzz_active_workspace_id';
-  static const _legacyRelayUrl = 'buzz_relay_url';
-  static const _legacyToken = 'buzz_token';
-  static const _legacyPubkey = 'buzz_pubkey';
-  static const _legacyNsec = 'buzz_nsec';
+  static const _legacyCommunities = 'maju_workspaces';
+  static const _legacyActiveId = 'maju_active_workspace_id';
+  static const _legacyRelayUrl = 'maju_relay_url';
+  static const _legacyToken = 'maju_token';
+  static const _legacyPubkey = 'maju_pubkey';
+  static const _legacyNsec = 'maju_nsec';
 
   final FlutterSecureStorage _secure;
 

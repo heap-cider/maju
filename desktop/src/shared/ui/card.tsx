@@ -15,7 +15,7 @@ import "./card-texture.css";
  * - The baked white center IS the card surface. Never layer an opaque
  *   background (`bg-card`, `bg-white`, …) on top of the texture — it
  *   covers the feathered edge and reintroduces a visible hard border.
- * - Default padding is the safe inset (`--buzz-card-textured-safe-inset`),
+ * - Default padding is the safe inset (`--maju-card-textured-safe-inset`),
  *   which keeps content on the fully opaque center. Add more padding as
  *   the content needs; go below it only if the content tolerates sitting
  *   on the semi-transparent fade (e.g. a transparent input).
@@ -37,7 +37,7 @@ const cardVariants = cva("text-card-foreground", {
         // card-texture.css); when that floor stretches the card beyond its
         // content, the content stays vertically centered instead of pinning
         // to the top padding edge.
-        "buzz-card-textured relative isolate flex flex-col justify-center rounded-none border-0 p-[var(--buzz-card-textured-safe-inset)] shadow-none",
+        "maju-card-textured relative isolate flex flex-col justify-center rounded-none border-0 p-[var(--maju-card-textured-safe-inset)] shadow-none",
     },
   },
   defaultVariants: {

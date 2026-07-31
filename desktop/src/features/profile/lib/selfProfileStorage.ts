@@ -11,7 +11,7 @@
  * prevents one community's cached identity from bleeding into another.
  */
 
-const STORAGE_KEY_PREFIX = "buzz-self-profile.v1";
+const STORAGE_KEY_PREFIX = "maju-self-profile.v1";
 
 /**
  * Normalizes a relay URL for use in storage keys.
@@ -29,7 +29,7 @@ export function normalizeRelayUrl(relayUrl: string): string {
  * localStorage writes are not reactive — React state won't update on its own.
  * Components that need to react to profile updates should listen to this event.
  */
-export const SELF_PROFILE_CACHE_EVENT = "buzz:self-profile-cache";
+export const SELF_PROFILE_CACHE_EVENT = "maju:self-profile-cache";
 
 export type SelfProfileCache = {
   version: 1;

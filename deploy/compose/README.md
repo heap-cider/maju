@@ -1,4 +1,4 @@
-# Buzz Docker Compose deployment
+# Maju Docker Compose deployment
 
 This is the single-node/VPS deployment bundle. It is intentionally separate from
 the root `docker-compose.yml`, which remains local development infrastructure.
@@ -16,7 +16,7 @@ For a public VPS with automatic Let's Encrypt certificates:
 
 ```bash
 cd deploy/compose
-BUZZ_COMPOSE_TLS=true ./run.sh start
+MAJU_COMPOSE_TLS=true ./run.sh start
 ```
 
 The bootstrap script should eventually replace manual `.env` editing for normal
@@ -27,17 +27,17 @@ keypair.
 
 - Requires Docker Compose v2.24.4 or newer; the TLS override uses Compose's
   `!reset` tag to remove the direct relay port when Caddy terminates HTTPS.
-- Default `BUZZ_IMAGE` tracks `ghcr.io/block/buzz:main` for early testing. Pin it to `ghcr.io/block/buzz:sha-<7>` or a semver release tag for production once available.
-- Keep `BUZZ_RELAY_PRIVATE_KEY`, `BUZZ_GIT_HOOK_HMAC_SECRET`, database/Redis,
+- Default `MAJU_IMAGE` tracks `ghcr.io/heap-cider/maju:main` for early testing. Pin it to `ghcr.io/heap-cider/maju:sha-<7>` or a semver release tag for production once available.
+- Keep `MAJU_RELAY_PRIVATE_KEY`, `MAJU_GIT_HOOK_HMAC_SECRET`, database/Redis,
   and S3 secrets stable across restarts.
-- `RELAY_OWNER_PUBKEY` is intentionally not prefixed with `BUZZ_`; it must be a
+- `RELAY_OWNER_PUBKEY` is intentionally not prefixed with `MAJU_`; it must be a
   64-character hex Nostr pubkey when closed relay mode is enabled.
-- `BUZZ_AUTO_MIGRATE` is opt-in. Set `BUZZ_AUTO_MIGRATE=true` or run
-  `buzz-admin migrate` before starting the relay when bootstrapping a fresh
+- `MAJU_AUTO_MIGRATE` is opt-in. Set `MAJU_AUTO_MIGRATE=true` or run
+  `maju-admin migrate` before starting the relay when bootstrapping a fresh
   database. Auto-migration requires an image that includes embedded SQLx
   migrations.
 - The stack uses Postgres, Redis, MinIO, and a git data volume because
-  those are real Buzz dependencies today. Minimal mode can simplify this later.
+  those are real Maju dependencies today. Minimal mode can simplify this later.
 
 Run `./run.sh backup-hint` for the backup checklist.
 
@@ -51,6 +51,6 @@ cp .env.example .env
 $EDITOR .env
 ./run.sh config
 ./run.sh start
-curl -fsS "http://127.0.0.1:$(grep -E '^BUZZ_HTTP_PORT=' .env | cut -d= -f2-)/_liveness"
+curl -fsS "http://127.0.0.1:$(grep -E '^MAJU_HTTP_PORT=' .env | cut -d= -f2-)/_liveness"
 ./run.sh status
 ```

@@ -127,7 +127,7 @@ class ToolItem extends TranscriptItem {
   final String id;
   String title;
   String toolName;
-  String? buzzToolName;
+  String? majuToolName;
   ToolStatus status;
   Map<String, dynamic> args;
   String result;
@@ -139,7 +139,7 @@ class ToolItem extends TranscriptItem {
     required this.id,
     required this.title,
     required this.toolName,
-    this.buzzToolName,
+    this.majuToolName,
     required this.status,
     required this.args,
     required this.result,

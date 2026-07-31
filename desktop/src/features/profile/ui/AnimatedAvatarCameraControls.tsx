@@ -64,7 +64,7 @@ export function AnimatedAvatarCameraControls({
             className={cn(
               "h-12 w-full rounded-xl",
               compact &&
-                "bg-[rgb(var(--buzz-onboarding-avatar-accent-bg))] text-[rgb(var(--buzz-onboarding-avatar-accent-fg))] hover:bg-[rgb(var(--buzz-onboarding-avatar-accent-bg))]",
+                "bg-[rgb(var(--maju-onboarding-avatar-accent-bg))] text-[rgb(var(--maju-onboarding-avatar-accent-fg))] hover:bg-[rgb(var(--maju-onboarding-avatar-accent-bg))]",
             )}
             data-testid={`${testIdPrefix}-animated-retry`}
             disabled={disabled}
@@ -79,7 +79,7 @@ export function AnimatedAvatarCameraControls({
             className={cn(
               "h-12 w-full rounded-xl",
               compact &&
-                "bg-[rgb(var(--buzz-onboarding-avatar-accent-bg))] text-[rgb(var(--buzz-onboarding-avatar-accent-fg))] hover:bg-[rgb(var(--buzz-onboarding-avatar-accent-bg))]",
+                "bg-[rgb(var(--maju-onboarding-avatar-accent-bg))] text-[rgb(var(--maju-onboarding-avatar-accent-fg))] hover:bg-[rgb(var(--maju-onboarding-avatar-accent-bg))]",
             )}
             data-testid={`${testIdPrefix}-animated-record`}
             disabled={disabled}

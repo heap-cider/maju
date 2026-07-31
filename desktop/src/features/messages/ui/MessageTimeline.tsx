@@ -702,7 +702,7 @@ const MessageTimelineBase = React.forwardRef<
                   : "pb-4",
               ),
           )}
-          data-buzz-conversation-scroll={
+          data-maju-conversation-scroll={
             useTimelineVirtualizer && showMessageList ? undefined : "true"
           }
           data-scroll-restoration-id={scrollRestorationId}

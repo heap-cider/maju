@@ -125,9 +125,9 @@ export function MachineOnboardingFlow({
 
   return (
     <div
-      className={`buzz-onboarding-neutral-theme buzz-startup-shell flex max-h-dvh items-start justify-center overflow-x-hidden overflow-y-auto px-4 text-foreground ${
+      className={`maju-onboarding-neutral-theme maju-startup-shell flex max-h-dvh items-start justify-center overflow-x-hidden overflow-y-auto px-4 text-foreground ${
         page === "identity"
-          ? "buzz-onboarding-welcome py-8"
+          ? "maju-onboarding-welcome py-8"
           : "pb-28 pt-[106px]"
       }`}
       data-testid="machine-onboarding-gate"
@@ -142,7 +142,7 @@ export function MachineOnboardingFlow({
       <OnboardingFooterProvider>
         <div
           className={`relative flex w-full max-w-[1040px] flex-col items-center text-center ${
-            page === "identity" ? "my-auto" : "buzz-onboarding-step-frame"
+            page === "identity" ? "my-auto" : "maju-onboarding-step-frame"
           }`}
         >
           {page === "identity" ? (
@@ -153,9 +153,9 @@ export function MachineOnboardingFlow({
               transitionKey="machine-identity"
             >
               <img
-                alt="Buzz"
+                alt="Maju"
                 className="w-full max-w-[600px]"
-                src="/landing/buzz-wordmark.png"
+                src="/landing/maju-wordmark.png"
               />
               <p className="mt-2 max-w-[560px] text-center text-2xl font-normal leading-none text-foreground">
                 Your people, your agents, your projects —<br />
@@ -207,10 +207,10 @@ export function MachineOnboardingFlow({
                 <p className="mt-5 max-w-[440px] text-sm leading-6 text-foreground/80">
                   {identityLost
                     ? "Your identity is no longer in the system keyring. Re-import your nsec to restore it."
-                    : "If you already have a Buzz account, enter your private key below to get started."}
+                    : "If you already have a Maju account, enter your private key below to get started."}
                 </p>
               </div>
-              <div className="buzz-onboarding-key-import-position w-full">
+              <div className="maju-onboarding-key-import-position w-full">
                 <NostrKeyImportForm
                   backLabel={identityLost ? "Start new identity" : "Back"}
                   onBack={

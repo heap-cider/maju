@@ -7,8 +7,8 @@ use super::{
     effective_agent_command, find_nvm_default_bin, find_via_login_shell,
     is_login_shell_path_uninit, is_safe_nvm_tag, managed_agent_avatar_url, normalize_agent_args,
     parse_semver_tag, preset_catalog_entry, probe_codex_acp_version, record_agent_command,
-    refresh_login_shell_path, try_record_agent_command, PresetHarness, BUZZ_AGENT_AVATAR_URL,
-    CLAUDE_CODE_AVATAR_URL, CODEX_AVATAR_URL, GOOSE_AVATAR_URL,
+    refresh_login_shell_path, try_record_agent_command, PresetHarness, CLAUDE_CODE_AVATAR_URL,
+    CODEX_AVATAR_URL, GOOSE_AVATAR_URL, MAJU_AGENT_AVATAR_URL,
 };
 use crate::managed_agents::AcpAvailabilityStatus;
 
@@ -45,9 +45,9 @@ fn returns_none_for_unknown_commands() {
 }
 
 #[test]
-fn default_agent_command_resolves_bundled_buzz_agent() {
-    // The default must be bundled buzz-agent, never bare `goose` on a stock Windows install.
-    assert_eq!(default_agent_command(), "buzz-agent");
+fn default_agent_command_resolves_bundled_maju_agent() {
+    // The default must be bundled maju-agent, never bare `goose` on a stock Windows install.
+    assert_eq!(default_agent_command(), "maju-agent");
     assert_eq!(
         normalize_agent_args(&default_agent_command(), vec!["acp".into()]),
         Vec::<String>::new()
@@ -71,25 +71,25 @@ fn normalizes_claude_and_codex_args_to_empty() {
 }
 
 #[test]
-fn resolves_buzz_agent_avatar() {
+fn resolves_maju_agent_avatar() {
     assert_eq!(
-        managed_agent_avatar_url("buzz-agent"),
-        Some(BUZZ_AGENT_AVATAR_URL.to_string())
+        managed_agent_avatar_url("maju-agent"),
+        Some(MAJU_AGENT_AVATAR_URL.to_string())
     );
     assert_eq!(
-        managed_agent_avatar_url("/usr/local/bin/buzz-agent"),
-        Some(BUZZ_AGENT_AVATAR_URL.to_string())
+        managed_agent_avatar_url("/usr/local/bin/maju-agent"),
+        Some(MAJU_AGENT_AVATAR_URL.to_string())
     );
 }
 
 #[test]
-fn normalizes_buzz_agent_args_to_empty() {
+fn normalizes_maju_agent_args_to_empty() {
     assert_eq!(
-        normalize_agent_args("buzz-agent", Vec::new()),
+        normalize_agent_args("maju-agent", Vec::new()),
         Vec::<String>::new()
     );
     assert_eq!(
-        normalize_agent_args("buzz-agent", vec!["acp".into()]),
+        normalize_agent_args("maju-agent", vec!["acp".into()]),
         Vec::<String>::new()
     );
 }
@@ -97,7 +97,7 @@ fn normalizes_buzz_agent_args_to_empty() {
 #[test]
 fn login_shell_lookup_treats_command_as_data() {
     let marker =
-        std::env::temp_dir().join(format!("buzz-discovery-marker-{}", uuid::Uuid::new_v4()));
+        std::env::temp_dir().join(format!("maju-discovery-marker-{}", uuid::Uuid::new_v4()));
     let payload = format!("doesnotexist; touch {} #", marker.display());
 
     let resolved = find_via_login_shell(&payload);
@@ -117,9 +117,9 @@ fn login_shell_lookup_treats_command_as_data() {
 fn explicit_path_resolution_ignores_non_executable_files() {
     use std::os::unix::fs::PermissionsExt;
 
-    let dir = std::env::temp_dir().join(format!("buzz-discovery-path-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("maju-discovery-path-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
-    let bin = dir.join("buzz-acp");
+    let bin = dir.join("maju-acp");
     std::fs::write(&bin, "").expect("write placeholder");
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o644))
         .expect("chmod placeholder");
@@ -403,7 +403,7 @@ fn record_agent_command_bare_record_defaults() {
 // ── try_record_agent_command ─────────────────────────────────────────────────
 
 /// When the record carries a dangling (unknown) runtime id, `try_record_agent_command`
-/// must return `Err` containing "DANGLING_HARNESS_ID" — NEVER the buzz-agent default.
+/// must return `Err` containing "DANGLING_HARNESS_ID" — NEVER the maju-agent default.
 /// This test would fail if the function silently fell back to `default_agent_command()`.
 #[test]
 fn try_record_agent_command_dangling_runtime_id_returns_err() {
@@ -436,7 +436,7 @@ fn try_record_agent_command_dangling_persona_runtime_returns_err() {
 /// When neither the record nor persona has any runtime id, `try_record_agent_command`
 /// falls back to `default_agent_command()` — this is the legacy-agent path.
 #[test]
-fn try_record_agent_command_no_runtime_id_defaults_to_buzz_agent() {
+fn try_record_agent_command_no_runtime_id_defaults_to_maju_agent() {
     let record = record_with(None, None, None);
     let result = try_record_agent_command(&record, &[]);
     assert_eq!(
@@ -550,15 +550,15 @@ fn divergent_override_none_for_empty_or_absent_pick() {
 fn create_time_override_none_when_persona_runtime_not_installed() {
     // CRITICAL-3 (Case 3): a `claude`-persona agent created on a machine
     // where the claude adapter isn't installed. `resolvePersonaRuntime`
-    // falls back to the default (`buzz-agent`) and sends THAT command with
+    // falls back to the default (`maju-agent`) and sends THAT command with
     // `harness_override` false (the user did not pick it). At create this
     // is a fallback, not a deliberate pin — it must store `None` so the
     // agent inherits the persona's runtime once it's installed and the
-    // persona is re-edited. Baking `Some("buzz-agent")` here is the exact
+    // persona is re-edited. Baking `Some("maju-agent")` here is the exact
     // bug this resolver chain exists to kill.
     let personas = vec![persona_with_runtime("p1", Some("claude"))];
     assert_eq!(
-        create_time_agent_command_override(Some("p1"), &personas, Some("buzz-agent"), false),
+        create_time_agent_command_override(Some("p1"), &personas, Some("maju-agent"), false),
         None
     );
 }
@@ -761,7 +761,7 @@ fn probe_codex_acp_version_parses_full_semver_output() {
     use std::os::unix::fs::PermissionsExt;
 
     // Simulate a current `@agentclientprotocol/codex-acp` output.
-    let dir = std::env::temp_dir().join(format!("buzz-probe-1x-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("maju-probe-1x-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let bin = dir.join("codex-acp");
     std::fs::write(
@@ -789,7 +789,7 @@ fn probe_codex_acp_version_returns_none_for_nonzero_exit() {
     use std::os::unix::fs::PermissionsExt;
 
     // Simulate old 0.16.x adapter: `--version` is unrecognised, exits non-zero
-    let dir = std::env::temp_dir().join(format!("buzz-probe-0x-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("maju-probe-0x-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let bin = dir.join("codex-acp");
     std::fs::write(&bin, "#!/bin/sh\nexit 1\n").expect("write script");
@@ -822,7 +822,7 @@ fn probe_codex_acp_version_returns_none_for_missing_binary() {
 fn codex_adapter_availability_available_for_minimum_supported_binary() {
     use std::os::unix::fs::PermissionsExt;
 
-    let dir = std::env::temp_dir().join(format!("buzz-avail-1x-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("maju-avail-1x-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let bin = dir.join("codex-acp");
     std::fs::write(
@@ -848,7 +848,7 @@ fn codex_adapter_availability_outdated_for_0x_binary() {
     use std::os::unix::fs::PermissionsExt;
 
     // Simulate old 0.16.x: `--version` exits non-zero (unrecognised flag)
-    let dir = std::env::temp_dir().join(format!("buzz-avail-0x-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("maju-avail-0x-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let bin = dir.join("codex-acp");
     std::fs::write(&bin, "#!/bin/sh\nexit 1\n").expect("write script");
@@ -885,7 +885,7 @@ fn codex_adapter_availability_outdated_for_older_1x_binary() {
     );
 }
 
-/// The strict three-component parse fails closed: a version Buzz cannot compare
+/// The strict three-component parse fails closed: a version Maju cannot compare
 /// against the floor is treated as outdated rather than assumed current.
 #[cfg(unix)]
 #[test]
@@ -936,7 +936,7 @@ fn probe_codex_acp_version_returns_none_for_hung_direct_child() {
     // Simulate a process that writes version to stdout then blocks forever.
     // The probe reads stdout only after the child exits, so it will time out.
     // `exec sleep 300` replaces the shell so killing the child reaps `sleep` too.
-    let dir = std::env::temp_dir().join(format!("buzz-probe-hung-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("maju-probe-hung-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let bin = dir.join("codex-acp");
     std::fs::write(
@@ -978,7 +978,7 @@ fn probe_codex_acp_version_returns_version_when_descendant_holds_pipe_open() {
     //
     // `sleep 60 &` starts a descendant that inherits the parent's stdout fd
     // without making the direct child wait for a nested subshell to exit.
-    let dir = std::env::temp_dir().join(format!("buzz-probe-descendant-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("maju-probe-descendant-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let bin = dir.join("codex-acp");
     std::fs::write(
@@ -1473,7 +1473,7 @@ fn test_install_shell_from_some_returns_path() {
 // transactional refresh, or try_record_agent_command were reverted.
 
 /// After warm_harness_registry_from_dir, a record with a matching custom runtime
-/// id resolves to the custom command — NOT the buzz-agent default.
+/// id resolves to the custom command — NOT the maju-agent default.
 ///
 /// This test would fail if warm_harness_registry_from_dir is not called before
 /// try_record_agent_command, or if try_record_agent_command ignores the registry.
@@ -1506,7 +1506,7 @@ fn registry_warm_then_try_record_resolves_custom_id() {
 
 /// After deleting a custom harness and re-warming the registry, a record that
 /// still references the deleted id must produce a DANGLING_HARNESS_ID error —
-/// NOT silently fall back to buzz-agent.
+/// NOT silently fall back to maju-agent.
 ///
 /// This test would fail if save/delete commands do not call
 /// warm_harness_registry_from_dir transactionally, or if try_record_agent_command
@@ -1687,7 +1687,7 @@ fn user_facing_harness_error_converts_sentinel_to_sentence() {
 
 /// Composed coherence test (delete → summary display → spawn sentence): after
 /// a harness is deleted, the single resolver errors with the sentinel, the
-/// summary path renders the *missing id* (not a silent buzz-agent fallback),
+/// summary path renders the *missing id* (not a silent maju-agent fallback),
 /// and the spawn path renders the actionable sentence — both halves tell the
 /// same story from the same error.
 #[test]

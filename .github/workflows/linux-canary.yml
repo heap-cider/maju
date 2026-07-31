@@ -19,7 +19,7 @@ permissions:
 jobs:
   build:
     name: Build Linux canary
-    if: github.repository == 'block/buzz'
+    if: github.repository == 'heap-cider/maju'
     runs-on: ubuntu-latest
     container: ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
     timeout-minutes: 60
@@ -166,7 +166,7 @@ jobs:
 
       - name: Build sidecars
         run: |
-          cargo build --release -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli
+          cargo build --release -p maju-acp -p maju-agent -p maju-dev-mcp -p git-credential-nostr -p maju-cli
           ./scripts/bundle-sidecars.sh
 
       - name: Build Linux Tauri app
@@ -219,7 +219,7 @@ jobs:
       - name: Upload Linux canary packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: buzz-linux-canary-${{ github.sha }}
+          name: maju-linux-canary-${{ github.sha }}
           path: |
             ${{ steps.artifacts.outputs.deb }}
             ${{ steps.artifacts.outputs.appimage }}

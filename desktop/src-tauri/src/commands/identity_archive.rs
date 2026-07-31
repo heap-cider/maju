@@ -30,7 +30,7 @@ use crate::{
 ///
 /// Mirrors the verification the relay will do (per spec gotcha #3: the
 /// preimage subject is the *target* pubkey, not the request signer). The
-/// `buzz-sdk` lives on nostr 0.36; the desktop is on 0.37, so we bridge
+/// `maju-sdk` lives on nostr 0.36; the desktop is on 0.37, so we bridge
 /// via hex round-trip exactly like `relay::build_profile_event` does.
 pub(crate) fn extract_oa_owner(target_kind0: &nostr::Event) -> Option<(String, [String; 4])> {
     let target_hex = target_kind0.pubkey.to_hex();
@@ -42,7 +42,7 @@ pub(crate) fn extract_oa_owner(target_kind0: &nostr::Event) -> Option<(String, [
             continue;
         }
         let json = serde_json::to_string(slice).ok()?;
-        match buzz_sdk_pkg::nip_oa::verify_auth_tag(&json, &target_compat) {
+        match maju_sdk_pkg::nip_oa::verify_auth_tag(&json, &target_compat) {
             Ok(owner) => {
                 let raw: [String; 4] = [
                     slice[0].clone(),
@@ -339,16 +339,16 @@ mod tests {
 
     /// Build a fake `kind:0` with a valid NIP-OA auth tag for a fresh owner.
     fn kind0_with_auth(agent: &Keys, owner: &Keys) -> nostr::Event {
-        // Compute auth tag via buzz-sdk (nostr 0.36) and bridge.
+        // Compute auth tag via maju-sdk (nostr 0.36) and bridge.
         let agent_hex = agent.public_key().to_hex();
         let agent_compat = nostr::PublicKey::from_hex(&agent_hex).unwrap();
         let owner_compat_secret =
             nostr::SecretKey::from_slice(owner.secret_key().as_secret_bytes()).unwrap();
         let owner_compat_keys = nostr::Keys::new(owner_compat_secret);
         let tag_json =
-            buzz_sdk_pkg::nip_oa::compute_auth_tag(&owner_compat_keys, &agent_compat, "")
+            maju_sdk_pkg::nip_oa::compute_auth_tag(&owner_compat_keys, &agent_compat, "")
                 .expect("compute_auth_tag");
-        let compat_tag = buzz_sdk_pkg::nip_oa::parse_auth_tag(&tag_json).unwrap();
+        let compat_tag = maju_sdk_pkg::nip_oa::parse_auth_tag(&tag_json).unwrap();
         let tag = Tag::parse(compat_tag.as_slice()).unwrap();
         EventBuilder::new(Kind::Metadata, "{}")
             .tags([tag])

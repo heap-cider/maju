@@ -17,7 +17,7 @@ import 'relay_provider.dart';
 
 const _mediaUploadPath = '/upload';
 const _legacyMediaUploadPath = '/media/upload';
-const _mediaUploadPlatformChannelName = 'buzz/media_upload';
+const _mediaUploadPlatformChannelName = 'maju/media_upload';
 const _sanitizeImageForUploadMethod = 'sanitizeImageForUpload';
 const _transcodeVideoToMp4Method = 'transcodeVideoToMp4';
 const _transcodeImageToJpegMethod = 'transcodeImageToJpeg';
@@ -455,7 +455,7 @@ class MediaUploadService {
 
     return nostr.Event.from(
       kind: _uploadAuthKind,
-      content: 'Upload buzz-media',
+      content: 'Upload maju-media',
       tags: tags,
       secretKey: privkeyHex,
       verify: false,

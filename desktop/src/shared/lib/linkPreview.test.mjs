@@ -56,11 +56,11 @@ test("parseSupportedLinkPreview ignores unsupported GitHub URLs", () => {
 test("parseSupportedLinkPreview parses Linear issue URLs", () => {
   assert.deepEqual(
     parseSupportedLinkPreview(
-      "https://linear.app/buzz/issue/BUG-321/fix-link-previews",
+      "https://linear.app/maju/issue/BUG-321/fix-link-previews",
     ),
     {
       kind: "linear-issue",
-      href: "https://linear.app/buzz/issue/BUG-321/fix-link-previews",
+      href: "https://linear.app/maju/issue/BUG-321/fix-link-previews",
       provider: "Linear",
       title: "BUG-321",
       typeLabel: "issue",
@@ -70,10 +70,10 @@ test("parseSupportedLinkPreview parses Linear issue URLs", () => {
 
 test("parseSupportedLinkPreview normalizes Linear issue URL variants", () => {
   assert.deepEqual(
-    parseSupportedLinkPreview("linear.app/buzz/issue/a-7/fix-link-previews"),
+    parseSupportedLinkPreview("linear.app/maju/issue/a-7/fix-link-previews"),
     {
       kind: "linear-issue",
-      href: "https://linear.app/buzz/issue/a-7/fix-link-previews",
+      href: "https://linear.app/maju/issue/a-7/fix-link-previews",
       provider: "Linear",
       title: "A-7",
       typeLabel: "issue",
@@ -105,7 +105,7 @@ test("extractSupportedLinkPreviews returns unique supported links in order", () 
     extractSupportedLinkPreviews(
       [
         "See github.com/block/sprout/pull/1",
-        "and https://linear.app/buzz/issue/BUG-2/fix-preview",
+        "and https://linear.app/maju/issue/BUG-2/fix-preview",
         "then https://github.com/block/sprout/pull/1 again.",
         "plus https://docs.google.com/document/d/doc123/edit",
       ].join(" "),
@@ -163,7 +163,7 @@ test("extractSupportedLinkPreviews skips URLs inside inline and fenced code", ()
       [
         "`https://github.com/block/sprout/pull/1`",
         "```",
-        "https://linear.app/buzz/issue/BUG-2/fix-preview",
+        "https://linear.app/maju/issue/BUG-2/fix-preview",
         "```",
         "https://github.com/block/sprout/pull/3",
       ].join("\n"),
@@ -230,7 +230,7 @@ test("extractSupportedLinkPreviews skips links inside block spoilers", () => {
       [
         "||",
         "",
-        "https://linear.app/buzz/issue/BUG-99/hidden-spoiler-link",
+        "https://linear.app/maju/issue/BUG-99/hidden-spoiler-link",
         "",
         "||",
         "https://github.com/block/sprout/pull/8",

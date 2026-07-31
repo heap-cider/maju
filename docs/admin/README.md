@@ -1,16 +1,16 @@
 # Read-only deployment moderation dashboard
 
-Buzz can expose a private, deployment-wide read-only dashboard from the existing
+Maju can expose a private, deployment-wide read-only dashboard from the existing
 relay process. It shows open moderation reports and recent product feedback.
 
-Configure `BUZZ_ADMIN_HOST` to activate the dashboard. A private ingress limits
+Configure `MAJU_ADMIN_HOST` to activate the dashboard. A private ingress limits
 access to the operator VPN or approved source IPs.
 
 Required configuration:
 
 ```text
-BUZZ_ADMIN_HOST=admin.example.com
-BUZZ_ADMIN_WEB_DIR=/srv/buzz/admin-web
+MAJU_ADMIN_HOST=admin.example.com
+MAJU_ADMIN_WEB_DIR=/srv/maju/admin-web
 ```
 
 The relay requires the configured admin host and matching browser origin.
@@ -55,7 +55,7 @@ unreferenced hashes, malformed paths, and cross-community substitutions all
 collapse to `404`.
 
 Only `GET` and `HEAD` are routed. Existing community `/media/*` authorization is
-unchanged, including `BUZZ_REQUIRE_MEDIA_GET_AUTH`; the browser receives no
+unchanged, including `MAJU_REQUIRE_MEDIA_GET_AUTH`; the browser receives no
 Blossom credential or reusable signed URL. Responses are uncached, `nosniff`,
 governed by a restrictive CSP, streamed from object storage, and non-previewable
 content retains attachment disposition. Successful reads produce a structured

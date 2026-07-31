@@ -4,10 +4,10 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:hooks_riverpod/misc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:nostr/nostr.dart' as nostr;
-import 'package:buzz/features/channels/message_content.dart';
-import 'package:buzz/features/channels/media_viewer_page.dart';
-import 'package:buzz/shared/relay/relay.dart';
-import 'package:buzz/shared/theme/theme.dart';
+import 'package:maju/features/channels/message_content.dart';
+import 'package:maju/features/channels/media_viewer_page.dart';
+import 'package:maju/shared/relay/relay.dart';
+import 'package:maju/shared/theme/theme.dart';
 
 Widget _testable(
   Widget child, {
@@ -307,14 +307,14 @@ void main() {
       testWidgets('renders markdown link', (tester) async {
         await tester.pumpWidget(
           _testable(
-            const MessageContent(content: 'Check [Buzz](https://example.com)'),
+            const MessageContent(content: 'Check [Maju](https://example.com)'),
           ),
         );
 
         final allText = _allRichText(tester);
-        expect(allText, contains('Buzz'));
+        expect(allText, contains('Maju'));
         // Should not show raw markdown syntax.
-        expect(allText, isNot(contains('[Buzz]')));
+        expect(allText, isNot(contains('[Maju]')));
         expect(allText, isNot(contains('(https://example.com)')));
       });
 

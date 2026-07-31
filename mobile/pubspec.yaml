@@ -1,7 +1,7 @@
-name: buzz
-description: Buzz mobile client
+name: maju
+description: Maju mobile client
 publish_to: 'none'
-version: 0.0.0+1
+version: 0.1.0+1
 
 environment:
   sdk: ^3.11.4
@@ -50,7 +50,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/buzz-icon.png
+    - assets/images/maju-icon.png
   fonts:
     - family: Inter
       fonts:

@@ -297,7 +297,7 @@ export async function previewAgentSnapshotImport(
 }
 
 /**
- * Import a `buzz-agent-snapshot v1` file as a brand-new agent with fresh
+ * Import a `maju-agent-snapshot v1` file as a brand-new agent with fresh
  * keys. Returns a structured result describing what was created and whether
  * memory restoration was complete.
  */

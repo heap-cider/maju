@@ -19,8 +19,8 @@ import 'unread_badge/should_notify_for_event.dart';
 
 const _channelTypeOrder = {'stream': 0, 'forum': 1, 'dm': 2};
 const _unreadCatchUpLimit = 1000;
-const _participatedRootIdsPrefix = 'buzz-thread-participation.v1';
-const _authoredRootIdsPrefix = 'buzz-thread-authored.v1';
+const _participatedRootIdsPrefix = 'maju-thread-participation.v1';
+const _authoredRootIdsPrefix = 'maju-thread-authored.v1';
 
 /// Loads the user's channel list from the relay over WebSocket.
 ///

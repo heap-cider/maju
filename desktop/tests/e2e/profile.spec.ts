@@ -91,21 +91,21 @@ async function addGenericAgent(
     return Boolean(
       (
         window as Window & {
-          __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: unknown;
+          __MAJU_E2E_INVOKE_MOCK_COMMAND__?: unknown;
         }
-      ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__,
+      ).__MAJU_E2E_INVOKE_MOCK_COMMAND__,
     );
   });
   return page.evaluate(
     async ({ agentName, channelId, systemPrompt }) => {
       const invoke = (
         window as Window & {
-          __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+          __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
             command: string,
             payload?: Record<string, unknown>,
           ) => Promise<{ agent?: { pubkey: string } }>;
         }
-      ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__;
+      ).__MAJU_E2E_INVOKE_MOCK_COMMAND__;
       if (!invoke) {
         throw new Error("Mock bridge is not installed.");
       }
@@ -130,11 +130,11 @@ async function addGenericAgent(
 
       await (
         window as Window & {
-          __BUZZ_E2E_QUERY_CLIENT__?: {
+          __MAJU_E2E_QUERY_CLIENT__?: {
             invalidateQueries: () => Promise<void>;
           };
         }
-      ).__BUZZ_E2E_QUERY_CLIENT__?.invalidateQueries();
+      ).__MAJU_E2E_QUERY_CLIENT__?.invalidateQueries();
 
       return pubkey;
     },
@@ -149,11 +149,11 @@ async function waitForMockLiveSubscription(page: Page, channelName: string) {
         return (
           (
             window as Window & {
-              __BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
+              __MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
                 channelName: string;
               }) => boolean;
             }
-          ).__BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({ channelName }) ?? false
+          ).__MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({ channelName }) ?? false
         );
       }, channelName);
     })
@@ -182,8 +182,8 @@ test("keeps the saved profile description after a community round trip", async (
     },
   ];
   await page.addInitScript((seed) => {
-    window.localStorage.setItem("buzz-communities", JSON.stringify(seed));
-    window.localStorage.setItem("buzz-active-community-id", seed[0].id);
+    window.localStorage.setItem("maju-communities", JSON.stringify(seed));
+    window.localStorage.setItem("maju-active-community-id", seed[0].id);
   }, communities);
   await page.goto("/");
 
@@ -342,12 +342,12 @@ test("shows profile save feedback as a toast", async ({ page }) => {
 });
 
 test("nests the avatar edit button in a clipped notch", async ({ page }) => {
-  // Under the Buzz default theme the settings nav overrides `--sidebar-active`
+  // Under the Maju default theme the settings nav overrides `--sidebar-active`
   // (white pill on the gradient) while the avatar edit button deliberately
   // keeps the root accent-driven token, so the shared-token comparison below
-  // only holds outside the Buzz theme.
+  // only holds outside the Maju theme.
   await page.addInitScript(() => {
-    window.localStorage.setItem("buzz-theme", "github-light");
+    window.localStorage.setItem("maju-theme", "github-light");
   });
   await page.goto("/");
 
@@ -528,7 +528,7 @@ test("uploads local profile avatar files before saving", async ({ page }) => {
   await expect(page.getByTestId("profile-avatar-url")).toHaveValue("");
 
   const pastedAvatarUrl = await page.evaluate(
-    () => new URL("/buzz.svg", window.location.href).href,
+    () => new URL("/maju.svg", window.location.href).href,
   );
   await page.getByTestId("profile-avatar-url").click();
   await page.keyboard.insertText(pastedAvatarUrl);
@@ -552,8 +552,8 @@ test("uploads local profile avatar files before saving", async ({ page }) => {
     .poll(() =>
       page.evaluate(
         () =>
-          (window as Window & { __BUZZ_E2E_COMMANDS__?: string[] })
-            .__BUZZ_E2E_COMMANDS__ ?? [],
+          (window as Window & { __MAJU_E2E_COMMANDS__?: string[] })
+            .__MAJU_E2E_COMMANDS__ ?? [],
       ),
     )
     .toEqual(expect.arrayContaining(["upload_media_bytes", "update_profile"]));
@@ -575,7 +575,7 @@ test("renders emoji avatars with a static background layer", async ({
     "background-color",
     "rgb(255, 231, 92)",
   );
-  await expect(avatarPreview).not.toHaveClass(/buzz-avatar-squish/);
+  await expect(avatarPreview).not.toHaveClass(/maju-avatar-squish/);
   await expect(page.getByTestId("profile-avatar-preview-emoji")).toHaveText(
     "😀",
   );
@@ -812,13 +812,13 @@ test("renders agent profile ingress subviews from the Playwright mock bridge", a
     ({ pubkey }) => {
       const emit = (
         window as Window & {
-          __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+          __MAJU_E2E_EMIT_MOCK_MESSAGE__?: (input: {
             channelName: string;
             content: string;
             pubkey: string;
           }) => unknown;
         }
-      ).__BUZZ_E2E_EMIT_MOCK_MESSAGE__;
+      ).__MAJU_E2E_EMIT_MOCK_MESSAGE__;
       if (!emit) {
         throw new Error("Mock message emitter is unavailable.");
       }
@@ -1097,13 +1097,13 @@ test("owned agent absent from relay/managed lists still renders agent framing", 
     ({ pubkey }) => {
       const emit = (
         window as Window & {
-          __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+          __MAJU_E2E_EMIT_MOCK_MESSAGE__?: (input: {
             channelName: string;
             content: string;
             pubkey: string;
           }) => unknown;
         }
-      ).__BUZZ_E2E_EMIT_MOCK_MESSAGE__;
+      ).__MAJU_E2E_EMIT_MOCK_MESSAGE__;
       if (!emit) {
         throw new Error("Mock message emitter is unavailable.");
       }
@@ -1174,10 +1174,10 @@ test("notification settings drive the Inbox badge and desktop alerts", async ({
   async function getAppBadgeCount() {
     return page.evaluate(() => {
       const win = window as Window & {
-        __BUZZ_E2E_APP_BADGE_COUNT__?: number;
+        __MAJU_E2E_APP_BADGE_COUNT__?: number;
       };
 
-      return win.__BUZZ_E2E_APP_BADGE_COUNT__ ?? 0;
+      return win.__MAJU_E2E_APP_BADGE_COUNT__ ?? 0;
     });
   }
 
@@ -1201,7 +1201,7 @@ test("notification settings drive the Inbox badge and desktop alerts", async ({
 
   await page.evaluate(() => {
     const win = window as Window & {
-      __BUZZ_E2E_PUSH_MOCK_FEED_ITEM__?: (item: {
+      __MAJU_E2E_PUSH_MOCK_FEED_ITEM__?: (item: {
         category: "mention" | "needs_action" | "activity" | "agent_activity";
         channel_id: string | null;
         channel_name: string;
@@ -1214,7 +1214,7 @@ test("notification settings drive the Inbox badge and desktop alerts", async ({
       }) => unknown;
     };
 
-    win.__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__?.({
+    win.__MAJU_E2E_PUSH_MOCK_FEED_ITEM__?.({
       category: "mention",
       channel_id: "1c7e1c02-87bb-5e88-b2da-5a7a9432d0c9",
       channel_name: "engineering",
@@ -1241,26 +1241,26 @@ test("notification settings drive the Inbox badge and desktop alerts", async ({
     .poll(() =>
       page.evaluate(() => {
         const win = window as Window & {
-          __BUZZ_E2E_NOTIFICATIONS__?: Array<{
+          __MAJU_E2E_NOTIFICATIONS__?: Array<{
             body: string | null;
             title: string;
           }>;
         };
 
-        return win.__BUZZ_E2E_NOTIFICATIONS__?.length ?? 0;
+        return win.__MAJU_E2E_NOTIFICATIONS__?.length ?? 0;
       }),
     )
     .toBe(1);
 
   const notifications = await page.evaluate(() => {
     const win = window as Window & {
-      __BUZZ_E2E_NOTIFICATIONS__?: Array<{
+      __MAJU_E2E_NOTIFICATIONS__?: Array<{
         body: string | null;
         title: string;
       }>;
     };
 
-    return win.__BUZZ_E2E_NOTIFICATIONS__ ?? [];
+    return win.__MAJU_E2E_NOTIFICATIONS__ ?? [];
   });
 
   expect(notifications).toEqual([
@@ -1272,10 +1272,10 @@ test("notification settings drive the Inbox badge and desktop alerts", async ({
 
   const clickedNotification = await page.evaluate(() => {
     const win = window as Window & {
-      __BUZZ_E2E_CLICK_NOTIFICATION__?: (index: number) => boolean;
+      __MAJU_E2E_CLICK_NOTIFICATION__?: (index: number) => boolean;
     };
 
-    return win.__BUZZ_E2E_CLICK_NOTIFICATION__?.(0) ?? false;
+    return win.__MAJU_E2E_CLICK_NOTIFICATION__?.(0) ?? false;
   });
   expect(clickedNotification).toBe(true);
 
@@ -1320,7 +1320,7 @@ test("desktop notification clicks open the matching forum thread", async ({
 
   await page.evaluate(() => {
     const win = window as Window & {
-      __BUZZ_E2E_PUSH_MOCK_FEED_ITEM__?: (item: {
+      __MAJU_E2E_PUSH_MOCK_FEED_ITEM__?: (item: {
         category: "mention" | "needs_action" | "activity" | "agent_activity";
         channel_id: string | null;
         channel_name: string;
@@ -1333,7 +1333,7 @@ test("desktop notification clicks open the matching forum thread", async ({
       }) => unknown;
     };
 
-    win.__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__?.({
+    win.__MAJU_E2E_PUSH_MOCK_FEED_ITEM__?.({
       category: "mention",
       channel_id: "a27e1ee9-76a6-5bdf-a5d5-1d85610dad11",
       channel_name: "watercooler",
@@ -1351,23 +1351,23 @@ test("desktop notification clicks open the matching forum thread", async ({
     .poll(() =>
       page.evaluate(() => {
         const win = window as Window & {
-          __BUZZ_E2E_NOTIFICATIONS__?: Array<{
+          __MAJU_E2E_NOTIFICATIONS__?: Array<{
             body: string | null;
             title: string;
           }>;
         };
 
-        return win.__BUZZ_E2E_NOTIFICATIONS__?.length ?? 0;
+        return win.__MAJU_E2E_NOTIFICATIONS__?.length ?? 0;
       }),
     )
     .toBe(1);
 
   const clickedNotification = await page.evaluate(() => {
     const win = window as Window & {
-      __BUZZ_E2E_CLICK_NOTIFICATION__?: (index: number) => boolean;
+      __MAJU_E2E_CLICK_NOTIFICATION__?: (index: number) => boolean;
     };
 
-    return win.__BUZZ_E2E_CLICK_NOTIFICATION__?.(0) ?? false;
+    return win.__MAJU_E2E_CLICK_NOTIFICATION__?.(0) ?? false;
   });
   expect(clickedNotification).toBe(true);
 
@@ -1403,8 +1403,8 @@ test("opens settings with the keyboard shortcut and updates theme", async ({
   ).toBeVisible();
   await page.getByTestId("settings-nav-appearance").click();
 
-  // Default is Buzz in System mode; Playwright's default color scheme is
-  // light, so the app boots with the light Buzz theme.
+  // Default is Maju in System mode; Playwright's default color scheme is
+  // light, so the app boots with the light Maju theme.
   await expect
     .poll(() =>
       page.evaluate(() => document.documentElement.classList.contains("light")),
@@ -1442,7 +1442,7 @@ test("opens settings with the keyboard shortcut and updates theme", async ({
 
   // Theme name persists in localStorage
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("buzz-theme")))
+    .poll(() => page.evaluate(() => localStorage.getItem("maju-theme")))
     .toBe("github-light");
 
   // Switch to Dark mode tab to reveal dark themes
@@ -1458,7 +1458,7 @@ test("opens settings with the keyboard shortcut and updates theme", async ({
     .toBe(true);
 
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("buzz-theme")))
+    .poll(() => page.evaluate(() => localStorage.getItem("maju-theme")))
     .toBe("dracula");
 
   // Close settings with keyboard shortcut
@@ -1476,9 +1476,9 @@ test("supports webview zoom keyboard shortcuts", async ({ page }) => {
   const getTextScaleState = () =>
     page.evaluate(() => ({
       fontSize: getComputedStyle(document.documentElement).fontSize,
-      storedScale: localStorage.getItem("buzz:text-scale"),
-      webviewZoom: (window as Window & { __BUZZ_E2E_WEBVIEW_ZOOM__?: number })
-        .__BUZZ_E2E_WEBVIEW_ZOOM__,
+      storedScale: localStorage.getItem("maju:text-scale"),
+      webviewZoom: (window as Window & { __MAJU_E2E_WEBVIEW_ZOOM__?: number })
+        .__MAJU_E2E_WEBVIEW_ZOOM__,
     }));
   const dispatchPrimaryShortcut = (
     key: string,

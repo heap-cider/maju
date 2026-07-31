@@ -1,4 +1,4 @@
--- Buzz product feedback is accepted through a dedicated signed event kind and
+-- Maju product feedback is accepted through a dedicated signed event kind and
 -- sidecarred here instead of entering the ordinary events table. Rows remain
 -- attributable to their source community, while deployment operators may
 -- review the table across communities through internal tooling.
