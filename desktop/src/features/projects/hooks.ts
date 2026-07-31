@@ -64,7 +64,7 @@ export type {
 
 export type ProjectPullRequestCommentDecision = "request-changes";
 
-const HIDDEN_PROJECT_CARDS_KEY = "buzz.projects.hidden-cards.v1";
+const HIDDEN_PROJECT_CARDS_KEY = "maju.projects.hidden-cards.v1";
 
 export type Project = {
   id: string;
@@ -207,7 +207,7 @@ export function eventToProject(
   // `h`/`project-channel`, `status`, and `default-branch` are NOT part of
   // NIP-34 — they are read-side tolerance for extension tags no code writes
   // today (the write path that emitted them was removed). If a write path is
-  // reintroduced it must go through the buzz-sdk repo-announcement builder;
+  // reintroduced it must go through the maju-sdk repo-announcement builder;
   // the canonical NIP-34 source for the default branch is the kind:30618
   // state event's HEAD ref, not a 30617 tag.
   const projectChannelId =

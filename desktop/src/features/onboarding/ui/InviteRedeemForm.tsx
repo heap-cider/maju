@@ -378,7 +378,7 @@ export function InviteRedeemForm({
                   autoCorrect="off"
                   className={cn(
                     ONBOARDING_KEY_TEXT_CLASS,
-                    "block border-0 bg-transparent p-0 text-center shadow-none outline-none placeholder:text-[var(--buzz-onboarding-backup-ink)] placeholder:opacity-40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+                    "block border-0 bg-transparent p-0 text-center shadow-none outline-none placeholder:text-[var(--maju-onboarding-backup-ink)] placeholder:opacity-40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
                   )}
                   data-testid="invite-redeem-input"
                   disabled={isRedeeming}
@@ -500,7 +500,7 @@ export function InviteRedeemForm({
               disabled={isRedeeming}
               id="community-api-token"
               onChange={(event) => setApiToken(event.target.value)}
-              placeholder="buzz_…"
+              placeholder="maju_…"
               type="password"
               value={apiToken}
             />

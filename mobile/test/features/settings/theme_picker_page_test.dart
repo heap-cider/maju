@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:buzz/features/settings/accent_picker_page.dart';
-import 'package:buzz/features/settings/theme_picker_page.dart';
-import 'package:buzz/shared/theme/theme.dart';
+import 'package:maju/features/settings/accent_picker_page.dart';
+import 'package:maju/features/settings/theme_picker_page.dart';
+import 'package:maju/shared/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/widget_helpers.dart';
@@ -61,7 +61,7 @@ void main() {
     testWidgets('system mode normalizes a stored unpaired theme', (
       tester,
     ) async {
-      final instance = await _prefs({'buzz_color_scheme': 'snazzy-light'});
+      final instance = await _prefs({'maju_color_scheme': 'snazzy-light'});
       await tester.pumpWidget(
         WidgetHelpers.testable(
           child: const ThemePickerPage(),
@@ -71,7 +71,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        instance.getString('buzz_color_scheme'),
+        instance.getString('maju_color_scheme'),
         themeGroups().paired.first.name,
       );
     });
@@ -82,7 +82,7 @@ void main() {
       await _pumpPicker(
         tester,
         const ThemePickerPage(),
-        prefs: {'buzz_theme_mode': 'light'},
+        prefs: {'maju_theme_mode': 'light'},
       );
 
       await _search(tester, 'github');
@@ -96,7 +96,7 @@ void main() {
       await _pumpPicker(
         tester,
         const ThemePickerPage(),
-        prefs: {'buzz_theme_mode': 'light'},
+        prefs: {'maju_theme_mode': 'light'},
       );
 
       await _search(tester, 'snazzy');
@@ -108,7 +108,7 @@ void main() {
       await _pumpPicker(
         tester,
         const ThemePickerPage(),
-        prefs: {'buzz_theme_mode': 'dark'},
+        prefs: {'maju_theme_mode': 'dark'},
       );
 
       await _search(tester, 'github');
@@ -121,7 +121,7 @@ void main() {
       await _pumpPicker(
         tester,
         const ThemePickerPage(),
-        prefs: {'buzz_theme_mode': 'light', 'buzz_color_scheme': 'nord'},
+        prefs: {'maju_theme_mode': 'light', 'maju_color_scheme': 'nord'},
       );
 
       await _search(tester, 'nord');
@@ -137,7 +137,7 @@ void main() {
       await _pumpPicker(
         tester,
         const ThemePickerPage(),
-        prefs: {'buzz_color_scheme': 'github-dark'},
+        prefs: {'maju_color_scheme': 'github-dark'},
       );
 
       await _search(tester, 'github');
@@ -150,7 +150,7 @@ void main() {
     });
 
     testWidgets('tapping a theme persists the selection', (tester) async {
-      final instance = await _prefs({'buzz_theme_mode': 'dark'});
+      final instance = await _prefs({'maju_theme_mode': 'dark'});
       await tester.pumpWidget(
         WidgetHelpers.testable(
           child: const ThemePickerPage(),
@@ -163,7 +163,7 @@ void main() {
       await tester.tap(find.text('Nord'));
       await tester.pumpAndSettle();
 
-      expect(instance.getString('buzz_color_scheme'), 'nord');
+      expect(instance.getString('maju_color_scheme'), 'nord');
     });
   });
 
@@ -172,7 +172,7 @@ void main() {
       await _pumpPicker(
         tester,
         const AccentPickerPage(),
-        prefs: {'buzz_accent_color': 2},
+        prefs: {'maju_accent_color': 2},
       );
 
       for (final accent in accentColors) {
@@ -195,7 +195,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        instance.getInt('buzz_accent_color'),
+        instance.getInt('maju_accent_color'),
         accentColors.indexWhere((a) => a.name == 'Green'),
       );
     });

@@ -409,7 +409,7 @@ pub fn validate_provider_config(config: &serde_json::Value) -> Result<(), String
     Ok(())
 }
 
-/// Enumerate PATH for buzz-backend-* executables. Returns (id, path) pairs.
+/// Enumerate PATH for maju-backend-* executables. Returns (id, path) pairs.
 /// Only includes files that are executable. Does NOT execute any binaries.
 ///
 /// On macOS, GUI apps inherit a minimal PATH from launchd (`/usr/bin:/bin:/usr/sbin:/sbin`)
@@ -417,7 +417,7 @@ pub fn validate_provider_config(config: &serde_json::Value) -> Result<(), String
 /// We augment the search with those directories so bundled and user-installed providers
 /// are always discovered regardless of how the desktop was launched.
 pub fn discover_provider_candidates() -> Vec<(String, PathBuf)> {
-    let prefix = "buzz-backend-";
+    let prefix = "maju-backend-";
     let mut seen = std::collections::HashSet::new();
     let mut results = Vec::new();
 
@@ -469,7 +469,7 @@ pub fn discover_provider_candidates() -> Vec<(String, PathBuf)> {
 /// 3. Returns the canonical path of the discovered binary
 ///
 /// All deploy, start, and create paths MUST use this instead of raw
-/// `resolve_command(format!("buzz-backend-{id}"))` to prevent a compromised
+/// `resolve_command(format!("maju-backend-{id}"))` to prevent a compromised
 /// frontend/IPC caller from steering execution to an arbitrary binary.
 pub fn resolve_provider_binary(provider_id: &str) -> Result<PathBuf, String> {
     // Reject IDs that could be path components or shell metacharacters.
@@ -495,7 +495,7 @@ pub fn resolve_provider_binary(provider_id: &str) -> Result<PathBuf, String> {
             .canonicalize()
             .map_err(|e| format!("provider binary not accessible: {e}")),
         None => Err(format!(
-            "provider 'buzz-backend-{provider_id}' not found on PATH"
+            "provider 'maju-backend-{provider_id}' not found on PATH"
         )),
     }
 }

@@ -5,7 +5,7 @@ import {
   clampAuxiliaryPanelWidth,
 } from "@/shared/layout/AuxiliaryPanel";
 
-const THREAD_PANEL_WIDTH_SESSION_KEY = "buzz.desktop.thread-panel-width";
+const THREAD_PANEL_WIDTH_SESSION_KEY = "maju.desktop.thread-panel-width";
 
 function getViewportWidth(): number {
   return typeof window === "undefined" ? 0 : window.innerWidth;

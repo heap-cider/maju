@@ -25,9 +25,9 @@ test("model discovery status names missing OpenAI-compatible credentials", () =>
   assert.match(status?.message ?? "", /OpenAI models/);
 });
 
-test("Buzz shared compute names the empty state and next action", () => {
+test("Maju shared compute names the empty state and next action", () => {
   const status = formatModelDiscoveryErrorStatus(
-    new Error("no Buzz shared compute serving members are available"),
+    new Error("no Maju shared compute serving members are available"),
     "relay-mesh",
   );
 
@@ -36,9 +36,9 @@ test("Buzz shared compute names the empty state and next action", () => {
   assert.match(status?.message ?? "", /Settings > Compute/);
 });
 
-test("Buzz shared compute distinguishes relay lookup failures", () => {
+test("Maju shared compute distinguishes relay lookup failures", () => {
   const status = formatModelDiscoveryErrorStatus(
-    new Error("Buzz shared compute model discovery failed: relay offline"),
+    new Error("Maju shared compute model discovery failed: relay offline"),
     "relay-mesh",
   );
 
@@ -47,9 +47,9 @@ test("Buzz shared compute distinguishes relay lookup failures", () => {
   assert.match(status?.message ?? "", /relay connection/);
 });
 
-test("Buzz shared compute names a missing relay member roster", () => {
+test("Maju shared compute names a missing relay member roster", () => {
   const status = formatModelDiscoveryErrorStatus(
-    new Error("Buzz shared compute is waiting for the current member roster"),
+    new Error("Maju shared compute is waiting for the current member roster"),
     "relay-mesh",
   );
 
@@ -69,11 +69,11 @@ test("model discovery status stays quiet for missing Databricks defaults", () =>
 });
 
 test("auth-required errors name the agent and ask for sign-in", () => {
-  // Real shape from run_agent_models_command wrapping buzz-acp stderr when
+  // Real shape from run_agent_models_command wrapping maju-acp stderr when
   // cursor-agent is signed out (spec ErrorCode::AuthRequired text).
   const status = formatModelDiscoveryErrorStatus(
     new Error(
-      "buzz-acp models failed (exit 1): agent communication failed: Agent reported error (code -32000): Authentication required",
+      "maju-acp models failed (exit 1): agent communication failed: Agent reported error (code -32000): Authentication required",
     ),
     "",
     "Cursor",
@@ -100,7 +100,7 @@ test("non-auth -32000 errors do NOT get the sign-in copy", () => {
   // "Authentication required" text may route to the sign-in message.
   const status = formatModelDiscoveryErrorStatus(
     new Error(
-      "buzz-acp models failed (exit 1): Agent reported error (code -32000): model catalog fetch timed out",
+      "maju-acp models failed (exit 1): Agent reported error (code -32000): model catalog fetch timed out",
     ),
     "anthropic",
     "Cursor",

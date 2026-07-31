@@ -6,7 +6,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../shared/theme/theme.dart';
-import '../../shared/widgets/buzz_loading_indicator.dart';
+import '../../shared/widgets/maju_loading_indicator.dart';
 import '../../shared/widgets/frosted_app_bar.dart';
 import '../channels/channel.dart';
 import '../channels/compose_bar.dart';
@@ -63,7 +63,7 @@ class ForumPostsView extends HookConsumerWidget {
               loading: () => Padding(
                 padding: EdgeInsets.only(top: frostedAppBarHeight(context)),
                 child: const Center(
-                  child: BuzzLoadingIndicator(
+                  child: MajuLoadingIndicator(
                     size: 44,
                     semanticLabel: 'Loading posts',
                   ),

@@ -8,10 +8,10 @@ const SHOTS = "test-results/channel-sort";
 
 // Mock-mode current-user pubkey and relay (see e2eBridge DEFAULT_MOCK_PUBKEY /
 // DEFAULT_RELAY_WS_URL). Sort preferences persist under the relay-scoped key
-// buzz-channel-sort.v1:<pubkey>:<encoded-relay>.
+// maju-channel-sort.v1:<pubkey>:<encoded-relay>.
 const MOCK_PUBKEY = "deadbeef".repeat(8);
 const MOCK_RELAY_ENCODED = encodeURIComponent("ws://localhost:3000");
-const SORT_STORAGE_KEY = `buzz-channel-sort.v1:${MOCK_PUBKEY}:${MOCK_RELAY_ENCODED}`;
+const SORT_STORAGE_KEY = `maju-channel-sort.v1:${MOCK_PUBKEY}:${MOCK_RELAY_ENCODED}`;
 
 function seedSortState(page: Page, groups: Record<string, string>) {
   return page.addInitScript(

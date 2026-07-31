@@ -8,8 +8,8 @@ import {
   PERSONA_LABEL_OPTIONAL_CLASS,
 } from "./agentConfigOptions";
 import type { AgentPersona } from "@/shared/api/types";
-import { BuzzAgentModelTuningFields } from "./buzzAgentModelTuningFields";
-import { isBuzzAgentRuntime } from "./buzzAgentConfig";
+import { MajuAgentModelTuningFields } from "./majuAgentModelTuningFields";
+import { isMajuAgentRuntime } from "./majuAgentConfig";
 
 export function EditAgentAdvancedFields({
   acpCommand,
@@ -49,16 +49,16 @@ export function EditAgentAdvancedFields({
   inheritedEnvVars: Record<string, string>;
   inheritHarness: boolean;
   linkedPersona: AgentPersona | null;
-  /** Active LLM model — forwarded to BuzzAgentModelTuningFields for effort filtering. */
+  /** Active LLM model — forwarded to MajuAgentModelTuningFields for effort filtering. */
   model?: string;
   /**
    * The actual/prospective runtime id used to decide whether to show the
-   * buzz-agent model-tuning fields. Uses `prospectiveRuntimeId` from
+   * maju-agent model-tuning fields. Uses `prospectiveRuntimeId` from
    * EditAgentDialog — the resolved runtime, not the "inherit"/"custom" sentinel.
    */
   modelTuningRuntimeId: string;
   parallelism: string;
-  /** Active LLM provider id — forwarded to BuzzAgentModelTuningFields for effort filtering. */
+  /** Active LLM provider id — forwarded to MajuAgentModelTuningFields for effort filtering. */
   provider?: string;
   requiredEnvKeys: readonly string[];
   systemPrompt: string;
@@ -252,9 +252,9 @@ export function EditAgentAdvancedFields({
         value={envVars}
       />
 
-      {/* Tier-1 buzz-agent model-tuning knobs — only shown for buzz-agent. */}
-      {isBuzzAgentRuntime(modelTuningRuntimeId) ? (
-        <BuzzAgentModelTuningFields
+      {/* Tier-1 maju-agent model-tuning knobs — only shown for maju-agent. */}
+      {isMajuAgentRuntime(modelTuningRuntimeId) ? (
+        <MajuAgentModelTuningFields
           envVars={envVars}
           inheritedEnvVars={inheritedEnvVars}
           model={model}

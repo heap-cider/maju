@@ -1,31 +1,31 @@
 [workspace]
 members = [
-    "crates/buzz-relay",
-    "crates/buzz-core",
-    "crates/buzz-conformance",
-    "crates/buzz-push-gateway",
-    "crates/buzz-db",
-    "crates/buzz-pubsub",
-    "crates/buzz-auth",
-    "crates/buzz-search",
-    "crates/buzz-audit",
-    "crates/buzz-acp",
-    "crates/buzz-agent",
+    "crates/maju-relay",
+    "crates/maju-core",
+    "crates/maju-conformance",
+    "crates/maju-push-gateway",
+    "crates/maju-db",
+    "crates/maju-pubsub",
+    "crates/maju-auth",
+    "crates/maju-search",
+    "crates/maju-audit",
+    "crates/maju-acp",
+    "crates/maju-agent",
     "crates/sprig",
-    "crates/buzz-test-client",
-    "crates/buzz-ws-client",
-    "crates/buzz-admin",
-    "crates/buzz-workflow",
-    "crates/buzz-media",
-    "crates/buzz-cli",
-    "crates/buzz-pairing-cli",
-    "crates/buzz-sdk",
-    "crates/buzz-persona",
+    "crates/maju-test-client",
+    "crates/maju-ws-client",
+    "crates/maju-admin",
+    "crates/maju-workflow",
+    "crates/maju-media",
+    "crates/maju-cli",
+    "crates/maju-pairing-cli",
+    "crates/maju-sdk",
+    "crates/maju-persona",
     "crates/git-credential-nostr",
     "crates/git-sign-nostr",
-    "crates/buzz-pair-relay",
-    "crates/buzz-relay-mesh",
-    "crates/buzz-dev-mcp",
+    "crates/maju-pair-relay",
+    "crates/maju-relay-mesh",
+    "crates/maju-dev-mcp",
     "examples/countdown-bot",
 ]
 exclude = ["desktop/src-tauri"]
@@ -36,7 +36,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.88.0"
 license = "Apache-2.0"
-repository = "https://github.com/block/sprout"
+repository = "https://github.com/heap-cider/maju"
 
 [workspace.dependencies]
 # Runtime
@@ -64,7 +64,7 @@ nostr = { version = "0.44", features = ["nip44", "nip98"] }
 serde       = { version = "1", features = ["derive"] }
 postcard    = { version = "1", default-features = false, features = ["use-std"] }
 
-# Inter-relay mesh transport (buzz-relay-mesh)
+# Inter-relay mesh transport (maju-relay-mesh)
 iroh = { version = "1.0.0-rc.0", default-features = false, features = ["tls-ring"] }
 serde_json  = "1"
 serde_yaml  = "0.9"
@@ -117,23 +117,23 @@ url = "2"
 # Property-based testing (dev-only)
 proptest = "1"
 
-# MCP SDK (used by buzz-dev-mcp and buzz-agent)
+# MCP SDK (used by maju-dev-mcp and maju-agent)
 rmcp = { version = "1.1.0", features = ["server", "transport-io", "macros"] }
 schemars = { version = "1", default-features = false }
 
 # Internal crates
-buzz-core = { path = "crates/buzz-core" }
-buzz-conformance = { path = "crates/buzz-conformance" }
-buzz-db = { path = "crates/buzz-db" }
-buzz-auth = { path = "crates/buzz-auth" }
-buzz-pubsub = { path = "crates/buzz-pubsub" }
-buzz-search = { path = "crates/buzz-search" }
-buzz-audit = { path = "crates/buzz-audit" }
-buzz-workflow = { path = "crates/buzz-workflow" }
-buzz-media = { path = "crates/buzz-media" }
-buzz-sdk = { path = "crates/buzz-sdk" }
-buzz-ws-client = { path = "crates/buzz-ws-client" }
-buzz-relay-mesh = { path = "crates/buzz-relay-mesh" }
+maju-core = { path = "crates/maju-core" }
+maju-conformance = { path = "crates/maju-conformance" }
+maju-db = { path = "crates/maju-db" }
+maju-auth = { path = "crates/maju-auth" }
+maju-pubsub = { path = "crates/maju-pubsub" }
+maju-search = { path = "crates/maju-search" }
+maju-audit = { path = "crates/maju-audit" }
+maju-workflow = { path = "crates/maju-workflow" }
+maju-media = { path = "crates/maju-media" }
+maju-sdk = { path = "crates/maju-sdk" }
+maju-ws-client = { path = "crates/maju-ws-client" }
+maju-relay-mesh = { path = "crates/maju-relay-mesh" }
 
 # CI profile — builds the relay for desktop e2e. Dependencies keep full
 # release optimization (warm from main's cache; they carry the runtime hot

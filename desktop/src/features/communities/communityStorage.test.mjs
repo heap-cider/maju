@@ -23,35 +23,35 @@ function createMemoryStorage(initial = {}) {
   };
 }
 
-test("migrateLegacyCommunityStorage promotes current Buzz workspace state", () => {
+test("migrateLegacyCommunityStorage promotes current Maju workspace state", () => {
   const storage = createMemoryStorage({
-    "buzz-workspaces": '[{"id":"current"}]',
-    "buzz-active-workspace-id": "current",
+    "maju-workspaces": '[{"id":"current"}]',
+    "maju-active-workspace-id": "current",
   });
 
   migrateLegacyCommunityStorage(storage);
 
-  assert.equal(storage.getItem("buzz-communities"), '[{"id":"current"}]');
-  assert.equal(storage.getItem("buzz-active-community-id"), "current");
+  assert.equal(storage.getItem("maju-communities"), '[{"id":"current"}]');
+  assert.equal(storage.getItem("maju-active-community-id"), "current");
 });
 
 test("migrateLegacyCommunityStorage does not overwrite new community state", () => {
   const storage = createMemoryStorage({
-    "buzz-communities": '[{"id":"new"}]',
-    "buzz-active-community-id": "new",
-    "buzz-workspaces": '[{"id":"old"}]',
-    "buzz-active-workspace-id": "old",
+    "maju-communities": '[{"id":"new"}]',
+    "maju-active-community-id": "new",
+    "maju-workspaces": '[{"id":"old"}]',
+    "maju-active-workspace-id": "old",
   });
 
   migrateLegacyCommunityStorage(storage);
 
-  assert.equal(storage.getItem("buzz-communities"), '[{"id":"new"}]');
-  assert.equal(storage.getItem("buzz-active-community-id"), "new");
+  assert.equal(storage.getItem("maju-communities"), '[{"id":"new"}]');
+  assert.equal(storage.getItem("maju-active-community-id"), "new");
 });
 
 test("signed-build relay defaults auto-connect during first-run onboarding", () => {
   assert.equal(
-    shouldAutoConnectDefaultRelay("wss://buzz.block.builderlab.xyz"),
+    shouldAutoConnectDefaultRelay("wss://maju.block.builderlab.xyz"),
     true,
   );
   assert.equal(shouldAutoConnectDefaultRelay("ws://localhost:3000"), false);
@@ -69,12 +69,12 @@ test("signed-build relay defaults auto-connect during first-run onboarding", () 
 
 test("failed first-community write preserves existing community data", () => {
   const storage = createMemoryStorage({
-    "buzz-communities": '[{"id":"existing"}]',
-    "buzz-workspaces": '[{"id":"legacy"}]',
-    "buzz-active-workspace-id": "legacy",
+    "maju-communities": '[{"id":"existing"}]',
+    "maju-workspaces": '[{"id":"legacy"}]',
+    "maju-active-workspace-id": "legacy",
   });
   storage.setItem = (key, value) => {
-    if (key === "buzz-communities") {
+    if (key === "maju-communities") {
       throw new Error("QuotaExceededError");
     }
     storage.values.set(key, String(value));
@@ -83,18 +83,18 @@ test("failed first-community write preserves existing community data", () => {
   globalThis.window = { localStorage: storage };
 
   assert.equal(initFirstCommunity("wss://relay.example.com", "pubkey"), null);
-  assert.equal(storage.getItem("buzz-communities"), '[{"id":"existing"}]');
-  assert.equal(storage.getItem("buzz-active-community-id"), null);
-  assert.equal(storage.getItem("buzz-workspaces"), '[{"id":"legacy"}]');
-  assert.equal(storage.getItem("buzz-active-workspace-id"), "legacy");
+  assert.equal(storage.getItem("maju-communities"), '[{"id":"existing"}]');
+  assert.equal(storage.getItem("maju-active-community-id"), null);
+  assert.equal(storage.getItem("maju-workspaces"), '[{"id":"legacy"}]');
+  assert.equal(storage.getItem("maju-active-workspace-id"), "legacy");
 });
 
 test("clearCommunityStorage removes new and legacy state", () => {
   const storage = createMemoryStorage({
-    "buzz-communities": "new",
-    "buzz-active-community-id": "new",
-    "buzz-workspaces": "old",
-    "buzz-active-workspace-id": "old",
+    "maju-communities": "new",
+    "maju-active-community-id": "new",
+    "maju-workspaces": "old",
+    "maju-active-workspace-id": "old",
   });
 
   clearCommunityStorage(storage);

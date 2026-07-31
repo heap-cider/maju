@@ -11,7 +11,7 @@ test("getInstallErrorMessage: failed step without hint contains step name and st
   const message = getInstallErrorMessage([
     {
       step: "adapter",
-      command: "npm install -g @block/buzz-acp",
+      command: "npm install -g @heap-cider/maju-acp",
       success: false,
       stdout: "",
       stderr: "EACCES: permission denied",
@@ -26,7 +26,7 @@ test("getInstallErrorMessage: failed step without hint does not contain hint-ish
   const message = getInstallErrorMessage([
     {
       step: "adapter",
-      command: "npm install -g @block/buzz-acp",
+      command: "npm install -g @heap-cider/maju-acp",
       success: false,
       stdout: "",
       stderr: "EACCES: permission denied",
@@ -42,7 +42,7 @@ test("getInstallErrorMessage: failed step with hint starts with hint and still c
   const message = getInstallErrorMessage([
     {
       step: "adapter",
-      command: "npm install -g @block/buzz-acp",
+      command: "npm install -g @heap-cider/maju-acp",
       success: false,
       stdout: "",
       stderr: "EACCES: permission denied, mkdir '/usr/local/lib'",

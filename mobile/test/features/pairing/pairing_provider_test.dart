@@ -2,11 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:buzz/features/pairing/pairing_provider.dart';
-import 'package:buzz/features/pairing/pairing_socket.dart';
-import 'package:buzz/shared/auth/auth.dart';
+import 'package:maju/features/pairing/pairing_provider.dart';
+import 'package:maju/features/pairing/pairing_socket.dart';
+import 'package:maju/shared/auth/auth.dart';
 
-/// Tests for [PairingNotifier]'s legacy `buzz://` payload parsing and
+/// Tests for [PairingNotifier]'s legacy `maju://` payload parsing and
 /// SSRF-prevention validation.
 ///
 /// The pairing flow used to validate by calling `GET /api/users/me/profile`
@@ -17,7 +17,7 @@ import 'package:buzz/shared/auth/auth.dart';
 ///
 /// What we still cover here:
 ///   - Initial state.
-///   - Parsing every documented payload format (raw base64, `buzz://`
+///   - Parsing every documented payload format (raw base64, `maju://`
 ///     prefix, whitespace).
 ///   - Failure modes that return BEFORE any network call: invalid base64,
 ///     wrong shape (non-object, missing fields, missing nsec), and SSRF
@@ -62,7 +62,7 @@ void main() {
         const code =
             'nostrpair://62287897da61e3fa294b4570575f7db8bea147d6631150f2e4656714c645fb1e'
             '?secret=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'
-            '&relay=wss%3A%2F%2Fpairing.buzz.xyz&v=1';
+            '&relay=wss%3A%2F%2Fpairing.maju.xyz&v=1';
 
         await container.read(pairingProvider.notifier).pair(code);
 
@@ -88,10 +88,10 @@ void main() {
       expect(fakeAuth.lastCommunity, isNull);
     });
 
-    test('accepts buzz scheme prefix', () async {
+    test('accepts maju scheme prefix', () async {
       container = createContainer();
 
-      final code = 'buzz://${_encodePairingCode()}';
+      final code = 'maju://${_encodePairingCode()}';
       await container.read(pairingProvider.notifier).pair(code);
 
       final state = container.read(pairingProvider);

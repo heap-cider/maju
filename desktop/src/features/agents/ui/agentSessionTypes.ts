@@ -129,7 +129,7 @@ export type TranscriptItem =
       descriptor: AgentActivityDescriptor;
       title: string;
       toolName: string;
-      buzzToolName: string | null;
+      majuToolName: string | null;
       status: ToolStatus;
       args: Record<string, unknown>;
       result: string;
@@ -145,7 +145,7 @@ export type PromptSection = {
   body: string;
 };
 
-export type BuzzToolInfo = {
+export type MajuToolInfo = {
   icon: LucideIcon;
   label: string;
   tone: "read" | "write" | "admin";

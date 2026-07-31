@@ -45,11 +45,11 @@ pub struct ProjectMergeRecoveryTerminalResult {
 }
 
 fn merge_recovery_ref(expected_commit: &str) -> String {
-    format!("refs/buzz/merge-recovery/{expected_commit}")
+    format!("refs/maju/merge-recovery/{expected_commit}")
 }
 
 fn merge_recovery_target_ref(target_commit: &str) -> String {
-    format!("refs/buzz/merge-recovery-target/{target_commit}")
+    format!("refs/maju/merge-recovery-target/{target_commit}")
 }
 
 #[cfg(target_os = "macos")]
@@ -267,11 +267,11 @@ mod tests {
         let commit = "a".repeat(40);
         assert_eq!(
             merge_recovery_ref(&commit),
-            format!("refs/buzz/merge-recovery/{commit}"),
+            format!("refs/maju/merge-recovery/{commit}"),
         );
         assert_eq!(
             merge_recovery_target_ref(&commit),
-            format!("refs/buzz/merge-recovery-target/{commit}"),
+            format!("refs/maju/merge-recovery-target/{commit}"),
         );
     }
 }

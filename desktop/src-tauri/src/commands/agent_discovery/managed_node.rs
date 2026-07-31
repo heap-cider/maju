@@ -74,20 +74,20 @@ fn managed_node_unsupported_step() -> InstallStepResult {
         success: false,
         stdout: String::new(),
         stderr: format!(
-            "Buzz does not provide a managed Node.js runtime for {}-{} yet",
+            "Maju does not provide a managed Node.js runtime for {}-{} yet",
             std::env::consts::OS,
             std::env::consts::ARCH
         ),
         exit_code: None,
         hint: Some(
-            "Install Node.js from https://nodejs.org, restart Buzz, then click Install again."
+            "Install Node.js from https://nodejs.org, restart Maju, then click Install again."
                 .to_string(),
         ),
     }
 }
 
 fn managed_node_install_hint() -> String {
-    "Buzz could not install its private Node.js runtime. Check your network and app-data directory permissions, then click Install again.".to_string()
+    "Maju could not install its private Node.js runtime. Check your network and app-data directory permissions, then click Install again.".to_string()
 }
 
 fn managed_node_failed_step(stderr: String) -> InstallStepResult {
@@ -103,7 +103,7 @@ fn managed_node_failed_step(stderr: String) -> InstallStepResult {
 }
 
 fn managed_node_runtime_ready() -> bool {
-    let Some(node) = crate::managed_agents::buzz_managed_node_bin_path() else {
+    let Some(node) = crate::managed_agents::maju_managed_node_bin_path() else {
         return false;
     };
     if !node.is_file() {
@@ -129,7 +129,7 @@ fn managed_node_install_lock() -> &'static Mutex<()> {
 }
 
 pub(super) fn managed_node_runtime_supported() -> bool {
-    MANAGED_NODE_ARTIFACT.is_some() && crate::managed_agents::buzz_managed_node_bin_dir().is_some()
+    MANAGED_NODE_ARTIFACT.is_some() && crate::managed_agents::maju_managed_node_bin_dir().is_some()
 }
 
 pub(super) fn ensure_managed_node_runtime_blocking() -> Result<(), Box<InstallStepResult>> {
@@ -140,9 +140,9 @@ pub(super) fn ensure_managed_node_runtime_blocking() -> Result<(), Box<InstallSt
     let Some(artifact) = MANAGED_NODE_ARTIFACT else {
         return Err(Box::new(managed_node_unsupported_step()));
     };
-    let Some(root) = crate::managed_agents::buzz_managed_node_root() else {
+    let Some(root) = crate::managed_agents::maju_managed_node_root() else {
         return Err(Box::new(managed_node_failed_step(
-            "failed to resolve Buzz app-data directory for private Node.js runtime".to_string(),
+            "failed to resolve Maju app-data directory for private Node.js runtime".to_string(),
         )));
     };
 
@@ -464,9 +464,9 @@ fn verify_node_tree(dir: &std::path::Path) -> Result<(), String> {
 
 // ── managed npm adapter installs ──────────────────────────────────────────────
 
-/// Guidance text shown when the Buzz-private npm prefix is not available.
+/// Guidance text shown when the Maju-private npm prefix is not available.
 fn managed_npm_prefix_hint() -> String {
-    "Buzz could not create its private Node tools directory. Check app-data directory permissions, restart Buzz, then click Install again.".to_string()
+    "Maju could not create its private Node tools directory. Check app-data directory permissions, restart Maju, then click Install again.".to_string()
 }
 
 pub(super) fn managed_npm_command(command: &str) -> Result<Option<String>, Box<InstallStepResult>> {
@@ -474,13 +474,13 @@ pub(super) fn managed_npm_command(command: &str) -> Result<Option<String>, Box<I
         return Ok(None);
     }
 
-    let Some(prefix) = crate::managed_agents::buzz_managed_npm_prefix() else {
+    let Some(prefix) = crate::managed_agents::maju_managed_npm_prefix() else {
         return Err(Box::new(InstallStepResult {
             step: "adapter".to_string(),
             command: command.to_string(),
             success: false,
             stdout: String::new(),
-            stderr: "failed to resolve Buzz app-data directory for private npm prefix".to_string(),
+            stderr: "failed to resolve Maju app-data directory for private npm prefix".to_string(),
             exit_code: None,
             hint: Some(managed_npm_prefix_hint()),
         }));
@@ -492,7 +492,7 @@ pub(super) fn managed_npm_command(command: &str) -> Result<Option<String>, Box<I
             success: false,
             stdout: String::new(),
             stderr: format!(
-                "failed to create Buzz private npm prefix '{}': {error}",
+                "failed to create Maju private npm prefix '{}': {error}",
                 prefix.display()
             ),
             exit_code: None,
@@ -527,7 +527,7 @@ fn shell_quote(path: &std::path::Path) -> String {
 pub(super) fn npm_eacces_hint(stderr: &str, _command: &str) -> Option<String> {
     if stderr.contains("EACCES: permission denied") || stderr.contains("npm error EACCES") {
         Some(
-            "npm could not write to Buzz's private Node tools directory. Check app-data directory permissions, restart Buzz, then click Install again."
+            "npm could not write to Maju's private Node tools directory. Check app-data directory permissions, restart Maju, then click Install again."
                 .to_string(),
         )
     } else {
@@ -542,10 +542,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_npm_eacces_hint_guidance_mentions_buzz_private_dir() {
+    fn test_npm_eacces_hint_guidance_mentions_maju_private_dir() {
         let hint = npm_eacces_hint("EACCES: permission denied", "npm install -g foo").unwrap();
         assert!(
-            hint.contains("Buzz's private Node tools directory"),
+            hint.contains("Maju's private Node tools directory"),
             "hint: {hint}"
         );
     }
@@ -555,32 +555,32 @@ mod tests {
         assert_eq!(
             rewrite_npm_global_install(
                 "npm install -g @agentclientprotocol/codex-acp",
-                "'/tmp/Buzz Node'"
+                "'/tmp/Maju Node'"
             ),
-            "npm install --global --prefix '/tmp/Buzz Node' @agentclientprotocol/codex-acp"
+            "npm install --global --prefix '/tmp/Maju Node' @agentclientprotocol/codex-acp"
         );
     }
 
     #[test]
     fn test_rewrite_npm_i_uses_private_prefix() {
         assert_eq!(
-            rewrite_npm_global_install("npm i -g some-package", "'/tmp/buzz'"),
-            "npm i --global --prefix '/tmp/buzz' some-package"
+            rewrite_npm_global_install("npm i -g some-package", "'/tmp/maju'"),
+            "npm i --global --prefix '/tmp/maju' some-package"
         );
     }
 
     #[test]
     fn test_rewrite_npm_uninstall_uses_private_prefix() {
         assert_eq!(
-            rewrite_npm_global_install("npm uninstall -g @zed-industries/codex-acp", "'/tmp/buzz'"),
-            "npm uninstall --global --prefix '/tmp/buzz' @zed-industries/codex-acp"
+            rewrite_npm_global_install("npm uninstall -g @zed-industries/codex-acp", "'/tmp/maju'"),
+            "npm uninstall --global --prefix '/tmp/maju' @zed-industries/codex-acp"
         );
     }
 
     #[test]
     fn test_rewrite_ignores_non_global_command() {
         assert_eq!(
-            rewrite_npm_global_install("npm install foo", "'/tmp/buzz'"),
+            rewrite_npm_global_install("npm install foo", "'/tmp/maju'"),
             "npm install foo"
         );
     }
@@ -588,8 +588,8 @@ mod tests {
     #[test]
     fn test_shell_quote_escapes_single_quotes() {
         assert_eq!(
-            shell_quote(std::path::Path::new("/tmp/Buzz's Node")),
-            "'/tmp/Buzz'\\''s Node'"
+            shell_quote(std::path::Path::new("/tmp/Maju's Node")),
+            "'/tmp/Maju'\\''s Node'"
         );
     }
 

@@ -27,7 +27,7 @@ final class NativeAttachmentPopoverViewController:
   private let cameraSession = AVCaptureSession()
   private let cameraOutput = AVCapturePhotoOutput()
   private let cameraQueue = DispatchQueue(
-    label: "buzz.native-attachment-camera"
+    label: "maju.native-attachment-camera"
   )
 
   private var surface = Surface.menu

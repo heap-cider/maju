@@ -2,9 +2,9 @@
  * Effort-table sync guard: TS side.
  *
  * Loads the checked-in fixture and asserts that `getProviderEffortConfig`
- * matches every entry. Drift between `buzzAgentConfig.ts` and the fixture
+ * matches every entry. Drift between `majuAgentConfig.ts` and the fixture
  * (e.g. a new model family added to one side but not the other) fails CI.
- * The companion Rust test in `crates/buzz-agent/src/config.rs` mirrors
+ * The companion Rust test in `crates/maju-agent/src/config.rs` mirrors
  * this check so both sides of the mirror must stay in sync.
  */
 
@@ -14,7 +14,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { getProviderEffortConfig } from "./buzzAgentConfig.ts";
+import { getProviderEffortConfig } from "./majuAgentConfig.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(

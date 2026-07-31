@@ -90,8 +90,8 @@ test("remove clears the snapshot for that relay", () => {
 test("cache write evicts disposable entries and retries at quota", () => {
   const original = window.localStorage;
   const storage = new Map([
-    ["buzz-channel-messages.v1:relay:old", "big"],
-    ["buzz-timeline-skeleton-shape.v1:old", "small"],
+    ["maju-channel-messages.v1:relay:old", "big"],
+    ["maju-timeline-skeleton-shape.v1:old", "small"],
   ]);
   window.localStorage = {
     get length() {
@@ -110,8 +110,8 @@ test("cache write evicts disposable entries and retries at quota", () => {
   try {
     writeChannelSnapshot(RELAY, [makeChannel()]);
     assert.deepEqual(readChannelSnapshot(RELAY), [makeChannel()]);
-    assert.equal(storage.has("buzz-channel-messages.v1:relay:old"), false);
-    assert.equal(storage.has("buzz-timeline-skeleton-shape.v1:old"), false);
+    assert.equal(storage.has("maju-channel-messages.v1:relay:old"), false);
+    assert.equal(storage.has("maju-timeline-skeleton-shape.v1:old"), false);
   } finally {
     window.localStorage = original;
   }

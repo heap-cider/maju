@@ -90,7 +90,7 @@ function decodeRawSubscription(raw: RawSaveSubscription): SaveSubscription {
 /**
  * Returns `true` when observer-feed archive policy is enforced.
  *
- * Internal builds set `BUZZ_BUILD_OBSERVER_ARCHIVE_DEFAULT` at build time;
+ * Internal builds set `MAJU_BUILD_OBSERVER_ARCHIVE_DEFAULT` at build time;
  * OSS builds never set it, so this returns `false`.  The frontend calls this
  * every startup to decide whether to reconcile the `owner_p` subscription.
  */
@@ -101,7 +101,7 @@ export async function observerArchiveDefaultEnabled(): Promise<boolean> {
 /**
  * Returns `true` when the build has agent-turn-metric archive default-on.
  *
- * Internal builds set `BUZZ_BUILD_AGENT_METRIC_ARCHIVE_DEFAULT` at build time;
+ * Internal builds set `MAJU_BUILD_AGENT_METRIC_ARCHIVE_DEFAULT` at build time;
  * OSS builds never set it, so this returns `false`.  The frontend calls this
  * once at startup to decide whether to auto-seed an `owner_p` [44200]
  * subscription.

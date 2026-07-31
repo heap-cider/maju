@@ -1,10 +1,10 @@
-import 'package:buzz/features/channels/message_actions.dart';
-import 'package:buzz/features/channels/read_state/read_state_provider.dart';
-import 'package:buzz/features/channels/thread_follows/thread_follows_provider.dart';
-import 'package:buzz/features/channels/timeline_message.dart';
-import 'package:buzz/shared/reminders/reminder_service.dart';
-import 'package:buzz/shared/relay/relay.dart';
-import 'package:buzz/shared/theme/theme.dart';
+import 'package:maju/features/channels/message_actions.dart';
+import 'package:maju/features/channels/read_state/read_state_provider.dart';
+import 'package:maju/features/channels/thread_follows/thread_follows_provider.dart';
+import 'package:maju/features/channels/timeline_message.dart';
+import 'package:maju/shared/reminders/reminder_service.dart';
+import 'package:maju/shared/relay/relay.dart';
+import 'package:maju/shared/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -427,7 +427,7 @@ void main() {
           'https://example.com/download',
           'image/gif; charset=binary',
         ),
-        matches(RegExp(r'^buzz-\d+\.gif$')),
+        matches(RegExp(r'^maju-\d+\.gif$')),
       );
     });
   });
@@ -439,14 +439,14 @@ void main() {
           message: _message(rootId: 'root-1'),
           channelId: _channelId,
         ),
-        'buzz://message?channel=chan-1&id=msg-1&thread=root-1',
+        'maju://message?channel=chan-1&id=msg-1&thread=root-1',
       );
     });
 
     test('omits thread for top-level messages', () {
       expect(
         messageLinkFor(message: _message(), channelId: _channelId),
-        'buzz://message?channel=chan-1&id=msg-1',
+        'maju://message?channel=chan-1&id=msg-1',
       );
     });
   });

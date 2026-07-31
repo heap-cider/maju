@@ -1,4 +1,4 @@
-# Buzz
+# Maju
 
 Desktop chat shell with:
 

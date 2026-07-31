@@ -7,7 +7,7 @@ import type {
 } from "./agentSessionTypes";
 import {
   formatToolTitle,
-  getBuzzToolInfo,
+  getMajuToolInfo,
   normalizeToolNameText,
 } from "./agentSessionToolCatalog";
 import {
@@ -21,7 +21,7 @@ type ToolItem = Extract<TranscriptItem, { type: "tool" }>;
 export type ToolClassificationInput = {
   title: string;
   toolName: string;
-  buzzToolName: string | null;
+  majuToolName: string | null;
   args: Record<string, unknown>;
   result: string;
   isError: boolean;
@@ -41,7 +41,7 @@ const DEVELOPER_TOOL_BASES = new Set([
   "postcompact",
 ]);
 
-const BUZZ_CLI_GROUPS = new Set([
+const MAJU_CLI_GROUPS = new Set([
   "messages",
   "channels",
   "dms",
@@ -62,7 +62,7 @@ const BUZZ_CLI_GROUPS = new Set([
   "pack",
 ]);
 
-const BUZZ_CLI_ADMIN_VERBS = new Set([
+const MAJU_CLI_ADMIN_VERBS = new Set([
   "archive",
   "unarchive",
   "create",
@@ -73,7 +73,7 @@ const BUZZ_CLI_ADMIN_VERBS = new Set([
   "set-channel-add-policy",
 ]);
 
-const BUZZ_CLI_READ_VERBS = new Set([
+const MAJU_CLI_READ_VERBS = new Set([
   "get",
   "list",
   "thread",
@@ -85,7 +85,7 @@ const BUZZ_CLI_READ_VERBS = new Set([
 
 const TOOL_CLASS_LABELS: Record<AgentActivityRenderClass, string> = {
   message: "Message",
-  "relay-op": "Buzz relay op",
+  "relay-op": "Maju relay op",
   "file-edit": "File edit",
   "file-read": "File read",
   "skill-read": "Skill read",
@@ -104,7 +104,7 @@ const TOOL_CLASS_LABELS: Record<AgentActivityRenderClass, string> = {
 const providers: ToolClassifierProvider[] = [
   classifyLoadSkillTool,
   classifyDeveloperHarnessTool,
-  classifyBuzzTool,
+  classifyMajuTool,
 ];
 
 export function classifyTool(
@@ -132,7 +132,7 @@ export function classifyToolItem(item: ToolItem): AgentActivityDescriptor {
   return classifyTool({
     title: item.title,
     toolName: item.toolName,
-    buzzToolName: item.buzzToolName,
+    majuToolName: item.majuToolName,
     args: item.args,
     result: item.result,
     isError: item.isError,
@@ -146,7 +146,7 @@ export function renderClassLabel(renderClass: AgentActivityRenderClass) {
 function classifyLoadSkillTool(
   input: ToolClassificationInput,
 ): AgentActivityDescriptor | null {
-  const isLoadSkill = [input.toolName, input.title, input.buzzToolName].some(
+  const isLoadSkill = [input.toolName, input.title, input.majuToolName].some(
     (value) => value && normalizeToolNameText(value) === "load_skill",
   );
   if (!isLoadSkill) return null;
@@ -173,9 +173,9 @@ function classifyDeveloperHarnessTool(
 
   if (kind === "shell") {
     const command = getToolString(input.args, ["command"]);
-    const buzzCli = command ? parseBuzzCliCommand(command) : null;
-    if (buzzCli) {
-      return buzzCli;
+    const majuCli = command ? parseMajuCliCommand(command) : null;
+    if (majuCli) {
+      return majuCli;
     }
     return {
       renderClass: "shell",
@@ -271,30 +271,30 @@ function classifyDeveloperHarnessTool(
   };
 }
 
-function classifyBuzzTool(
+function classifyMajuTool(
   input: ToolClassificationInput,
 ): AgentActivityDescriptor | null {
-  const name = [input.buzzToolName, input.toolName, input.title].find(
-    (value) => value && getBuzzToolInfo(value),
+  const name = [input.majuToolName, input.toolName, input.title].find(
+    (value) => value && getMajuToolInfo(value),
   );
   if (!name) return null;
 
-  const info = getBuzzToolInfo(name);
+  const info = getMajuToolInfo(name);
   if (!info) return null;
 
   const operation = normalizeToolNameText(name);
   const label = formatToolTitle(name, input.title);
-  const preview = extractBuzzToolPreview(input.args);
+  const preview = extractMajuToolPreview(input.args);
   return {
-    renderClass: isBuzzMessageSend(operation) ? "message" : "relay-op",
+    renderClass: isMajuMessageSend(operation) ? "message" : "relay-op",
     label,
     preview,
-    action: actionForBuzzOperation(operation, preview, info.tone),
+    action: actionForMajuOperation(operation, preview, info.tone),
     tone: info.tone,
     operation,
     object: preview,
     source: "mcp",
-    groupKey: `buzz:${operation}`,
+    groupKey: `maju:${operation}`,
   };
 }
 
@@ -324,7 +324,7 @@ function resolveDeveloperToolKind(
   | "post_compact_hook"
   | "dev_mcp"
   | null {
-  for (const value of [input.toolName, input.title, input.buzzToolName]) {
+  for (const value of [input.toolName, input.title, input.majuToolName]) {
     const kind = classifyDeveloperToolName(value);
     if (kind) return kind;
   }
@@ -335,7 +335,7 @@ function classifyDeveloperToolName(value: string | null | undefined) {
   if (!value) return null;
 
   const normalized = normalizeToolNameText(value);
-  const base = normalized.replace(/^buzz_dev_mcp_/, "");
+  const base = normalized.replace(/^maju_dev_mcp_/, "");
 
   if (base === "shell" || normalized.endsWith("_shell")) return "shell";
   if (base === "read_file" || normalized.endsWith("_read_file"))
@@ -347,17 +347,17 @@ function classifyDeveloperToolName(value: string | null | undefined) {
   if (base === "todo") return "todo";
   if (base === "stop") return "stop_hook";
   if (base === "postcompact") return "post_compact_hook";
-  if (DEVELOPER_TOOL_BASES.has(base) || normalized.includes("buzz_dev_mcp")) {
+  if (DEVELOPER_TOOL_BASES.has(base) || normalized.includes("maju_dev_mcp")) {
     return "dev_mcp";
   }
   return null;
 }
 
-export function parseBuzzCliCommand(
+export function parseMajuCliCommand(
   command: string,
 ): AgentActivityDescriptor | null {
   const tokens = tokenizeShellCommand(command);
-  const range = findBuzzCommand(tokens);
+  const range = findMajuCommand(tokens);
   if (!range) return null;
 
   const group = tokens[range.groupIndex];
@@ -365,23 +365,23 @@ export function parseBuzzCliCommand(
   const operation = `${group}.${verb}`;
   const isSend = group === "messages" && verb === "send";
   const preview = isSend
-    ? extractBuzzCliInlineContent(tokens, range)
-    : extractBuzzCliObjectPreview(tokens, range);
-  const tone = buzzCliTone(group, verb);
+    ? extractMajuCliInlineContent(tokens, range)
+    : extractMajuCliObjectPreview(tokens, range);
+  const tone = majuCliTone(group, verb);
   return {
     renderClass: isSend ? "message" : "relay-op",
-    label: titleForBuzzCli(group, verb),
+    label: titleForMajuCli(group, verb),
     preview,
-    action: actionForBuzzOperation(operation, preview, tone),
+    action: actionForMajuOperation(operation, preview, tone),
     tone,
     operation,
     object: preview,
     source: "shell",
-    groupKey: `buzz-cli:${operation}`,
+    groupKey: `maju-cli:${operation}`,
   };
 }
 
-function titleForBuzzCli(group: string, verb: string) {
+function titleForMajuCli(group: string, verb: string) {
   if (group === "messages" && verb === "send") return "Send Message";
   return [group, verb]
     .map((part) =>
@@ -395,26 +395,26 @@ function titleForBuzzCli(group: string, verb: string) {
     .join(" ");
 }
 
-function actionForBuzzOperation(
+function actionForMajuOperation(
   operation: string,
   object: string | null,
   tone: AgentActivityTone,
 ): AgentActivityAction {
-  const verb = buzzOperationVerbToken(operation);
+  const verb = majuOperationVerbToken(operation);
   return {
-    verb: buzzOperationVerb(verb, tone),
-    object: object ?? buzzOperationObject(operation),
+    verb: majuOperationVerb(verb, tone),
+    object: object ?? majuOperationObject(operation),
   };
 }
 
-function buzzOperationVerbToken(operation: string) {
+function majuOperationVerbToken(operation: string) {
   if (operation.includes(".")) {
     return operation.split(".")[1] ?? "run";
   }
   return operation.split("_")[0] ?? "run";
 }
 
-function buzzOperationVerb(verb: string, tone: AgentActivityTone) {
+function majuOperationVerb(verb: string, tone: AgentActivityTone) {
   if (verb === "add") return "Added";
   if (verb === "archive") return "Archived";
   if (verb === "create") return "Created";
@@ -430,29 +430,29 @@ function buzzOperationVerb(verb: string, tone: AgentActivityTone) {
   return "Updated";
 }
 
-function buzzOperationObject(operation: string) {
-  if (isBuzzMessageSend(operation)) return "message";
+function majuOperationObject(operation: string) {
+  if (isMajuMessageSend(operation)) return "message";
   if (operation.includes(".")) {
     const [group] = operation.split(".");
-    return group ? group.replace(/[-_]+/g, " ") : "Buzz";
+    return group ? group.replace(/[-_]+/g, " ") : "Maju";
   }
   const object = operation.replace(
     /^(add|approve|archive|create|delete|edit|get|hide|join|leave|list|open|publish|remove|search|send|set|trigger|unarchive|update|vote)_/,
     "",
   );
-  return object ? object.replace(/[-_]+/g, " ") : "Buzz";
+  return object ? object.replace(/[-_]+/g, " ") : "Maju";
 }
 
-function buzzCliTone(group: string, verb: string): AgentActivityTone {
-  if (BUZZ_CLI_ADMIN_VERBS.has(verb)) return "admin";
-  if (BUZZ_CLI_READ_VERBS.has(verb)) return "read";
+function majuCliTone(group: string, verb: string): AgentActivityTone {
+  if (MAJU_CLI_ADMIN_VERBS.has(verb)) return "admin";
+  if (MAJU_CLI_READ_VERBS.has(verb)) return "read";
   if (group === "feed" && verb === "get") return "read";
   return "write";
 }
 
-function extractBuzzCliInlineContent(
+function extractMajuCliInlineContent(
   tokens: string[],
-  range: BuzzCommandRange,
+  range: MajuCommandRange,
 ): string | null {
   const content = getFlagValue(tokens, range.verbIndex + 1, "--content");
   if (!content || content === "-") return null;
@@ -460,9 +460,9 @@ function extractBuzzCliInlineContent(
   return content;
 }
 
-function extractBuzzCliObjectPreview(
+function extractMajuCliObjectPreview(
   tokens: string[],
-  range: BuzzCommandRange,
+  range: MajuCommandRange,
 ): string | null {
   const flagPreview =
     getFlagValue(tokens, range.verbIndex + 1, "--channel") ??
@@ -478,15 +478,15 @@ function extractBuzzCliObjectPreview(
     : null;
 }
 
-type BuzzCommandRange = {
-  buzzIndex: number;
+type MajuCommandRange = {
+  majuIndex: number;
   groupIndex: number;
   verbIndex: number;
 };
 
-function findBuzzCommand(tokens: string[]): BuzzCommandRange | null {
+function findMajuCommand(tokens: string[]): MajuCommandRange | null {
   for (let i = 0; i < tokens.length; i++) {
-    if (!isBuzzExecutable(tokens[i])) continue;
+    if (!isMajuExecutable(tokens[i])) continue;
 
     for (let j = i + 1; j < tokens.length; j++) {
       if (isCommandSeparator(tokens[j])) break;
@@ -499,12 +499,12 @@ function findBuzzCommand(tokens: string[]): BuzzCommandRange | null {
         }
         continue;
       }
-      if (!BUZZ_CLI_GROUPS.has(tokens[j])) continue;
+      if (!MAJU_CLI_GROUPS.has(tokens[j])) continue;
       const verbIndex = j + 1;
       if (!tokens[verbIndex] || isCommandSeparator(tokens[verbIndex])) {
         return null;
       }
-      return { buzzIndex: i, groupIndex: j, verbIndex };
+      return { majuIndex: i, groupIndex: j, verbIndex };
     }
   }
   return null;
@@ -559,8 +559,8 @@ export function tokenizeShellCommand(command: string): string[] {
   return tokens;
 }
 
-function isBuzzExecutable(token: string) {
-  return token === "buzz" || token.split(/[\\/]/).pop() === "buzz";
+function isMajuExecutable(token: string) {
+  return token === "maju" || token.split(/[\\/]/).pop() === "maju";
 }
 
 function isCommandSeparator(token: string) {
@@ -581,7 +581,7 @@ function getFlagValue(tokens: string[], start: number, flag: string) {
   return null;
 }
 
-function extractBuzzToolPreview(args: Record<string, unknown>): string | null {
+function extractMajuToolPreview(args: Record<string, unknown>): string | null {
   const content = getToolString(args, ["content", "message", "text", "body"]);
   if (content) return content;
   const query = getToolString(args, ["query", "search"]);
@@ -610,7 +610,7 @@ function genericPreview(input: ToolClassificationInput): string | null {
   );
 }
 
-function isBuzzMessageSend(operation: string) {
+function isMajuMessageSend(operation: string) {
   return operation === "send_message" || operation === "messages_send";
 }
 

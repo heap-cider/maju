@@ -10,7 +10,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../shared/relay/relay.dart';
 import '../../shared/theme/theme.dart';
-import '../../shared/widgets/buzz_loading_indicator.dart';
+import '../../shared/widgets/maju_loading_indicator.dart';
 import 'media_viewer_hero.dart';
 
 export 'media_viewer_hero.dart';
@@ -791,7 +791,7 @@ class _VideoLoadingPoster extends StatelessWidget {
             _videoPlaceholder(context),
           const ColoredBox(color: Color.fromRGBO(0, 0, 0, 0.24)),
           const Center(
-            child: BuzzLoadingIndicator(
+            child: MajuLoadingIndicator(
               size: 44,
               color: Colors.white,
               semanticLabel: 'Loading video',

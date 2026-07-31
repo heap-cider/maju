@@ -123,7 +123,7 @@ test("messages the DM held before the first Projects prompt never appear", () =>
 
 test("storage read rejects legacy pointers with a zero cutoff", () => {
   globalThis.localStorage.setItem(
-    `buzz.projects.agentConversation.${encodeURIComponent(WORKSPACE_ID)}`,
+    `maju.projects.agentConversation.${encodeURIComponent(WORKSPACE_ID)}`,
     JSON.stringify({
       agentPubkey: AGENT_PUBKEY,
       channelId: EXISTING_DM.id,

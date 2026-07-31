@@ -1,10 +1,10 @@
 import { invokeTauri } from "@/shared/api/tauri";
 import { migrateLegacyCommunityStorage } from "./communityStorage";
 
-const BUZZ_COMMUNITIES_KEY = "buzz-communities";
-const BUZZ_ACTIVE_COMMUNITY_KEY = "buzz-active-community-id";
-const BUZZ_ONBOARDING_COMPLETION_STORAGE_KEY_PREFIX =
-  "buzz-onboarding-complete.v1:";
+const MAJU_COMMUNITIES_KEY = "maju-communities";
+const MAJU_ACTIVE_COMMUNITY_KEY = "maju-active-community-id";
+const MAJU_ONBOARDING_COMPLETION_STORAGE_KEY_PREFIX =
+  "maju-onboarding-complete.v1:";
 const LOCAL_DEV_RELAY_URLS = new Set([
   "ws://localhost:3000",
   "ws://127.0.0.1:3000",
@@ -77,26 +77,26 @@ export function applyLegacyCommunityStorage(
   legacyStorage: LegacyCommunityStorageSnapshot,
   storage: Storage = window.localStorage,
 ): void {
-  const currentCommunitiesRaw = storage.getItem(BUZZ_COMMUNITIES_KEY);
+  const currentCommunitiesRaw = storage.getItem(MAJU_COMMUNITIES_KEY);
   const shouldWriteCommunities = shouldWriteLegacyCommunities({
     currentCommunitiesRaw,
     legacyCommunitiesRaw: legacyStorage.workspaces,
   });
 
   if (shouldWriteCommunities && legacyStorage.workspaces) {
-    storage.setItem(BUZZ_COMMUNITIES_KEY, legacyStorage.workspaces);
+    storage.setItem(MAJU_COMMUNITIES_KEY, legacyStorage.workspaces);
   }
 
-  const currentActiveCommunityId = storage.getItem(BUZZ_ACTIVE_COMMUNITY_KEY);
+  const currentActiveCommunityId = storage.getItem(MAJU_ACTIVE_COMMUNITY_KEY);
   if (
     legacyStorage.activeWorkspaceId &&
     (!currentActiveCommunityId || shouldWriteCommunities)
   ) {
-    storage.setItem(BUZZ_ACTIVE_COMMUNITY_KEY, legacyStorage.activeWorkspaceId);
+    storage.setItem(MAJU_ACTIVE_COMMUNITY_KEY, legacyStorage.activeWorkspaceId);
   }
 
   for (const completion of legacyStorage.onboardingCompletions) {
-    const key = `${BUZZ_ONBOARDING_COMPLETION_STORAGE_KEY_PREFIX}${completion.pubkey}`;
+    const key = `${MAJU_ONBOARDING_COMPLETION_STORAGE_KEY_PREFIX}${completion.pubkey}`;
     if (storage.getItem(key) === null) {
       storage.setItem(key, completion.value);
     }
@@ -104,11 +104,11 @@ export function applyLegacyCommunityStorage(
 }
 
 /**
- * Seed Buzz localStorage from legacy Sprout WebKit localStorage before the app
+ * Seed Maju localStorage from legacy Sprout WebKit localStorage before the app
  * renders providers that read community state. The native command reads the old
  * app identifier's WebKit SQLite database; this frontend step writes only when
- * Buzz does not already have community state, except for the known broken
- * Sprout→Buzz first-run handoff that created a single localhost community.
+ * Maju does not already have community state, except for the known broken
+ * Sprout→Maju first-run handoff that created a single localhost community.
  */
 export async function migrateLegacyCommunityStorageBeforeRender(): Promise<void> {
   if (typeof window === "undefined") {
@@ -117,9 +117,9 @@ export async function migrateLegacyCommunityStorageBeforeRender(): Promise<void>
 
   migrateLegacyCommunityStorage(window.localStorage);
   const currentCommunitiesRaw =
-    window.localStorage.getItem(BUZZ_COMMUNITIES_KEY);
+    window.localStorage.getItem(MAJU_COMMUNITIES_KEY);
   const hasCurrentActiveCommunity = window.localStorage.getItem(
-    BUZZ_ACTIVE_COMMUNITY_KEY,
+    MAJU_ACTIVE_COMMUNITY_KEY,
   );
   if (
     currentCommunitiesRaw &&

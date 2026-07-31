@@ -1,7 +1,7 @@
 import { normalizeRelayUrl } from "@/features/profile/lib/selfProfileStorage";
 import type { Channel } from "@/shared/api/types";
 
-const STORAGE_KEY_PREFIX = "buzz-channel-sort.v1";
+const STORAGE_KEY_PREFIX = "maju-channel-sort.v1";
 
 export type ChannelSortMode = "alpha" | "recent";
 

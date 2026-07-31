@@ -19,13 +19,13 @@ export type ProjectsFilter =
   | "users";
 export type ProjectsSort = "updated" | "created" | "name";
 
-const PROJECTS_VIEW_MODE_STORAGE_KEY = "buzz.projects.viewMode";
-const PROJECTS_FILTER_STORAGE_KEY = "buzz.projects.filter";
-const PROJECTS_REPOSITORY_SCOPE_STORAGE_KEY = "buzz.projects.repositoryScope";
+const PROJECTS_VIEW_MODE_STORAGE_KEY = "maju.projects.viewMode";
+const PROJECTS_FILTER_STORAGE_KEY = "maju.projects.filter";
+const PROJECTS_REPOSITORY_SCOPE_STORAGE_KEY = "maju.projects.repositoryScope";
 const PROJECTS_PULL_REQUEST_SCOPE_STORAGE_KEY =
-  "buzz.projects.pullRequestScope";
-const PROJECTS_ISSUE_SCOPE_STORAGE_KEY = "buzz.projects.issueScope";
-const PROJECTS_SORT_STORAGE_KEY = "buzz.projects.sort";
+  "maju.projects.pullRequestScope";
+const PROJECTS_ISSUE_SCOPE_STORAGE_KEY = "maju.projects.issueScope";
+const PROJECTS_SORT_STORAGE_KEY = "maju.projects.sort";
 
 export function readStoredViewMode(): ProjectsViewMode | null {
   try {

@@ -12,7 +12,7 @@ use mesh_llm_node::models::{default_huggingface_cache_dir, scan_installed_models
 use mesh_llm_system::hardware;
 use mesh_llm_system::vram::{format_rated_capacity, rated_capacity_gb};
 
-/// Buzz-curated tier picks. These are the models we know survive the agent
+/// Maju-curated tier picks. These are the models we know survive the agent
 /// harness on shared compute — deliberately non-reasoning instruction models,
 /// so agents stay snappy instead of burning hidden reasoning tokens.
 ///
@@ -23,14 +23,14 @@ const CURATED_LARGE: &str = "gemma-4-26B-A4B-it-UD-Q4_K_M";
 const CURATED_LARGE_SIZE: &str = "17GB";
 const CURATED_LARGE_FILE: &str = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf";
 const CURATED_LARGE_DESCRIPTION: &str =
-    "Gemma 4 26B MoE (4B active) — Buzz default for 64GB+ machines";
+    "Gemma 4 26B MoE (4B active) — Maju default for 64GB+ machines";
 const CURATED_SMALL: &str = "Gemma-4-E4B-it-Q4_K_M";
 /// Rated-capacity boundary between the two curated tiers, in GB (marketing
 /// capacity — a "64GB" Mac rates as 64 even though usable AI memory is less).
 const CURATED_LARGE_MIN_RATED_GB: u64 = 64;
 
-/// The Buzz-curated recommendation for a machine's rated memory capacity.
-fn buzz_recommended_model(rated_gb: Option<u64>) -> &'static str {
+/// The Maju-curated recommendation for a machine's rated memory capacity.
+fn maju_recommended_model(rated_gb: Option<u64>) -> &'static str {
     match rated_gb {
         Some(gb) if gb >= CURATED_LARGE_MIN_RATED_GB => CURATED_LARGE,
         _ => CURATED_SMALL,
@@ -81,7 +81,7 @@ pub struct MeshCatalogEntry {
     pub fit: ModelFit,
     pub installed: bool,
     pub recommended: bool,
-    /// Buzz-curated pick — known to survive the agent harness. Curated
+    /// Maju-curated pick — known to survive the agent harness. Curated
     /// entries render above the fold; everything else is "advanced".
     pub curated: bool,
 }
@@ -159,7 +159,7 @@ fn build_catalog(
         })
         .collect();
 
-    // The compiled MODEL_CATALOG does not know the Buzz large pick; it
+    // The compiled MODEL_CATALOG does not know the Maju large pick; it
     // resolves through mesh-llm's remote catalog at download time. Synthesize
     // its entry so the picker can offer it.
     if !entries.iter().any(|e| e.name == CURATED_LARGE) {
@@ -176,7 +176,7 @@ fn build_catalog(
         });
     }
 
-    let recommended = Some(buzz_recommended_model(rated_capacity_gb(vram_bytes)).to_string());
+    let recommended = Some(maju_recommended_model(rated_capacity_gb(vram_bytes)).to_string());
     for entry in &mut entries {
         entry.recommended = recommended.as_deref() == Some(entry.name.as_str());
         // Both curated tiers are always offered: the recommended one for this
@@ -255,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn recommendation_follows_buzz_curated_tiers() {
+    fn recommendation_follows_maju_curated_tiers() {
         // 64GB+ rated machines get the large curated pick.
         let large = build_catalog(None, 64_000_000_000, 64.0, &[]);
         assert_eq!(large.recommended.as_deref(), Some(CURATED_LARGE));

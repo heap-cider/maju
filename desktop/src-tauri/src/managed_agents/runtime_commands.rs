@@ -592,7 +592,7 @@ mod tests {
                 "pubkey": "{}",
                 "name": "pin-test",
                 "relay_url": "{relay_url}",
-                "acp_command": "buzz-acp",
+                "acp_command": "maju-acp",
                 "agent_command": "goose",
                 "agent_args": [],
                 "mcp_command": "",

@@ -63,7 +63,7 @@ pub fn backfill_persona_snapshots(app: &tauri::AppHandle) -> Result<(), String> 
         }
         let Some(persona) = personas.iter().find(|p| p.id == persona_id) else {
             eprintln!(
-                "buzz-desktop: persona-snapshot backfill: agent {} links persona {persona_id} which no longer exists; leaving it orphaned — spawn will refuse it",
+                "maju-desktop: persona-snapshot backfill: agent {} links persona {persona_id} which no longer exists; leaving it orphaned — spawn will refuse it",
                 record.pubkey
             );
             continue;
@@ -148,14 +148,14 @@ pub async fn restore_managed_agents_on_launch(
         // process group whose parent harness exited).
         super::sweep_system_agent_processes(&super::current_instance_id(app), &tracked_pids);
 
-        // Dead-instance reaping: find agents belonging to Buzz instances
+        // Dead-instance reaping: find agents belonging to Maju instances
         // whose desktop process is no longer running and reap them.
         super::reap_dead_instance_agents(&super::current_instance_id(app), &tracked_pids);
 
-        // Exact-path sweep: kill any buzz-acp process whose executable path
+        // Exact-path sweep: kill any maju-acp process whose executable path
         // matches this bundle's harness binary but is not in the tracked set.
         // Complements the env-var sweep above — catches orphans that predate
-        // BUZZ_MANAGED_AGENT injection or lost their PID-file receipt.
+        // MAJU_MANAGED_AGENT injection or lost their PID-file receipt.
         //
         // TODO: the three sweeps above each walk the PID table independently.
         // A future consolidation should collect a single shared process snapshot
@@ -460,7 +460,7 @@ pub async fn restore_managed_agents_on_launch(
                 crate::commands::reconcile_agent_profile(&state, &reconcile_app, &pubkey, &data)
                     .await
             {
-                eprintln!("buzz-desktop: profile reconciliation failed for agent {pubkey}: {e}");
+                eprintln!("maju-desktop: profile reconciliation failed for agent {pubkey}: {e}");
             }
         });
     }

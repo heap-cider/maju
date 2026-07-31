@@ -26,7 +26,7 @@ const DM_RELAY_AGENT_PUBKEY =
   "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
 type MockFeedWindow = Window & {
-  __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+  __MAJU_E2E_EMIT_MOCK_MESSAGE__?: (input: {
     channelName: string;
     content: string;
     createdAt?: number;
@@ -41,13 +41,13 @@ type MockFeedWindow = Window & {
     pubkey: string;
     tags: string[][];
   };
-  __BUZZ_E2E_SEED_ACTIVE_TURNS__?: (input: {
+  __MAJU_E2E_SEED_ACTIVE_TURNS__?: (input: {
     agentPubkey: string;
     channelId: string;
     turnId: string;
     kind?: "turn_started" | "turn_completed";
   }) => void;
-  __BUZZ_E2E_PUSH_MOCK_FEED_ITEM__?: (item: {
+  __MAJU_E2E_PUSH_MOCK_FEED_ITEM__?: (item: {
     category: "mention" | "needs_action" | "activity" | "agent_activity";
     channel_id: string | null;
     channel_name: string;
@@ -69,12 +69,12 @@ async function hasOutgoingEventWithContent(
     return (
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          __MAJU_E2E_COMMAND_LOG__?: Array<{
             command: string;
             payload: unknown;
           }>;
         }
-      ).__BUZZ_E2E_COMMAND_LOG__?.some((entry) => {
+      ).__MAJU_E2E_COMMAND_LOG__?.some((entry) => {
         if (entry.command !== "plugin:websocket|send") {
           return false;
         }
@@ -108,12 +108,12 @@ async function readOutgoingChannelId(
     const entries =
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          __MAJU_E2E_COMMAND_LOG__?: Array<{
             command: string;
             payload: unknown;
           }>;
         }
-      ).__BUZZ_E2E_COMMAND_LOG__ ?? [];
+      ).__MAJU_E2E_COMMAND_LOG__ ?? [];
 
     for (const entry of entries) {
       if (entry.command !== "plugin:websocket|send") {
@@ -214,12 +214,12 @@ async function waitForMockLiveSubscription(
           return (
             (
               window as Window & {
-                __BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
+                __MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
                   channelName: string;
                   kind?: number;
                 }) => boolean;
               }
-            ).__BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
+            ).__MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
               channelName: currentChannelName,
               kind,
             }) ?? false
@@ -265,21 +265,21 @@ async function addGenericAgent(
     return Boolean(
       (
         window as Window & {
-          __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: unknown;
+          __MAJU_E2E_INVOKE_MOCK_COMMAND__?: unknown;
         }
-      ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__,
+      ).__MAJU_E2E_INVOKE_MOCK_COMMAND__,
     );
   });
   return page.evaluate(
     async ({ agentName, channelId }) => {
       const invoke = (
         window as Window & {
-          __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+          __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
             command: string,
             payload?: Record<string, unknown>,
           ) => Promise<{ agent?: { pubkey: string } }>;
         }
-      ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__;
+      ).__MAJU_E2E_INVOKE_MOCK_COMMAND__;
       if (!invoke) {
         throw new Error("Mock bridge is not installed.");
       }
@@ -304,11 +304,11 @@ async function addGenericAgent(
 
       await (
         window as Window & {
-          __BUZZ_E2E_QUERY_CLIENT__?: {
+          __MAJU_E2E_QUERY_CLIENT__?: {
             invalidateQueries: () => Promise<void>;
           };
         }
-      ).__BUZZ_E2E_QUERY_CLIENT__?.invalidateQueries();
+      ).__MAJU_E2E_QUERY_CLIENT__?.invalidateQueries();
 
       return pubkey;
     },
@@ -319,8 +319,8 @@ async function addGenericAgent(
 async function readCommandLog(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
     return (
-      (window as Window & { __BUZZ_E2E_COMMANDS__?: string[] })
-        .__BUZZ_E2E_COMMANDS__ ?? []
+      (window as Window & { __MAJU_E2E_COMMANDS__?: string[] })
+        .__MAJU_E2E_COMMANDS__ ?? []
     );
   });
 }
@@ -334,12 +334,12 @@ async function readCommandPayloadLog(page: import("@playwright/test").Page) {
     return (
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          __MAJU_E2E_COMMAND_LOG__?: Array<{
             command: string;
             payload: unknown;
           }>;
         }
-      ).__BUZZ_E2E_COMMAND_LOG__ ?? []
+      ).__MAJU_E2E_COMMAND_LOG__ ?? []
     );
   });
 }
@@ -353,9 +353,9 @@ async function invokeMockCommand<T>(
     return Boolean(
       (
         window as Window & {
-          __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: unknown;
+          __MAJU_E2E_INVOKE_MOCK_COMMAND__?: unknown;
         }
-      ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__,
+      ).__MAJU_E2E_INVOKE_MOCK_COMMAND__,
     );
   });
 
@@ -369,12 +369,12 @@ async function invokeMockCommand<T>(
     }) => {
       const invoke = (
         window as Window & {
-          __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+          __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
             command: string,
             payload?: Record<string, unknown>,
           ) => Promise<unknown>;
         }
-      ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__;
+      ).__MAJU_E2E_INVOKE_MOCK_COMMAND__;
 
       if (!invoke) {
         throw new Error("Mock bridge is not installed.");
@@ -572,7 +572,7 @@ test("start a new direct message from the sidebar", async ({ page }) => {
     selectedCharlieBox.y + selectedCharlieBox.height / 2,
   );
   await page.mouse.down();
-  await expect(page.locator(".buzz-poof-burst")).toHaveCount(1);
+  await expect(page.locator(".maju-poof-burst")).toHaveCount(1);
   await page.mouse.up();
   await expect(selectedCharlie).not.toBeVisible();
   await page.getByTestId("new-dm-search").fill("charlie");
@@ -1134,11 +1134,11 @@ test("closes direct message results while opening", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => {
     const testWindow = window as Window & {
-      __BUZZ_E2E__?: { mock?: { openDmDelayMs?: number } };
+      __MAJU_E2E__?: { mock?: { openDmDelayMs?: number } };
     };
-    testWindow.__BUZZ_E2E__ ??= {};
-    testWindow.__BUZZ_E2E__.mock ??= {};
-    testWindow.__BUZZ_E2E__.mock.openDmDelayMs = 1_000;
+    testWindow.__MAJU_E2E__ ??= {};
+    testWindow.__MAJU_E2E__.mock ??= {};
+    testWindow.__MAJU_E2E__.mock.openDmDelayMs = 1_000;
   });
 
   await openNewMessagePage(page);
@@ -1203,11 +1203,11 @@ test("does not reopen a sent direct message after leaving during cache reseed", 
   await page.getByTestId("message-input").fill(staleMessage);
   await page.evaluate(() => {
     const testWindow = window as Window & {
-      __BUZZ_E2E__?: { mock?: { channelsReadDelayMs?: number } };
+      __MAJU_E2E__?: { mock?: { channelsReadDelayMs?: number } };
     };
-    testWindow.__BUZZ_E2E__ ??= {};
-    testWindow.__BUZZ_E2E__.mock ??= {};
-    testWindow.__BUZZ_E2E__.mock.channelsReadDelayMs = 1_000;
+    testWindow.__MAJU_E2E__ ??= {};
+    testWindow.__MAJU_E2E__.mock ??= {};
+    testWindow.__MAJU_E2E__.mock.channelsReadDelayMs = 1_000;
   });
 
   await page.getByTestId("send-message").click();
@@ -1471,9 +1471,9 @@ test("archived channels stay out of all sidebar sections", async ({ page }) => {
     return Boolean(
       (
         window as Window & {
-          __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: unknown;
+          __MAJU_E2E_INVOKE_MOCK_COMMAND__?: unknown;
         }
-      ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__,
+      ).__MAJU_E2E_INVOKE_MOCK_COMMAND__,
     );
   });
   await page.evaluate(
@@ -1488,12 +1488,12 @@ test("archived channels stay out of all sidebar sections", async ({ page }) => {
     }) => {
       const invoke = (
         window as Window & {
-          __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+          __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
             command: string,
             payload?: Record<string, unknown>,
           ) => Promise<{ id: string }>;
         }
-      ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__;
+      ).__MAJU_E2E_INVOKE_MOCK_COMMAND__;
 
       if (!invoke) {
         throw new Error("Mock bridge is not installed.");
@@ -1735,7 +1735,7 @@ test("channel date divider keeps the date sticky while the separator rule scroll
     const firstDay = 1_700_000_000;
     for (let day = 0; day < 2; day += 1) {
       for (let index = 0; index < 14; index += 1) {
-        window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+        window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
           channelName: "engineering",
           content: `date handoff day ${day + 1} row ${index + 1}\nsecond line for scroll height`,
           createdAt: firstDay + day * 86_400 + index,
@@ -1873,7 +1873,7 @@ test("shows and clears activity indicators for active channel agents", async ({
   await waitForMockLiveSubscription(page, "agents", KIND_TYPING_INDICATOR);
 
   await page.evaluate((pubkey) => {
-    window.__BUZZ_E2E_EMIT_MOCK_TYPING__?.({
+    window.__MAJU_E2E_EMIT_MOCK_TYPING__?.({
       channelName: "agents",
       pubkey,
     });
@@ -1909,7 +1909,7 @@ test("shows and clears activity indicators for active channel agents", async ({
   await expect(page.getByTestId("message-typing-indicator")).toHaveCount(0);
 
   await page.evaluate((pubkey) => {
-    window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+    window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
       channelName: "agents",
       content: "Done.",
       pubkey,
@@ -1923,7 +1923,7 @@ test("shows and clears activity indicators for active channel agents", async ({
 
   await page.waitForTimeout(1_200);
   await page.evaluate((pubkey) => {
-    window.__BUZZ_E2E_EMIT_MOCK_TYPING__?.({
+    window.__MAJU_E2E_EMIT_MOCK_TYPING__?.({
       channelName: "agents",
       pubkey,
     });
@@ -1984,13 +1984,13 @@ test("profile renders live activity for a viewer-owned relay agent", async ({
 
   await page.waitForFunction(
     () =>
-      typeof (window as MockFeedWindow).__BUZZ_E2E_SEED_ACTIVE_TURNS__ ===
+      typeof (window as MockFeedWindow).__MAJU_E2E_SEED_ACTIVE_TURNS__ ===
       "function",
   );
   await page.evaluate(
     ({ agentPubkey, channelId }) => {
       const seedActiveTurns = (window as MockFeedWindow)
-        .__BUZZ_E2E_SEED_ACTIVE_TURNS__;
+        .__MAJU_E2E_SEED_ACTIVE_TURNS__;
       if (!seedActiveTurns) {
         throw new Error("Mock active-turn helper is not installed.");
       }
@@ -2019,7 +2019,7 @@ test("profile renders live activity for a viewer-owned relay agent", async ({
   await page.evaluate(
     ({ agentPubkey, channelId, turnId }) => {
       const seedActiveTurns = (window as MockFeedWindow)
-        .__BUZZ_E2E_SEED_ACTIVE_TURNS__;
+        .__MAJU_E2E_SEED_ACTIVE_TURNS__;
       if (!seedActiveTurns) {
         throw new Error("Mock active-turn helper is not installed.");
       }
@@ -2060,14 +2060,14 @@ test("profile activity carousel switches channels via progress dots", async ({
 
   await page.waitForFunction(
     () =>
-      typeof (window as MockFeedWindow).__BUZZ_E2E_SEED_ACTIVE_TURNS__ ===
+      typeof (window as MockFeedWindow).__MAJU_E2E_SEED_ACTIVE_TURNS__ ===
       "function",
   );
 
   await page.evaluate(
     ({ agentPubkey, channels }) => {
       const seedActiveTurns = (window as MockFeedWindow)
-        .__BUZZ_E2E_SEED_ACTIVE_TURNS__;
+        .__MAJU_E2E_SEED_ACTIVE_TURNS__;
       if (!seedActiveTurns) {
         throw new Error("Mock active-turn helper is not installed.");
       }
@@ -2129,7 +2129,7 @@ test("typing indicator shows avatars and maintains stable name order", async ({
 
   // Alice starts typing first
   await page.evaluate((pubkey) => {
-    window.__BUZZ_E2E_EMIT_MOCK_TYPING__?.({
+    window.__MAJU_E2E_EMIT_MOCK_TYPING__?.({
       channelName: "random",
       pubkey,
     });
@@ -2148,7 +2148,7 @@ test("typing indicator shows avatars and maintains stable name order", async ({
 
   // Bob starts typing second
   await page.evaluate((pubkey) => {
-    window.__BUZZ_E2E_EMIT_MOCK_TYPING__?.({
+    window.__MAJU_E2E_EMIT_MOCK_TYPING__?.({
       channelName: "random",
       pubkey,
     });
@@ -2161,7 +2161,7 @@ test("typing indicator shows avatars and maintains stable name order", async ({
 
   // Alice re-broadcasts — order should stay "alice and bob", not flip
   await page.evaluate((pubkey) => {
-    window.__BUZZ_E2E_EMIT_MOCK_TYPING__?.({
+    window.__MAJU_E2E_EMIT_MOCK_TYPING__?.({
       channelName: "random",
       pubkey,
     });
@@ -2173,7 +2173,7 @@ test("typing indicator shows avatars and maintains stable name order", async ({
 
   // Bob re-broadcasts — order should still stay "alice and bob"
   await page.evaluate((pubkey) => {
-    window.__BUZZ_E2E_EMIT_MOCK_TYPING__?.({
+    window.__MAJU_E2E_EMIT_MOCK_TYPING__?.({
       channelName: "random",
       pubkey,
     });
@@ -2196,7 +2196,7 @@ test("sidebar shows unread indicator for newly active channels", async ({
   // alice — simulating a real "another user posted while I was elsewhere".
   await page.evaluate(
     ({ pubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "random",
         content: "Unread update for #random",
         kind: 40002,
@@ -2229,7 +2229,7 @@ test("sidebar shows unread indicator for new forum posts", async ({ page }) => {
   // Emit as alice — the unread tracker ignores self-authored messages.
   await page.evaluate(
     ({ pubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "watercooler",
         content: "Unread update for the forum",
         kind: 45001,
@@ -2257,7 +2257,7 @@ test("sidebar clears unread indicator after opening a DM", async ({ page }) => {
   await waitForMockLiveSubscription(page, "alice-tyler");
 
   await page.evaluate((pubkey) => {
-    window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+    window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
       channelName: "alice-tyler",
       content: "Unread update for the DM",
       pubkey,
@@ -2540,7 +2540,7 @@ async function seedHomeInboxMention(
   await expect(page.getByTestId("home-inbox-list")).toBeVisible();
   await page.waitForFunction(
     () =>
-      typeof (window as MockFeedWindow).__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__ ===
+      typeof (window as MockFeedWindow).__MAJU_E2E_PUSH_MOCK_FEED_ITEM__ ===
       "function",
   );
 
@@ -2554,7 +2554,7 @@ async function seedHomeInboxMention(
       tags: seededTags,
     }) => {
       const pushFeedItem = (window as MockFeedWindow)
-        .__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__;
+        .__MAJU_E2E_PUSH_MOCK_FEED_ITEM__;
       if (!pushFeedItem) {
         throw new Error("Mock feed injection helper is not installed.");
       }
@@ -2591,13 +2591,13 @@ test("Inbox All excludes generic channel traffic", async ({ page }) => {
   await page.goto("/");
   await page.waitForFunction(() => {
     const win = window as MockFeedWindow;
-    return typeof win.__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__ === "function";
+    return typeof win.__MAJU_E2E_PUSH_MOCK_FEED_ITEM__ === "function";
   });
 
   await page.evaluate(
     ({ channelId, currentPubkey, senderPubkey }) => {
       const pushFeedItem = (window as MockFeedWindow)
-        .__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__;
+        .__MAJU_E2E_PUSH_MOCK_FEED_ITEM__;
       if (!pushFeedItem) throw new Error("Mock feed helper is not installed.");
       const now = Math.floor(Date.now() / 1000);
       pushFeedItem({
@@ -2669,13 +2669,13 @@ test("Inbox All never lists drafts and unread-only hides reminders", async ({
     },
     {
       draftStorageKey: draftKey,
-      draftStoreKey: `buzz-drafts.v2:ws://localhost:3000:${MOCK_IDENTITY_PUBKEY}`,
+      draftStoreKey: `maju-drafts.v2:ws://localhost:3000:${MOCK_IDENTITY_PUBKEY}`,
     },
   );
   await page.goto("/");
   await page.waitForFunction(() => {
     const win = window as MockFeedWindow;
-    return typeof win.__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__ === "function";
+    return typeof win.__MAJU_E2E_PUSH_MOCK_FEED_ITEM__ === "function";
   });
 
   const reminderId = "inbox-unread-only-reminder";
@@ -2689,7 +2689,7 @@ test("Inbox All never lists drafts and unread-only hides reminders", async ({
       senderPubkey,
     }) => {
       const now = Math.floor(Date.now() / 1_000);
-      window.__BUZZ_E2E_SEED_MOCK_REMINDERS__?.([
+      window.__MAJU_E2E_SEED_MOCK_REMINDERS__?.([
         {
           id: reminderId,
           pubkey: currentPubkey,
@@ -2711,12 +2711,12 @@ test("Inbox All never lists drafts and unread-only hides reminders", async ({
           sig: "mocksig".repeat(20).slice(0, 128),
         },
       ]);
-      await window.__BUZZ_E2E_QUERY_CLIENT__?.invalidateQueries({
+      await window.__MAJU_E2E_QUERY_CLIENT__?.invalidateQueries({
         queryKey: ["reminders"],
       });
 
       const pushFeedItem = (window as MockFeedWindow)
-        .__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__;
+        .__MAJU_E2E_PUSH_MOCK_FEED_ITEM__;
       if (!pushFeedItem) throw new Error("Mock feed helper is not installed.");
       pushFeedItem({
         category: "mention",
@@ -2781,7 +2781,7 @@ test("Inbox merges a due reminder into its represented conversation", async ({
       reminderId: id,
     }) => {
       const now = Math.floor(Date.now() / 1_000);
-      window.__BUZZ_E2E_SEED_MOCK_REMINDERS__?.([
+      window.__MAJU_E2E_SEED_MOCK_REMINDERS__?.([
         {
           id,
           pubkey,
@@ -2803,7 +2803,7 @@ test("Inbox merges a due reminder into its represented conversation", async ({
           sig: "mocksig".repeat(20).slice(0, 128),
         },
       ]);
-      await window.__BUZZ_E2E_QUERY_CLIENT__?.invalidateQueries({
+      await window.__MAJU_E2E_QUERY_CLIENT__?.invalidateQueries({
         queryKey: ["reminders"],
       });
     },
@@ -2837,7 +2837,7 @@ test("Inbox All keeps its filter when opening a due reminder", async ({
   await page.evaluate(
     async ({ channelId, id, pubkey }) => {
       const now = Math.floor(Date.now() / 1000);
-      window.__BUZZ_E2E_SEED_MOCK_REMINDERS__?.([
+      window.__MAJU_E2E_SEED_MOCK_REMINDERS__?.([
         {
           id,
           pubkey,
@@ -2859,7 +2859,7 @@ test("Inbox All keeps its filter when opening a due reminder", async ({
           sig: "mocksig".repeat(20).slice(0, 128),
         },
       ]);
-      await window.__BUZZ_E2E_QUERY_CLIENT__?.invalidateQueries({
+      await window.__MAJU_E2E_QUERY_CLIENT__?.invalidateQueries({
         queryKey: ["reminders"],
       });
     },
@@ -2888,7 +2888,7 @@ test("Inbox reminder rows and detail identify DM context", async ({ page }) => {
   await page.evaluate(
     async ({ authorPubkey, channelId, currentPubkey, reminderId }) => {
       const now = Math.floor(Date.now() / 1_000);
-      window.__BUZZ_E2E_SEED_MOCK_REMINDERS__?.([
+      window.__MAJU_E2E_SEED_MOCK_REMINDERS__?.([
         {
           id: reminderId,
           pubkey: currentPubkey,
@@ -2910,7 +2910,7 @@ test("Inbox reminder rows and detail identify DM context", async ({ page }) => {
           sig: "mocksig".repeat(20).slice(0, 128),
         },
       ]);
-      await window.__BUZZ_E2E_QUERY_CLIENT__?.invalidateQueries({
+      await window.__MAJU_E2E_QUERY_CLIENT__?.invalidateQueries({
         queryKey: ["reminders"],
       });
     },
@@ -2998,7 +2998,7 @@ test("Inbox filter changes preserve valid detail and directly select a replaceme
   await page.evaluate(
     ({ actionId, channelId, senderPubkey }) => {
       const pushFeedItem = (window as MockFeedWindow)
-        .__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__;
+        .__MAJU_E2E_PUSH_MOCK_FEED_ITEM__;
       if (!pushFeedItem) throw new Error("Mock feed helper is not installed.");
       pushFeedItem({
         category: "needs_action",
@@ -3050,8 +3050,8 @@ test("Inbox keeps the unread boundary for replies from multiple agents", async (
   await page.waitForFunction(() => {
     const win = window as MockFeedWindow;
     return (
-      typeof win.__BUZZ_E2E_EMIT_MOCK_MESSAGE__ === "function" &&
-      typeof win.__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__ === "function"
+      typeof win.__MAJU_E2E_EMIT_MOCK_MESSAGE__ === "function" &&
+      typeof win.__MAJU_E2E_PUSH_MOCK_FEED_ITEM__ === "function"
     );
   });
 
@@ -3063,8 +3063,8 @@ test("Inbox keeps the unread boundary for replies from multiple agents", async (
   await page.evaluate(
     ({ agentPubkeys, channelId, currentPubkey, ids }) => {
       const win = window as MockFeedWindow;
-      const emitMessage = win.__BUZZ_E2E_EMIT_MOCK_MESSAGE__;
-      const pushFeedItem = win.__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__;
+      const emitMessage = win.__MAJU_E2E_EMIT_MOCK_MESSAGE__;
+      const pushFeedItem = win.__MAJU_E2E_PUSH_MOCK_FEED_ITEM__;
       if (!emitMessage || !pushFeedItem) {
         throw new Error("Mock bridge helpers are not installed.");
       }
@@ -3143,16 +3143,16 @@ test("home inbox groups consecutive DMs and opens the full conversation", async 
   await page.waitForFunction(() => {
     const win = window as MockFeedWindow;
     return (
-      typeof win.__BUZZ_E2E_EMIT_MOCK_MESSAGE__ === "function" &&
-      typeof win.__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__ === "function"
+      typeof win.__MAJU_E2E_EMIT_MOCK_MESSAGE__ === "function" &&
+      typeof win.__MAJU_E2E_PUSH_MOCK_FEED_ITEM__ === "function"
     );
   });
 
   await page.evaluate(
     ({ channelId, createdAt, ids, senderPubkey }) => {
       const win = window as MockFeedWindow;
-      const emitMessage = win.__BUZZ_E2E_EMIT_MOCK_MESSAGE__;
-      const pushFeedItem = win.__BUZZ_E2E_PUSH_MOCK_FEED_ITEM__;
+      const emitMessage = win.__MAJU_E2E_EMIT_MOCK_MESSAGE__;
+      const pushFeedItem = win.__MAJU_E2E_PUSH_MOCK_FEED_ITEM__;
       if (!emitMessage || !pushFeedItem) {
         throw new Error("Mock bridge helpers are not installed.");
       }
@@ -3510,7 +3510,7 @@ test("huddle rollback end event clears the active header action", async ({
 
   await page.evaluate(
     ({ createdAt, ephemeralChannelId, kind }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "random",
         content: JSON.stringify({
           ephemeral_channel_id: ephemeralChannelId,
@@ -3531,7 +3531,7 @@ test("huddle rollback end event clears the active header action", async ({
 
   await page.evaluate(
     ({ createdAt, ephemeralChannelId, kind }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "random",
         content: JSON.stringify({
           ephemeral_channel_id: ephemeralChannelId,
@@ -3740,10 +3740,10 @@ test("stopping a managed bot in one community leaves its other communities runni
 }) => {
   const agentPubkey = TEST_IDENTITIES.charlie.pubkey;
   // Must match the relay of the community seeded by the mock bridge
-  // (`seedDefaultCommunity` follows BUZZ_E2E_RELAY_URL); the agent also has a
+  // (`seedDefaultCommunity` follows MAJU_E2E_RELAY_URL); the agent also has a
   // live runtime in a second community on another relay.
   const activeRelayUrl = (
-    process.env.BUZZ_E2E_RELAY_URL ?? "http://localhost:3000"
+    process.env.MAJU_E2E_RELAY_URL ?? "http://localhost:3000"
   ).replace(/^http/, "ws");
   const otherRelayUrl = "ws://other-community.example";
 
@@ -3785,11 +3785,11 @@ test("stopping a managed bot in one community leaves its other communities runni
   const runtimes = await page.evaluate(async () => {
     const invoke = (
       window as Window & {
-        __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
           command: string,
         ) => Promise<Array<{ relayUrl: string; lifecycle: string }>>;
       }
-    ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__;
+    ).__MAJU_E2E_INVOKE_MOCK_COMMAND__;
     if (!invoke) {
       throw new Error("Mock bridge is not installed.");
     }

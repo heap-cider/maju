@@ -138,7 +138,7 @@ pub(crate) fn spawn_config_hash(
     record.auth_tag.hash(&mut hasher);
     record.respond_to.as_str().hash(&mut hasher);
     // The allowlist is hashed as the env receives it: spawn sets
-    // BUZZ_ACP_RESPOND_TO_ALLOWLIST only in allowlist mode, and normalized
+    // MAJU_ACP_RESPOND_TO_ALLOWLIST only in allowlist mode, and normalized
     // (trim/lowercase/dedup via `validate_respond_to_allowlist`) — so edits
     // that don't survive normalization, or edits while another mode is
     // active, must not badge. A list spawn would reject hashes raw: the

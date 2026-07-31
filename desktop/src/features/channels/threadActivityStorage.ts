@@ -11,7 +11,7 @@ export type ThreadActivityItem = {
   tags: string[][];
 };
 
-const ACTIVITY_STORAGE_PREFIX = "buzz-thread-activity.v1";
+const ACTIVITY_STORAGE_PREFIX = "maju-thread-activity.v1";
 const MAX_ACTIVITY_ITEMS = 100;
 
 // Scoped to relay+pubkey. The legacy pubkey-only key is intentionally not read

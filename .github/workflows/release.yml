@@ -1,982 +1,351 @@
-name: Release
+name: Release Maju
 
 on:
   push:
     tags:
-      - 'v[0-9]*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Semver version matching the v-prefixed dispatch tag"
-        required: true
+      - "v[0-9]*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: 24.14.1
+  PNPM_VERSION: 11.4.0
+  RUST_VERSION: 1.95.0
+  FLUTTER_VERSION: 3.41.7
 
 jobs:
-  # Shared setup: verify the immutable release tag, determine the version, and
-  # create the release objects all four platform jobs upload into.
-  setup:
-    name: Setup
-    if: github.repository == 'block/buzz'
+  validate:
+    name: Validate release tag
+    if: github.repository == 'heap-cider/maju'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
       source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - name: Determine version
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate tag and source versions
         id: version
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_VERSION: ${{ inputs.version }}
+        shell: bash
         run: |
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION="$INPUT_VERSION"
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid release tag: $GITHUB_REF_NAME"
+            exit 1
           fi
+          scripts/verify-release-ref.sh v "$VERSION"
+          node -e 'const p=require("./desktop/package.json"); if(p.version!==process.argv[1]) process.exit(1)' "$VERSION"
+          node -e 'const p=require("./desktop/src-tauri/tauri.conf.json"); if(p.version!==process.argv[1]) process.exit(1)' "$VERSION"
+          grep -q "^version = \"$VERSION\"$" desktop/src-tauri/Cargo.toml
+          grep -q "^version = \"$VERSION\"$" crates/maju-relay/Cargo.toml
+          grep -q "^version: $VERSION+1$" mobile/pubspec.yaml
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Validate version
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-            echo "::error::Invalid version '$VERSION'. Expected semver (e.g. 0.4.0 or 1.0.0-beta.1)"
-            exit 1
-          fi
-
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Verify tag-bound release source
+      - name: Record immutable source
         id: source
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          scripts/verify-release-ref.sh v "$VERSION"
-          echo "source_sha=$(git rev-parse 'HEAD^{commit}')" >> "$GITHUB_OUTPUT"
-
-      - name: Create versioned GitHub release
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_SHA=$(git rev-parse HEAD)
-          NOTES=""
-          if [[ -f CHANGELOG.md ]]; then
-            NOTES=$(awk "/^## v${VERSION}\$/{found=1; next} found && /^## v/{exit} found && !/^\$/" CHANGELOG.md)
-          fi
-          if [[ -z "$NOTES" ]]; then
-            NOTES="Buzz Desktop v${VERSION}"
-          fi
-          PRERELEASE_FLAGS=()
-          if [[ "$VERSION" =~ -(test|alpha|beta|rc)([.-]|$) ]]; then
-            PRERELEASE_FLAGS=(--prerelease --latest=false)
-          fi
-          gh release create "v${VERSION}" \
-            --target "$RELEASE_SHA" \
-            --title "Buzz Desktop v${VERSION}" \
-            --notes "$NOTES" \
-            "${PRERELEASE_FLAGS[@]}"
-
-      - name: Create rolling auto-update release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create buzz-desktop-latest \
-            --prerelease \
-            --title "Buzz Desktop Auto-Update" \
-            --notes "Rolling release for the Tauri auto-updater. Do not download manually — use the versioned release instead." \
-            2>/dev/null || true
-
-  release:
-    name: Release
-    if: github.repository == 'block/buzz'
-    runs-on: macos-latest
-    needs: setup
-    timeout-minutes: 60
-    permissions:
-      contents: write
-      id-token: write # required by block/apple-codesign-action for OIDC
-    outputs:
-      archive_name: ${{ steps.artifacts.outputs.archive_name }}
-      sig: ${{ steps.read-sig.outputs.sig }}
-    env:
-      VERSION: ${{ needs.setup.outputs.version }}
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          ref: ${{ needs.setup.outputs.source_sha }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Verify tag-bound release source
-        run: scripts/verify-release-ref.sh v "$VERSION"
-
-      - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
-
-      - name: Install desktop dependencies
-        run: just desktop-install-ci
-
-      - name: Patch version
-        run: |
-          cd desktop && node scripts/set-version-from-tag.mjs "$VERSION"
-          cd src-tauri && cargo update --workspace
-
-      - name: Generate release config
-        run: cd desktop && node scripts/build-release-config.mjs
-        env:
-          BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
-
-      - name: Build sidecars
-        run: |
-          cargo build --release -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli
-          ./scripts/bundle-sidecars.sh
-
-      # Mesh rev derived from Cargo.lock (no lockstep edit on dep bump); cache key tracks it.
-      - name: Resolve mesh-llm rev
-        id: mesh_rev
-        run: |
-          set -euo pipefail
-          REV=$(python3 -c 'import tomllib; d=tomllib.load(open("Cargo.lock", "rb")); p=next(p for p in d["package"] if p["name"] == "mesh-llm-sdk"); print(p["source"].rsplit("#", 1)[1])')
-          [[ -n "$REV" ]] || { echo "::error::could not resolve mesh-llm rev from Cargo.lock"; exit 1; }
-          echo "rev=$REV" >> "$GITHUB_OUTPUT"
-          echo "short=${REV:0:7}" >> "$GITHUB_OUTPUT"
-      - name: Restore mesh llama build cache
-        id: llama_cache
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
-        with:
-          path: ${{ github.workspace }}/.cache/mesh-llama
-          key: mesh-llama-${{ runner.os }}-metal-${{ steps.mesh_rev.outputs.rev }}
-      - name: Build mesh llama native libraries
-        if: steps.llama_cache.outputs.cache-hit != 'true'
-        env:
-          MESH_REV_SHORT: ${{ steps.mesh_rev.outputs.short }}
-        run: |
-          set -euo pipefail
-          cargo fetch --manifest-path desktop/src-tauri/Cargo.toml
-          SHORT="$MESH_REV_SHORT"
-          MESH_ROOT=$(find "${CARGO_HOME:-$HOME/.cargo}/git/checkouts" -path "*/$SHORT" -type d -name "$SHORT" | head -1)
-          if [[ -z "$MESH_ROOT" ]]; then
-            echo "::error::mesh-llm checkout for $SHORT not found after cargo fetch"
-            exit 1
-          fi
-          export LLAMA_STAGE_BACKEND=metal
-          export LLAMA_STAGE_BUILD_DIR="$GITHUB_WORKSPACE/.cache/mesh-llama/build-stage-abi-metal"
-          export CMAKE_OSX_DEPLOYMENT_TARGET=10.15
-          "$MESH_ROOT/scripts/prepare-llama.sh" pinned
-          "$MESH_ROOT/scripts/build-llama.sh" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
-      - name: Save mesh llama build cache
-        if: steps.llama_cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
-        with:
-          path: ${{ github.workspace }}/.cache/mesh-llama
-          key: mesh-llama-${{ runner.os }}-metal-${{ steps.mesh_rev.outputs.rev }}
-
-      - name: Build unsigned Tauri app
-        run: cd desktop && pnpm tauri build --verbose --no-sign --features mesh-llm --config src-tauri/tauri.release.conf.json
-        env:
-          BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
-          MACOSX_DEPLOYMENT_TARGET: "10.15"
-          CMAKE_OSX_DEPLOYMENT_TARGET: "10.15"
-          LLAMA_STAGE_BACKEND: metal
-          LLAMA_STAGE_BUILD_DIR: ${{ github.workspace }}/.cache/mesh-llama/build-stage-abi-metal
-          SKIPPY_LLAMA_AUTO_BUILD: "0"
-          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
-
-      - name: Locate unsigned DMG
-        id: unsigned
-        run: |
-          BUNDLE_DIR="desktop/src-tauri/target/release/bundle"
-          DMG=$(find "$BUNDLE_DIR/dmg" -name '*.dmg' -type f | head -1)
-          if [[ -z "$DMG" ]]; then
-            echo "::error::No DMG found in $BUNDLE_DIR/dmg"
-            exit 1
-          fi
-          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
-
-      - name: Set DMG Finder label text size
-        env:
-          DMG_PATH: ${{ steps.unsigned.outputs.dmg }}
-        run: desktop/scripts/set-dmg-finder-text-size.sh "$DMG_PATH" 14
-
-      # mdx-ios-codesign-helper discovers this file by its exact lowercase basename.
-      - name: Stage signing entitlements
-        run: cp desktop/src-tauri/Entitlements.plist "${RUNNER_TEMP}/entitlements.plist"
-
-      - name: Codesign and Notarize
-        id: codesign
-        uses: block/apple-codesign-action@679535d1ab7c5a7c18e6f9afcba3464512cc3dde # v1.1.0
-        with:
-          osx-codesign-role: ${{ secrets.OSX_CODESIGN_ROLE }}
-          codesign-s3-bucket: ${{ secrets.CODESIGN_S3_BUCKET }}
-          unsigned-artifact-path: ${{ steps.unsigned.outputs.dmg }}
-          entitlements-plist-path: ${{ runner.temp }}/entitlements.plist
-          artifact-name: buzz-${{ github.sha }}-${{ github.run_id }}-arm64
-
-      - name: Replace DMG and rebuild updater archive
-        env:
-          SIGNED_DMG: ${{ steps.codesign.outputs.signed-dmg-path }}
-          SIGNED_APP_ZIP: ${{ steps.codesign.outputs.signed-artifact-path }}
-          UNSIGNED_DMG: ${{ steps.unsigned.outputs.dmg }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          BUNDLE_DIR="desktop/src-tauri/target/release/bundle"
-          APP_DIR="${BUNDLE_DIR}/macos"
-
-          # Replace unsigned DMG with the signed/notarized one.
-          cp "$SIGNED_DMG" "$UNSIGNED_DMG"
-
-          # Swap the unsigned .app for the signed .app extracted from the action's zip.
-          EXTRACT_DIR="${RUNNER_TEMP}/signed-app-extract"
-          rm -rf "$EXTRACT_DIR" && mkdir -p "$EXTRACT_DIR"
-          ditto -x -k "$SIGNED_APP_ZIP" "$EXTRACT_DIR"
-          rm -rf "${APP_DIR}/Buzz.app"
-          cp -R "${EXTRACT_DIR}/Buzz.app" "${APP_DIR}/Buzz.app"
-
-          # Rebuild the updater archive from the signed .app and re-sign it with the Tauri updater key.
-          rm -f "${APP_DIR}/Buzz.app.tar.gz" "${APP_DIR}/Buzz.app.tar.gz.sig"
-          (cd "$APP_DIR" && tar -czf Buzz.app.tar.gz Buzz.app)
-          TARBALL_ABS="$(pwd)/${APP_DIR}/Buzz.app.tar.gz"
-          (cd desktop && pnpm tauri signer sign "$TARBALL_ABS")
-
-      - name: Verify code signature
-        run: |
-          codesign --verify --deep --strict --verbose=2 \
-            desktop/src-tauri/target/release/bundle/macos/Buzz.app
-          spctl --assess --type execute --verbose=4 \
-            desktop/src-tauri/target/release/bundle/macos/Buzz.app
-          desktop/scripts/verify-macos-entitlements.sh \
-            desktop/src-tauri/target/release/bundle/macos/Buzz.app
-
-      - name: Locate build artifacts
-        id: artifacts
-        run: |
-          BUNDLE_DIR="desktop/src-tauri/target/release/bundle"
-
-          # Find the DMG (Tauri names it Buzz_<version>_<arch>.dmg)
-          DMG=$(find "$BUNDLE_DIR/dmg" -name '*.dmg' -type f | head -1)
-          if [[ -z "$DMG" ]]; then
-            echo "::error::No DMG found in $BUNDLE_DIR/dmg"
-            exit 1
-          fi
-          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
-
-          # Find the updater .tar.gz and .sig
-          ARCHIVE=$(find "$BUNDLE_DIR/macos" -name '*.tar.gz' ! -name '*.sig' -type f | head -1)
-          SIG="${ARCHIVE}.sig"
-          if [[ -z "$ARCHIVE" || ! -f "$SIG" ]]; then
-            echo "::error::Updater archive or signature not found in $BUNDLE_DIR/macos"
-            exit 1
-          fi
-          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
-          echo "archive_name=$(basename "$ARCHIVE")" >> "$GITHUB_OUTPUT"
-          echo "sig=$SIG" >> "$GITHUB_OUTPUT"
-
-      - name: Read updater signature
-        id: read-sig
-        run: echo "sig=$(cat "$SIG_PATH")" >> "$GITHUB_OUTPUT"
-        env:
-          SIG_PATH: ${{ steps.artifacts.outputs.sig }}
-
-      - name: Upload arm64 DMG to versioned GitHub release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DMG_PATH: ${{ steps.artifacts.outputs.dmg }}
-        run: gh release upload "v${VERSION}" "$DMG_PATH" --clobber
-
-      - name: Upload updater archive to rolling release
-        if: github.ref == format('refs/tags/v{0}', needs.setup.outputs.version)
-        run: |
-          gh release upload buzz-desktop-latest \
-            "$ARCHIVE_PATH" \
-            "$SIG_PATH" \
-            --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ARCHIVE_PATH: ${{ steps.artifacts.outputs.archive }}
-          SIG_PATH: ${{ steps.artifacts.outputs.sig }}
-
-  release-macos-x64:
-    name: Release macOS (Intel)
-    if: github.repository == 'block/buzz'
-    runs-on: macos-latest
-    needs: setup
-    timeout-minutes: 60
-    permissions:
-      contents: write
-      id-token: write # required by block/apple-codesign-action for OIDC
-    outputs:
-      archive_name: ${{ steps.artifacts.outputs.archive_name }}
-      sig: ${{ steps.read-sig.outputs.sig }}
-    env:
-      VERSION: ${{ needs.setup.outputs.version }}
-      TARGET: x86_64-apple-darwin
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          ref: ${{ needs.setup.outputs.source_sha }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Verify tag-bound release source
-        run: scripts/verify-release-ref.sh v "$VERSION"
-
-      - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
-
-      - name: Install desktop dependencies
-        run: just desktop-install-ci
-
-      - name: Add Rust target
-        run: rustup target add "$TARGET"
-
-      - name: Patch version
-        run: |
-          cd desktop && node scripts/set-version-from-tag.mjs "$VERSION"
-          cd src-tauri && cargo update --workspace
-
-      - name: Generate release config
-        run: cd desktop && node scripts/build-release-config.mjs
-        env:
-          BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
-
-      - name: Build sidecars
-        run: |
-          cargo build --release --target "$TARGET" -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli
-          ./scripts/bundle-sidecars.sh "$TARGET"
-
-      - name: Build unsigned Tauri app
-        run: cd desktop && pnpm tauri build --verbose --no-sign --target "$TARGET" --config src-tauri/tauri.release.conf.json
-        env:
-          BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
-          MACOSX_DEPLOYMENT_TARGET: "10.15"
-          CMAKE_OSX_DEPLOYMENT_TARGET: "10.15"
-          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
-
-      - name: Locate unsigned DMG
-        id: unsigned
-        run: |
-          BUNDLE_DIR="desktop/src-tauri/target/${TARGET}/release/bundle"
-          DMG=$(find "$BUNDLE_DIR/dmg" -name '*.dmg' -type f | head -1)
-          if [[ -z "$DMG" ]]; then
-            echo "::error::No DMG found in $BUNDLE_DIR/dmg"
-            exit 1
-          fi
-          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
-
-      - name: Set DMG Finder label text size
-        env:
-          DMG_PATH: ${{ steps.unsigned.outputs.dmg }}
-        run: desktop/scripts/set-dmg-finder-text-size.sh "$DMG_PATH" 14
-
-      # mdx-ios-codesign-helper discovers this file by its exact lowercase basename.
-      - name: Stage signing entitlements
-        run: cp desktop/src-tauri/Entitlements.plist "${RUNNER_TEMP}/entitlements.plist"
-
-      - name: Codesign and Notarize
-        id: codesign
-        uses: block/apple-codesign-action@679535d1ab7c5a7c18e6f9afcba3464512cc3dde # v1.1.0
-        with:
-          osx-codesign-role: ${{ secrets.OSX_CODESIGN_ROLE }}
-          codesign-s3-bucket: ${{ secrets.CODESIGN_S3_BUCKET }}
-          unsigned-artifact-path: ${{ steps.unsigned.outputs.dmg }}
-          entitlements-plist-path: ${{ runner.temp }}/entitlements.plist
-          artifact-name: buzz-${{ github.sha }}-${{ github.run_id }}-x64
-
-      - name: Replace DMG and rebuild updater archive
-        env:
-          SIGNED_DMG: ${{ steps.codesign.outputs.signed-dmg-path }}
-          SIGNED_APP_ZIP: ${{ steps.codesign.outputs.signed-artifact-path }}
-          UNSIGNED_DMG: ${{ steps.unsigned.outputs.dmg }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          APP_DIR="desktop/src-tauri/target/${TARGET}/release/bundle/macos"
-
-          # Replace the unsigned DMG with the signed/notarized one.
-          cp "$SIGNED_DMG" "$UNSIGNED_DMG"
-
-          # Swap the unsigned .app for the signed .app from the action's zip.
-          EXTRACT_DIR="${RUNNER_TEMP}/signed-app-extract-x64"
-          rm -rf "$EXTRACT_DIR" && mkdir -p "$EXTRACT_DIR"
-          ditto -x -k "$SIGNED_APP_ZIP" "$EXTRACT_DIR"
-          rm -rf "${APP_DIR}/Buzz.app"
-          cp -R "${EXTRACT_DIR}/Buzz.app" "${APP_DIR}/Buzz.app"
-
-          # Rebuild the updater archive from the signed .app and re-sign with the Tauri updater key.
-          rm -f "${APP_DIR}/Buzz.app.tar.gz" "${APP_DIR}/Buzz.app.tar.gz.sig"
-          (cd "$APP_DIR" && tar -czf Buzz.app.tar.gz Buzz.app)
-          TARBALL_ABS="$(pwd)/${APP_DIR}/Buzz.app.tar.gz"
-          (cd desktop && pnpm tauri signer sign "$TARBALL_ABS")
-
-      - name: Verify code signature
-        run: |
-          APP_DIR="desktop/src-tauri/target/${TARGET}/release/bundle/macos/Buzz.app"
-          codesign --verify --deep --strict --verbose=2 "$APP_DIR"
-          spctl --assess --type execute --verbose=4 "$APP_DIR"
-          desktop/scripts/verify-macos-entitlements.sh "$APP_DIR"
-
-      - name: Locate updater archive
-        id: artifacts
-        run: |
-          BUNDLE_DIR="desktop/src-tauri/target/${TARGET}/release/bundle"
-
-          ARCHIVE=$(find "$BUNDLE_DIR/macos" -name '*.tar.gz' ! -name '*.sig' -type f | head -1)
-          SIG="${ARCHIVE}.sig"
-          if [[ -z "$ARCHIVE" || ! -f "$SIG" ]]; then
-            echo "::error::Updater archive or signature not found in $BUNDLE_DIR/macos"
-            exit 1
-          fi
-          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
-          echo "archive_name=$(basename "$ARCHIVE")" >> "$GITHUB_OUTPUT"
-          echo "sig=$SIG" >> "$GITHUB_OUTPUT"
-
-      - name: Read updater signature
-        id: read-sig
-        run: echo "sig=$(cat "$SIG_PATH")" >> "$GITHUB_OUTPUT"
-        env:
-          SIG_PATH: ${{ steps.artifacts.outputs.sig }}
-
-      - name: Upload Intel DMG to versioned GitHub release
-        run: gh release upload "v${VERSION}" "$DMG_PATH" --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DMG_PATH: ${{ steps.unsigned.outputs.dmg }}
-
-      - name: Upload updater archive to rolling release
-        if: github.ref == format('refs/tags/v{0}', needs.setup.outputs.version)
-        run: |
-          gh release upload buzz-desktop-latest \
-            "$ARCHIVE_PATH" \
-            "$SIG_PATH" \
-            --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ARCHIVE_PATH: ${{ steps.artifacts.outputs.archive }}
-          SIG_PATH: ${{ steps.artifacts.outputs.sig }}
-
-  release-linux:
-    name: Release Linux
-    if: github.repository == 'block/buzz'
-    runs-on: ubuntu-latest
-    # Digest-pinned like the SHA-pinned actions below; Renovate keeps it fresh.
-    container: ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
-    needs: setup
-    timeout-minutes: 60
-    permissions:
-      contents: write
-    env:
-      # AppImage tools (linuxdeploy, appimagetool) are themselves AppImages.
-      # Containers lack FUSE, so we must use the extract-and-run fallback.
-      APPIMAGE_EXTRACT_AND_RUN: "1"
-    # This job runs in a container where the default run shell is dash;
-    # the AppImage steps below use bash-only syntax ([[ ]], mapfile, arrays).
-    defaults:
-      run:
         shell: bash
-    outputs:
-      archive_name: ${{ steps.linux-artifacts.outputs.archive_name }}
-      sig: ${{ steps.read-sig.outputs.sig }}
-    steps:
-      - name: Install system dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          # Must run first: bare ubuntu:24.04 ships without curl, wget, git, or
-          # ca-certificates. activate-hermit bootstraps via curl+HTTPS (needs
-          # both), and actions/checkout falls back to a REST tarball without git.
-          # Running as root — no sudo needed.
-          apt-get update \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30
-          apt-get install -y --no-install-recommends \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            -o DPkg::Lock::Timeout=120 \
-            build-essential \
-            ca-certificates \
-            curl \
-            desktop-file-utils \
-            file \
-            git \
-            libasound2-dev \
-            libayatana-appindicator3-dev \
-            libgtk-3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
-            patchelf \
-            pkg-config \
-            squashfs-tools \
-            wget \
-            xdg-utils
-          # Install GitHub CLI — preinstalled on runners but absent in containers.
-          # wget and ca-certificates are now available from the step above.
-          mkdir -p -m 755 /etc/apt/keyrings
-          wget -q --tries=3 --timeout=30 -O /usr/share/keyrings/githubcli-archive-keyring.gpg \
-            https://cli.github.com/packages/githubcli-archive-keyring.gpg
-          # Pin the keyring like appimagetool below. If GitHub rotates the
-          # keyring this fails loudly — recompute and update the hash.
-          echo "6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b  /usr/share/keyrings/githubcli-archive-keyring.gpg" | sha256sum -c
-          chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-            > /etc/apt/sources.list.d/github-cli.list
-          apt-get update
-          apt-get install -y --no-install-recommends gh
+        run: echo "source_sha=$(git rev-parse 'HEAD^{commit}')" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          ref: ${{ needs.setup.outputs.source_sha }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Mark workspace safe for git (containerized job)
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Verify tag-bound release source
-        env:
-          VERSION: ${{ needs.setup.outputs.version }}
-        run: scripts/verify-release-ref.sh v "$VERSION"
-
-      - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
-
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-        with:
-          workspaces: desktop/src-tauri
-          lookup-only: true
-
-      - name: Install appimagetool
-        run: |
-          # Pin to an immutable release tag to avoid supply-chain drift from the
-          # mutable `continuous` tag. Tag: 1.9.1, asset: appimagetool-<arch>.AppImage
-          # (https://github.com/AppImage/appimagetool/releases/tag/1.9.1)
-          case "$(uname -m)" in
-            x86_64)  ARCH_SUFFIX="x86_64" ;;
-            aarch64) ARCH_SUFFIX="aarch64" ;;
-            *)
-              echo "::error::Unsupported architecture: $(uname -m)"
-              exit 1
-              ;;
-          esac
-          wget -q --tries=3 --timeout=30 -O /tmp/appimagetool \
-            "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-${ARCH_SUFFIX}.AppImage"
-          # SHA256 integrity check. Refuse to run an unverified binary: if a new
-          # arch (e.g. aarch64) is enabled in CI, compute its hash and add it here.
-          if [[ "$ARCH_SUFFIX" == "x86_64" ]]; then
-            echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  /tmp/appimagetool" | sha256sum -c
-          else
-            echo "::error::No pinned SHA256 for appimagetool-${ARCH_SUFFIX} — add it before enabling this architecture"
-            exit 1
-          fi
-          install -m 755 /tmp/appimagetool /usr/local/bin/appimagetool
-          # appimagetool otherwise fetches the AppImage type2 runtime from the
-          # MUTABLE `continuous` tag at repack time — the runtime is the first
-          # code users execute, so pin it too. Tag: 20251108, hash is for the
-          # x86_64 asset (non-x86_64 already hard-fails above).
-          # (https://github.com/AppImage/type2-runtime/releases/tag/20251108)
-          wget -q --tries=3 --timeout=30 -O /tmp/appimage-runtime \
-            "https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-${ARCH_SUFFIX}"
-          echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  /tmp/appimage-runtime" | sha256sum -c
-          install -D -m 644 /tmp/appimage-runtime /usr/local/lib/appimage-runtime
-          echo "APPIMAGETOOL_RUNTIME_FILE=/usr/local/lib/appimage-runtime" >> "$GITHUB_ENV"
-
-      - name: Install desktop dependencies
-        run: just desktop-install-ci
-
-      - name: Patch version
-        env:
-          VERSION: ${{ needs.setup.outputs.version }}
-        run: |
-          cd desktop && node scripts/set-version-from-tag.mjs "$VERSION"
-          cd src-tauri && cargo update --workspace
-
-      - name: Build sidecars
-        run: |
-          cargo build --release -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli
-          ./scripts/bundle-sidecars.sh
-
-      - name: Generate release config
-        run: cd desktop && node scripts/build-release-config.mjs
-        env:
-          BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
-
-      - name: Build Linux Tauri app
-        run: cd desktop && pnpm tauri build --verbose --ci --bundles deb,appimage --config src-tauri/tauri.release.conf.json
-        env:
-          BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
-          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-      - name: Fix AppImage (remove infra libs, shim host GStreamer)
-        run: |
-          mapfile -t APPIMAGES < <(find desktop/src-tauri/target/release/bundle/appimage -name '*.AppImage' -type f)
-          if [[ ${#APPIMAGES[@]} -eq 0 ]]; then
-            echo "::error::No AppImage found to post-process"
-            exit 1
-          fi
-          if [[ ${#APPIMAGES[@]} -gt 1 ]]; then
-            echo "::error::Expected exactly one AppImage, found ${#APPIMAGES[@]}: ${APPIMAGES[*]}"
-            exit 1
-          fi
-          bash desktop/scripts/fix-appimage.sh "${APPIMAGES[0]}"
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-      - name: Locate Linux build artifacts
-        id: linux-artifacts
-        run: |
-          BUNDLE_DIR="desktop/src-tauri/target/release/bundle"
-
-          DEB=$(find "$BUNDLE_DIR/deb" -name '*.deb' -type f | head -1)
-          if [[ -z "$DEB" ]]; then
-            echo "::error::No DEB found in $BUNDLE_DIR/deb"
-            exit 1
-          fi
-          echo "deb=$DEB" >> "$GITHUB_OUTPUT"
-
-          APPIMAGE=$(find "$BUNDLE_DIR/appimage" -name '*.AppImage' -type f | head -1)
-          if [[ -z "$APPIMAGE" ]]; then
-            echo "::error::No AppImage found in $BUNDLE_DIR/appimage"
-            exit 1
-          fi
-          echo "appimage=$APPIMAGE" >> "$GITHUB_OUTPUT"
-
-          # Updater archive: Tauri 2.11+ with createUpdaterArtifacts signs the
-          # AppImage directly (*.AppImage + *.AppImage.sig). Earlier versions
-          # wrapped it in a tar.gz. Try the new format first, fall back to legacy.
-          ARCHIVE=$(find "$BUNDLE_DIR/appimage" -name '*.AppImage.tar.gz' ! -name '*.sig' -type f | head -1)
-          if [[ -n "$ARCHIVE" ]]; then
-            SIG="${ARCHIVE}.sig"
-          else
-            ARCHIVE="$APPIMAGE"
-            SIG="${APPIMAGE}.sig"
-          fi
-          if [[ -z "$ARCHIVE" || ! -f "$SIG" ]]; then
-            echo "::error::AppImage updater archive or signature not found in $BUNDLE_DIR/appimage"
-            exit 1
-          fi
-          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
-          echo "archive_name=$(basename "$ARCHIVE")" >> "$GITHUB_OUTPUT"
-          echo "sig=$SIG" >> "$GITHUB_OUTPUT"
-
-      - name: Read updater signature
-        id: read-sig
-        run: echo "sig=$(cat "$SIG_PATH")" >> "$GITHUB_OUTPUT"
-        env:
-          SIG_PATH: ${{ steps.linux-artifacts.outputs.sig }}
-
-      # NOTE: .deb is NOT auto-updatable (Tauri updater constraint — only AppImage supports it on Linux)
-      - name: Upload Linux artifacts to versioned GitHub release
-        env:
-          VERSION: ${{ needs.setup.outputs.version }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEB_PATH: ${{ steps.linux-artifacts.outputs.deb }}
-          APPIMAGE_PATH: ${{ steps.linux-artifacts.outputs.appimage }}
-        run: |
-          gh release upload "v$VERSION" \
-            "$DEB_PATH" \
-            "$APPIMAGE_PATH" \
-            --clobber
-
-      - name: Upload updater archive to rolling release
-        if: github.ref == format('refs/tags/v{0}', needs.setup.outputs.version)
-        run: |
-          gh release upload buzz-desktop-latest \
-            "$ARCHIVE_PATH" \
-            "$SIG_PATH" \
-            --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ARCHIVE_PATH: ${{ steps.linux-artifacts.outputs.archive }}
-          SIG_PATH: ${{ steps.linux-artifacts.outputs.sig }}
-
-  release-windows:
-    name: Release Windows
+  windows:
+    name: Windows installer
+    needs: validate
     runs-on: windows-latest
-    needs: setup
-    timeout-minutes: 60
-    permissions:
-      contents: write
-    outputs:
-      archive_name: ${{ steps.artifacts.outputs.archive_name }}
-      sig: ${{ steps.read-sig.outputs.sig }}
+    timeout-minutes: 75
     env:
-      VERSION: ${{ needs.setup.outputs.version }}
+      VERSION: ${{ needs.validate.outputs.version }}
       TARGET: x86_64-pc-windows-msvc
+      MAJU_UPDATER_PUBLIC_KEY: ${{ secrets.MAJU_UPDATER_PUBLIC_KEY }}
+      MAJU_UPDATER_ENDPOINT: https://github.com/heap-cider/maju/releases/download/maju-desktop-latest/latest.json
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          ref: ${{ needs.setup.outputs.source_sha }}
-          fetch-depth: 0
+          ref: ${{ needs.validate.outputs.source_sha }}
           persist-credentials: false
-
-      - name: Verify tag-bound release source
-        shell: bash
-        run: scripts/verify-release-ref.sh v "$VERSION"
 
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
         with:
+          toolchain: ${{ env.RUST_VERSION }}
           targets: ${{ env.TARGET }}
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24.14.1
-          # Disable dependency caching: a writable cache in this release workflow
-          # (contents: write, feeds a signed installer) is a poisoning vector. pnpm
-          # install runs uncached below.
+          node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
-          version: 11.4.0
+          version: ${{ env.PNPM_VERSION }}
 
-      - name: Install desktop dependencies
+      - name: Install dependencies
         shell: bash
         run: pnpm install --frozen-lockfile
 
-      - name: Patch version
+      - name: Check updater secrets
         shell: bash
         run: |
-          cd desktop && node scripts/set-version-from-tag.mjs "$VERSION"
-          cd src-tauri && cargo update --workspace
+          set -euo pipefail
+          test -n "$MAJU_UPDATER_PUBLIC_KEY"
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
 
-      - name: Generate release config
+      - name: Generate updater config
         shell: bash
         run: cd desktop && node scripts/build-release-config.mjs
-        env:
-          BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
 
-      - name: Build sidecars
+      - name: Build desktop sidecars
         shell: bash
         run: |
-          cargo build --release --target "$TARGET" -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli
+          cargo build --release --locked --target "$TARGET" \
+            -p maju-acp -p maju-agent -p maju-dev-mcp \
+            -p git-credential-nostr -p maju-cli
           ./scripts/bundle-sidecars.sh "$TARGET"
 
-      - name: Build Windows NSIS installer (unsigned)
+      - name: Build unsigned Windows installer and signed updater artifact
         shell: bash
-        run: cd desktop && pnpm tauri build --verbose --target "$TARGET" --bundles nsis --config src-tauri/tauri.release.conf.json
         env:
-          BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+        run: |
+          cd desktop
+          pnpm tauri build --verbose --target "$TARGET" --bundles nsis \
+            --config src-tauri/tauri.release.conf.json
 
-      - name: Locate Windows build artifacts
-        id: artifacts
+      - name: Collect Windows assets
         shell: bash
         run: |
-          BUNDLE_DIR="desktop/src-tauri/target/${TARGET}/release/bundle"
+          set -euo pipefail
+          BUNDLE_DIR="desktop/src-tauri/target/${TARGET}/release/bundle/nsis"
+          INSTALLER=$(find "$BUNDLE_DIR" -maxdepth 1 -name '*.exe' -type f | head -1)
+          test -n "$INSTALLER"
+          test -f "${INSTALLER}.sig"
+          cp "$INSTALLER" "Maju-${VERSION}-windows-x86_64-setup.exe"
+          cp "${INSTALLER}.sig" "Maju-${VERSION}-windows-x86_64-setup.exe.sig"
 
-          # Find the NSIS installer .exe
-          EXE=$(find "$BUNDLE_DIR/nsis" -name '*.exe' -type f | head -1)
-          if [[ -z "$EXE" ]]; then
-            echo "::error::No NSIS installer found in $BUNDLE_DIR/nsis"
-            exit 1
-          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-release
+          path: |
+            Maju-${{ env.VERSION }}-windows-x86_64-setup.exe
+            Maju-${{ env.VERSION }}-windows-x86_64-setup.exe.sig
+          if-no-files-found: error
+          retention-days: 7
 
-          # Tauri 2.x with createUpdaterArtifacts: true signs the NSIS
-          # installer in place (<name>-setup.exe + <name>-setup.exe.sig).
-          SIG="${EXE}.sig"
-          if [[ ! -f "$SIG" ]]; then
-            echo "::error::NSIS installer signature not found: $SIG"
-            exit 1
-          fi
-
-          # Rename with _alpha-unsigned marker, keeping the detached signature
-          # in lockstep so latest.json matches the uploaded updater artifact.
-          EXE_DIR=$(dirname "$EXE")
-          EXE_BASE=$(basename "$EXE" .exe)
-          MARKED_EXE="${EXE_DIR}/${EXE_BASE}_alpha-unsigned.exe"
-          MARKED_SIG="${MARKED_EXE}.sig"
-          mv "$EXE" "$MARKED_EXE"
-          mv "$SIG" "$MARKED_SIG"
-          echo "exe=$MARKED_EXE" >> "$GITHUB_OUTPUT"
-          echo "archive=$MARKED_EXE" >> "$GITHUB_OUTPUT"
-          echo "archive_name=$(basename "$MARKED_EXE")" >> "$GITHUB_OUTPUT"
-          echo "sig=$MARKED_SIG" >> "$GITHUB_OUTPUT"
-
-      - name: Read updater signature
-        id: read-sig
-        shell: bash
-        run: echo "sig=$(cat "$SIG_PATH")" >> "$GITHUB_OUTPUT"
-        env:
-          SIG_PATH: ${{ steps.artifacts.outputs.sig }}
-
-      - name: Upload Windows installer to versioned GitHub release
-        shell: bash
-        run: gh release upload "v${VERSION}" "$EXE_PATH" --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EXE_PATH: ${{ steps.artifacts.outputs.exe }}
-
-      - name: Upload updater archive to rolling release
-        if: github.ref == format('refs/tags/v{0}', needs.setup.outputs.version)
-        shell: bash
-        run: |
-          gh release upload buzz-desktop-latest \
-            "$ARCHIVE_PATH" \
-            "$SIG_PATH" \
-            --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ARCHIVE_PATH: ${{ steps.artifacts.outputs.archive }}
-          SIG_PATH: ${{ steps.artifacts.outputs.sig }}
-
-  assemble-manifest:
-    name: Assemble multi-platform latest.json
-    # Only the tag-bound setup path can reach this job.
-    if: |
-      always() &&
-      needs.setup.result == 'success' &&
-      github.ref == format('refs/tags/v{0}', needs.setup.outputs.version)
+  relay:
+    name: Linux relay
+    needs: validate
     runs-on: ubuntu-latest
-    needs: [setup, release, release-macos-x64, release-linux, release-windows]
-    timeout-minutes: 10
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.validate.outputs.source_sha }}
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev
+
+      - name: Build relay and web clients
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm -C web build
+          pnpm -C admin-web build
+          cargo build --release --locked -p maju-relay --bin maju-relay
+
+      - name: Package relay
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="maju-relay-${VERSION}-linux-x86_64"
+          mkdir -p "$ROOT/bin" "$ROOT/web" "$ROOT/admin-web"
+          install -m 0755 target/release/maju-relay "$ROOT/bin/maju-relay"
+          cp -R web/dist/. "$ROOT/web/"
+          cp -R admin-web/dist/. "$ROOT/admin-web/"
+          cp .env.example "$ROOT/.env.example"
+          cat > "$ROOT/README.txt" <<'EOF'
+          Maju relay package
+
+          1. Configure PostgreSQL and Redis using .env.example.
+          2. Set MAJU_WEB_DIR to the absolute path of this package's web folder.
+          3. Set MAJU_ADMIN_WEB_DIR to the admin-web folder when the admin UI is enabled.
+          4. Run bin/maju-relay.
+          EOF
+          tar -czf "${ROOT}.tar.gz" "$ROOT"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: relay-release
+          path: maju-relay-${{ env.VERSION }}-linux-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Android APK
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+      MAJU_ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.MAJU_ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+      MAJU_ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.MAJU_ANDROID_UPLOAD_KEY_ALIAS }}
+      MAJU_ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.MAJU_ANDROID_UPLOAD_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ needs.validate.outputs.source_sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Restore Android signing key
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.MAJU_ANDROID_UPLOAD_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$MAJU_ANDROID_UPLOAD_KEYSTORE_PASSWORD"
+          test -n "$MAJU_ANDROID_UPLOAD_KEY_ALIAS"
+          test -n "$MAJU_ANDROID_UPLOAD_KEY_PASSWORD"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/maju-upload.jks"
+          echo "MAJU_ANDROID_UPLOAD_KEYSTORE_PATH=$RUNNER_TEMP/maju-upload.jks" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        working-directory: mobile
+        run: |
+          flutter pub get
+          flutter build apk --release --build-name "$VERSION" --build-number 1
+
+      - name: Collect APK
+        shell: bash
+        run: cp mobile/build/app/outputs/flutter-apk/app-release.apk "Maju-${VERSION}-android.apk"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: android-release
+          path: Maju-${{ env.VERSION }}-android.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    needs: [validate, windows, relay, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     env:
-      VERSION: ${{ needs.setup.outputs.version }}
+      VERSION: ${{ needs.validate.outputs.version }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          ref: ${{ needs.setup.outputs.source_sha }}
+          ref: ${{ needs.validate.outputs.source_sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify tag-bound release source
-        run: scripts/verify-release-ref.sh v "$VERSION"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: release-assets
+          merge-multiple: true
 
-      - name: Write signature files
-        env:
-          RESULT_ARM64: ${{ needs.release.result }}
-          RESULT_X64: ${{ needs.release-macos-x64.result }}
-          RESULT_LINUX: ${{ needs.release-linux.result }}
-          RESULT_WIN: ${{ needs.release-windows.result }}
-          SIG_ARM64: ${{ needs.release.outputs.sig }}
-          SIG_X64: ${{ needs.release-macos-x64.outputs.sig }}
-          SIG_LINUX: ${{ needs.release-linux.outputs.sig }}
-          SIG_WIN: ${{ needs.release-windows.outputs.sig }}
+      - name: Verify and checksum assets
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/sigs
+          test -f "release-assets/Maju-${VERSION}-windows-x86_64-setup.exe"
+          test -f "release-assets/Maju-${VERSION}-windows-x86_64-setup.exe.sig"
+          test -f "release-assets/maju-relay-${VERSION}-linux-x86_64.tar.gz"
+          test -f "release-assets/Maju-${VERSION}-android.apk"
+          (
+            cd release-assets
+            sha256sum \
+              "Maju-${VERSION}-windows-x86_64-setup.exe" \
+              "maju-relay-${VERSION}-linux-x86_64.tar.gz" \
+              "Maju-${VERSION}-android.apk" > SHA256SUMS
+          )
 
-          write_sig() {
-            local result="$1" platform="$2" sig="$3"
-            if [[ "$result" == "success" ]]; then
-              [[ -n "$sig" ]] || { echo "::error::Missing signature for successful platform: $platform"; exit 1; }
-              printf '%s' "$sig" > "/tmp/sigs/${platform}.sig"
-            fi
-          }
-
-          write_sig "$RESULT_ARM64" darwin-aarch64 "$SIG_ARM64"
-          write_sig "$RESULT_X64" darwin-x86_64 "$SIG_X64"
-          write_sig "$RESULT_LINUX" linux-x86_64 "$SIG_LINUX"
-          write_sig "$RESULT_WIN" windows-x86_64 "$SIG_WIN"
-
-      - name: Verify archive URLs are accessible
-        env:
-          RESULT_ARM64: ${{ needs.release.result }}
-          RESULT_X64: ${{ needs.release-macos-x64.result }}
-          RESULT_LINUX: ${{ needs.release-linux.result }}
-          RESULT_WIN: ${{ needs.release-windows.result }}
-          ARCHIVE_ARM64: ${{ needs.release.outputs.archive_name }}
-          ARCHIVE_X64: ${{ needs.release-macos-x64.outputs.archive_name }}
-          ARCHIVE_LINUX: ${{ needs.release-linux.outputs.archive_name }}
-          ARCHIVE_WIN: ${{ needs.release-windows.outputs.archive_name }}
+      - name: Publish versioned assets
+        shell: bash
         run: |
           set -euo pipefail
-          BASE="https://github.com/block/buzz/releases/download/buzz-desktop-latest"
-          ARCHIVES=()
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            gh release upload "v${VERSION}" release-assets/* --clobber
+          else
+            gh release create "v${VERSION}" release-assets/* \
+              --target "${{ needs.validate.outputs.source_sha }}" \
+              --title "Maju v${VERSION}" \
+              --latest \
+              --generate-notes
+          fi
 
-          add_archive() {
-            local result="$1" platform="$2" archive="$3"
-            if [[ "$result" == "success" ]]; then
-              [[ -n "$archive" ]] || { echo "::error::Missing archive name for successful platform: $platform"; exit 1; }
-              ARCHIVES+=("$archive")
-            fi
-          }
+      - name: Generate Windows updater manifest
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const version = process.env.VERSION;
+          const file = `Maju-${version}-windows-x86_64-setup.exe`;
+          const signature = fs.readFileSync(`release-assets/${file}.sig`, 'utf8').trim();
+          const manifest = {
+            version,
+            notes: `Maju ${version}`,
+            pub_date: new Date().toISOString(),
+            platforms: {
+              'windows-x86_64': {
+                signature,
+                url: `https://github.com/heap-cider/maju/releases/download/v${version}/${file}`,
+              },
+            },
+          };
+          fs.writeFileSync('latest.json', `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
 
-          add_archive "$RESULT_ARM64" darwin-aarch64 "$ARCHIVE_ARM64"
-          add_archive "$RESULT_X64" darwin-x86_64 "$ARCHIVE_X64"
-          add_archive "$RESULT_LINUX" linux-x86_64 "$ARCHIVE_LINUX"
-          add_archive "$RESULT_WIN" windows-x86_64 "$ARCHIVE_WIN"
-
-          for name in "${ARCHIVES[@]}"; do
-            echo "Checking $BASE/$name ..."
-            success=false
-            for attempt in 1 2 3; do
-              if curl -fsI "$BASE/$name" > /dev/null 2>&1; then
-                success=true
-                break
-              fi
-              echo "Attempt $attempt failed for $name, retrying in 10s..."
-              sleep 10
-            done
-            if [ "$success" != "true" ]; then
-              echo "::error::Archive not accessible after 3 attempts: $BASE/$name"
-              exit 1
-            fi
-          done
-          echo "All archive URLs verified."
-
-      - name: Generate unified latest.json
-        env:
-          RESULT_ARM64: ${{ needs.release.result }}
-          RESULT_X64: ${{ needs.release-macos-x64.result }}
-          RESULT_LINUX: ${{ needs.release-linux.result }}
-          RESULT_WIN: ${{ needs.release-windows.result }}
-          ARCHIVE_ARM64: ${{ needs.release.outputs.archive_name }}
-          ARCHIVE_X64: ${{ needs.release-macos-x64.outputs.archive_name }}
-          ARCHIVE_LINUX: ${{ needs.release-linux.outputs.archive_name }}
-          ARCHIVE_WIN: ${{ needs.release-windows.outputs.archive_name }}
+      - name: Publish rolling updater manifest
+        shell: bash
         run: |
           set -euo pipefail
-          BASE="https://github.com/block/buzz/releases/download/buzz-desktop-latest"
-          TRIPLES=()
-
-          add_triple() {
-            local result="$1" platform="$2" archive="$3"
-            if [[ "$result" == "success" ]]; then
-              [[ -n "$archive" ]] || { echo "::error::Missing archive name for successful platform: $platform"; exit 1; }
-              TRIPLES+=("${platform}:/tmp/sigs/${platform}.sig:${BASE}/${archive}")
-            fi
-          }
-
-          add_triple "$RESULT_ARM64" darwin-aarch64 "$ARCHIVE_ARM64"
-          add_triple "$RESULT_X64" darwin-x86_64 "$ARCHIVE_X64"
-          add_triple "$RESULT_LINUX" linux-x86_64 "$ARCHIVE_LINUX"
-          add_triple "$RESULT_WIN" windows-x86_64 "$ARCHIVE_WIN"
-
-          [ "${#TRIPLES[@]}" -ge 3 ] || { echo "::error::too few platforms (${#TRIPLES[@]})"; exit 1; }
-          bash desktop/scripts/generate-oss-latest-json.sh "$VERSION" "${TRIPLES[@]}" > latest.json
-          cat latest.json
-
-      - name: Upload latest.json to rolling release
-        run: |
-          gh release upload buzz-desktop-latest latest.json --clobber
+          gh release view maju-desktop-latest >/dev/null 2>&1 || \
+            gh release create maju-desktop-latest \
+              --prerelease \
+              --title "Maju Desktop Auto-Update" \
+              --notes "Rolling Tauri updater metadata."
+          gh release upload maju-desktop-latest latest.json --clobber
+          gh release upload "v${VERSION}" latest.json --clobber

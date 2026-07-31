@@ -8,23 +8,23 @@ USING events status
 WHERE mention.community_id = status.community_id
   AND mention.event_id = status.id
   AND status.kind = 30003
-  AND status.d_tag LIKE 'buzz-mesh-member-status:%'
+  AND status.d_tag LIKE 'maju-mesh-member-status:%'
   AND status.deleted_at IS NOT NULL
-  AND status.tags @> '[["k", "buzz-mesh-status"]]'::jsonb;
+  AND status.tags @> '[["k", "maju-mesh-status"]]'::jsonb;
 
 DELETE FROM events
 WHERE kind = 30003
-  AND d_tag LIKE 'buzz-mesh-member-status:%'
+  AND d_tag LIKE 'maju-mesh-member-status:%'
   AND deleted_at IS NOT NULL
-  AND tags @> '[["k", "buzz-mesh-status"]]'::jsonb;
+  AND tags @> '[["k", "maju-mesh-status"]]'::jsonb;
 
-CREATE FUNCTION purge_soft_deleted_buzz_mesh_status() RETURNS trigger AS $$
+CREATE FUNCTION purge_soft_deleted_maju_mesh_status() RETURNS trigger AS $$
 BEGIN
     IF OLD.deleted_at IS NULL
        AND NEW.deleted_at IS NOT NULL
        AND NEW.kind = 30003
-       AND NEW.d_tag LIKE 'buzz-mesh-member-status:%'
-       AND NEW.tags @> '[["k", "buzz-mesh-status"]]'::jsonb THEN
+       AND NEW.d_tag LIKE 'maju-mesh-member-status:%'
+       AND NEW.tags @> '[["k", "maju-mesh-status"]]'::jsonb THEN
         DELETE FROM events
         WHERE community_id = NEW.community_id
           AND created_at = NEW.created_at
@@ -38,6 +38,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_events_purge_soft_deleted_buzz_mesh_status
+CREATE TRIGGER trg_events_purge_soft_deleted_maju_mesh_status
     AFTER UPDATE OF deleted_at ON events
-    FOR EACH ROW EXECUTE FUNCTION purge_soft_deleted_buzz_mesh_status();
+    FOR EACH ROW EXECUTE FUNCTION purge_soft_deleted_maju_mesh_status();

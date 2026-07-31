@@ -1,4 +1,4 @@
-//! `buzz-agent-snapshot v1` — manifest type, encoder, and decoder stubs.
+//! `maju-agent-snapshot v1` — manifest type, encoder, and decoder stubs.
 //!
 //! An agent snapshot is a portable, shareable representation of an agent
 //! definition. It captures:
@@ -8,7 +8,7 @@
 //!
 //! Two encodings are supported:
 //!   - `.agent.json` — canonical snapshot manifest
-//!   - `.agent.png` — avatar image with manifest in a `buzz_agent_snapshot`
+//!   - `.agent.png` — avatar image with manifest in a `maju_agent_snapshot`
 //!     tEXt chunk
 //!
 //! Both formats may carry memory at any level. Memory entries are plaintext,
@@ -50,14 +50,14 @@ use crate::managed_agents::types::ManagedAgentRecord;
 // ── Constants ────────────────────────────────────────────────────────────────
 
 /// tEXt chunk keyword used in `.agent.png` files.
-pub const PNG_CHUNK_KEYWORD: &str = "buzz_agent_snapshot";
+pub const PNG_CHUNK_KEYWORD: &str = "maju_agent_snapshot";
 
 /// Maximum avatar size (bytes) to inline as a data URL. Avatars larger than
 /// this are stored as a URL reference instead.
 const MAX_AVATAR_INLINE_BYTES: usize = 2 * 1024 * 1024; // 2 MB
 
 /// Format discriminator — used for sniffing and validation.
-pub const FORMAT_DISCRIMINATOR: &str = "buzz-agent-snapshot";
+pub const FORMAT_DISCRIMINATOR: &str = "maju-agent-snapshot";
 
 /// Version of the manifest format produced by this module.
 pub const FORMAT_VERSION: u32 = 1;
@@ -157,10 +157,10 @@ pub struct AgentSnapshotMemory {
 
 // ── Top-level manifest ────────────────────────────────────────────────────────
 
-/// The top-level `buzz-agent-snapshot v1` manifest.
+/// The top-level `maju-agent-snapshot v1` manifest.
 ///
 /// Serializes to / from JSON. Embedded in `.agent.json` directly, or in the
-/// `buzz_agent_snapshot` tEXt chunk of a `.agent.png` (base64-encoded).
+/// `maju_agent_snapshot` tEXt chunk of a `.agent.png` (base64-encoded).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSnapshot {
@@ -294,7 +294,7 @@ pub fn decode_snapshot_json(bytes: &[u8]) -> Result<AgentSnapshot, String> {
 // ── PNG encoding / decoding ───────────────────────────────────────────────────
 
 /// Encode a snapshot into a `.agent.png` — avatar as the image body, manifest
-/// in the `buzz_agent_snapshot` tEXt chunk.
+/// in the `maju_agent_snapshot` tEXt chunk.
 pub fn encode_snapshot_png(
     snapshot: &AgentSnapshot,
     avatar_bytes: Option<&[u8]>,
@@ -347,7 +347,7 @@ pub fn decode_snapshot_png(png_bytes: &[u8]) -> Result<AgentSnapshot, String> {
         .iter()
         .find(|c| c.keyword == PNG_CHUNK_KEYWORD)
         .map(|c| c.text.as_str())
-        .ok_or_else(|| "PNG does not contain a buzz_agent_snapshot tEXt chunk".to_string())?;
+        .ok_or_else(|| "PNG does not contain a maju_agent_snapshot tEXt chunk".to_string())?;
 
     let json_bytes = STANDARD
         .decode(chunk_text.trim())
@@ -980,7 +980,7 @@ mod tests {
     #[test]
     fn invalid_format_discriminator_is_rejected() {
         let mut snapshot = build_snapshot(&minimal_record(), MemoryLevel::None, vec![], None);
-        snapshot.format = "not-a-buzz-snapshot".to_string();
+        snapshot.format = "not-a-maju-snapshot".to_string();
         let bytes = serde_json::to_vec(&snapshot).unwrap();
         let result = decode_snapshot_json(&bytes);
         assert!(result.is_err());

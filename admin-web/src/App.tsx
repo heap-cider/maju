@@ -94,7 +94,7 @@ function Reports() {
     <Page
       eyebrow="Moderation"
       title="Open reports"
-      description="Review reports across every Buzz community."
+      description="Review reports across every Maju community."
     >
       <StateView resource={resource}>
         {(reports) =>
@@ -237,7 +237,7 @@ function FeedbackList() {
     <Page
       eyebrow="Product"
       title="Feedback"
-      description="Recent product feedback from across Buzz."
+      description="Recent product feedback from across Maju."
     >
       <StateView resource={resource}>
         {(items) => {
@@ -500,7 +500,7 @@ interface FeedbackAttachment {
   filename?: string;
 }
 
-const FEEDBACK_STATUS_KEY = "buzz-admin-feedback-status";
+const FEEDBACK_STATUS_KEY = "maju-admin-feedback-status";
 
 function loadFeedbackStatuses(): FeedbackStatuses {
   try {
@@ -692,7 +692,7 @@ function date(value: string) {
     : parsed.toLocaleString();
 }
 
-function BuzzMark() {
+function MajuMark() {
   return (
     <svg viewBox="0 0 466 309" aria-hidden="true">
       <path d="M91.7 62.8a91.7 91.7 0 0 0 0 183.4H128V62.8H91.7Zm282.6 0H338v183.4h36.3a91.7 91.7 0 1 0 0-183.4Z" />
@@ -815,10 +815,10 @@ export function App() {
       <header className="app-header">
         <Link href="/reports" className="brand">
           <span className="brand-mark">
-            <BuzzMark />
+            <MajuMark />
           </span>
           <span>
-            Buzz <b>Admin</b>
+            Maju <b>Admin</b>
           </span>
         </Link>
         <nav>

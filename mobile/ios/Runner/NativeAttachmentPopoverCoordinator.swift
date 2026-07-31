@@ -77,7 +77,7 @@ final class NativeAttachmentPopoverCoordinator: NSObject {
     parentViewController: UIViewController?
   ) {
     channel = FlutterMethodChannel(
-      name: "buzz/native_attachment_popover",
+      name: "maju/native_attachment_popover",
       binaryMessenger: messenger
     )
     self.parentViewController = parentViewController

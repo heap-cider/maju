@@ -79,8 +79,8 @@ export type DraftState = {
 /** Serialised shape stored in localStorage (same as DraftState for round-trips). */
 type StoredDrafts = Record<string, DraftState>;
 
-const DRAFT_STORE_KEY_PREFIX = "buzz-drafts.v2";
-const LEGACY_DRAFT_STORE_KEY_PREFIX = "buzz-drafts.v1";
+const DRAFT_STORE_KEY_PREFIX = "maju-drafts.v2";
+const LEGACY_DRAFT_STORE_KEY_PREFIX = "maju-drafts.v1";
 const MAX_DRAFTS = 100;
 
 /**

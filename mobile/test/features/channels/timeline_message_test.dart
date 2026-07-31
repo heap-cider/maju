@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:buzz/features/channels/timeline_message.dart';
-import 'package:buzz/shared/relay/relay.dart';
+import 'package:maju/features/channels/timeline_message.dart';
+import 'package:maju/shared/relay/relay.dart';
 
 NostrEvent _textMsg({
   required String id,
@@ -367,7 +367,7 @@ void main() {
       expect(result[0].content, 'keep');
     });
 
-    test('filters messages deleted via kind:9005 (Buzz-native)', () {
+    test('filters messages deleted via kind:9005 (Maju-native)', () {
       // Agents emit kind:9005 deletes via the CLI. Mobile must mirror desktop
       // and treat 9005 as a deletion marker, otherwise agent-deleted messages
       // stay rendered until manual refresh.

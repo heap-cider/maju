@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation } from "@tanstack/react-router";
 import { deriveShellRoute } from "@/app/AppShell.helpers";
 import { AppShellProvider } from "@/app/AppShellContext";
-import * as BuzzTheme from "@/app/BuzzThemeSurfaces";
+import * as MajuTheme from "@/app/MajuThemeSurfaces";
 import { AppShellOverlays } from "@/app/AppShellOverlays";
 import { AppTopChrome } from "@/app/AppTopChrome";
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
@@ -621,7 +621,7 @@ export function AppShell() {
     unreadChannelNotificationCount,
   });
 
-  // Dispatch `buzz://message` deep links into the router.
+  // Dispatch `maju://message` deep links into the router.
   useMessageDeepLinks();
 
   const handleOpenNewDm = React.useCallback(
@@ -745,16 +745,16 @@ export function AppShell() {
           <HuddleProvider>
             <RemindMeLaterProvider pubkey={identityQuery.data?.pubkey}>
               <div
-                className="buzz-huddle-shell relative h-dvh overflow-hidden overscroll-none"
+                className="maju-huddle-shell relative h-dvh overflow-hidden overscroll-none"
                 data-huddle-open={isHuddleDrawerOpen}
               >
                 <div
                   className={cn(
-                    "buzz-huddle-app-surface z-10 flex min-h-0 flex-row overflow-hidden bg-background",
-                    isHuddleDrawerOpen && "buzz-huddle-app-surface-open",
+                    "maju-huddle-app-surface z-10 flex min-h-0 flex-row overflow-hidden bg-background",
+                    isHuddleDrawerOpen && "maju-huddle-app-surface-open",
                   )}
                 >
-                  <BuzzTheme.GradientLayer />
+                  <MajuTheme.GradientLayer />
                   {hasCommunityRail ? (
                     <CommunityRail
                       activeCommunityId={
@@ -922,13 +922,13 @@ export function AppShell() {
                           <SidebarInset
                             ref={mainInsetRef}
                             className="isolate min-h-0 min-w-0 overflow-hidden bg-sidebar"
-                            data-buzz-glass-inset
-                            data-buzz-shadow-viewport
+                            data-maju-glass-inset
+                            data-maju-shadow-viewport
                             style={chromeCssVarDefaults as React.CSSProperties}
                           >
-                            <BuzzTheme.ContentSurface>
+                            <MajuTheme.ContentSurface>
                               <Outlet />
-                            </BuzzTheme.ContentSurface>
+                            </MajuTheme.ContentSurface>
                           </SidebarInset>
                         </MainInsetProvider>
                         <RelayConnectionOverlay
@@ -976,7 +976,7 @@ export function AppShell() {
                   </SidebarProvider>
                 </div>
 
-                <div className="absolute inset-x-0 bottom-0 z-0 h-(--buzz-huddle-drawer-height)">
+                <div className="absolute inset-x-0 bottom-0 z-0 h-(--maju-huddle-drawer-height)">
                   <HuddleBar
                     className="h-full"
                     onOpenThread={(channelId, messageId) => {

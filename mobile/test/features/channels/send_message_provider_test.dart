@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nostr/nostr.dart' as nostr;
-import 'package:buzz/features/channels/send_message_provider.dart';
-import 'package:buzz/shared/relay/relay.dart';
+import 'package:maju/features/channels/send_message_provider.dart';
+import 'package:maju/shared/relay/relay.dart';
 
 void main() {
   test(

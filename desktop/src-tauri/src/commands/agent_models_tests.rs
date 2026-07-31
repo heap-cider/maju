@@ -171,7 +171,7 @@ fn saved_agent_model_discovery_uses_record_snapshot_for_definition_less_agent() 
             "name": "test-agent",
             "private_key_nsec": "nsec1fake",
             "relay_url": "wss://localhost:3000",
-            "acp_command": "buzz-acp",
+            "acp_command": "maju-acp",
             "agent_command": "goose",
             "agent_command_override": "goose",
             "agent_args": [],
@@ -182,7 +182,7 @@ fn saved_agent_model_discovery_uses_record_snapshot_for_definition_less_agent() 
             "provider": "databricks",
             "env_vars": {
                 "OPENAI_API_KEY": "record-key",
-                "BUZZ_PRIVATE_KEY": "must-not-leak"
+                "MAJU_PRIVATE_KEY": "must-not-leak"
             },
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
@@ -217,7 +217,7 @@ fn saved_agent_model_discovery_uses_record_snapshot_for_definition_less_agent() 
         Some("record-key")
     );
     // Reserved keys are stripped from the descriptor env.
-    assert!(!discovery.env.contains_key("BUZZ_PRIVATE_KEY"));
+    assert!(!discovery.env.contains_key("MAJU_PRIVATE_KEY"));
     // The provider env var is recovered from the runtime metadata for the
     // effective command (the old SavedAgentModelDiscoveryConfig.provider_env_var).
     assert_eq!(discovery.provider_env_var, Some("GOOSE_PROVIDER"));
@@ -230,14 +230,14 @@ fn saved_agent_model_discovery_uses_record_snapshot_for_definition_less_agent() 
 #[test]
 fn effective_discovery_provider_prefers_the_explicit_provider() {
     let env = BTreeMap::from([(
-        "BUZZ_AGENT_PROVIDER".to_string(),
+        "MAJU_AGENT_PROVIDER".to_string(),
         "databricks_v2".to_string(),
     )]);
 
     // A saved/selected provider is a deliberate choice and must win over the
     // build-provided default, so discovery matches what spawn will use.
     assert_eq!(
-        effective_discovery_provider(Some("anthropic"), Some("BUZZ_AGENT_PROVIDER"), &env)
+        effective_discovery_provider(Some("anthropic"), Some("MAJU_AGENT_PROVIDER"), &env)
             .as_deref(),
         Some("anthropic")
     );
@@ -246,7 +246,7 @@ fn effective_discovery_provider_prefers_the_explicit_provider() {
 #[test]
 fn effective_discovery_provider_recovers_baked_provider_when_record_has_none() {
     let env = BTreeMap::from([(
-        "BUZZ_AGENT_PROVIDER".to_string(),
+        "MAJU_AGENT_PROVIDER".to_string(),
         "databricks_v2".to_string(),
     )]);
 
@@ -255,7 +255,7 @@ fn effective_discovery_provider_recovers_baked_provider_when_record_has_none() {
     // catalog was ever fetched on builds that bake the provider in.
     for provider in [None, Some(""), Some("   ")] {
         assert_eq!(
-            effective_discovery_provider(provider, Some("BUZZ_AGENT_PROVIDER"), &env).as_deref(),
+            effective_discovery_provider(provider, Some("MAJU_AGENT_PROVIDER"), &env).as_deref(),
             Some("databricks_v2"),
             "provider input {provider:?} must fall back to the env value"
         );
@@ -266,7 +266,7 @@ fn effective_discovery_provider_recovers_baked_provider_when_record_has_none() {
 fn effective_discovery_provider_is_none_without_an_explicit_or_env_provider() {
     let env = BTreeMap::new();
     assert_eq!(
-        effective_discovery_provider(None, Some("BUZZ_AGENT_PROVIDER"), &env).as_deref(),
+        effective_discovery_provider(None, Some("MAJU_AGENT_PROVIDER"), &env).as_deref(),
         None
     );
     // A runtime that takes no provider env var has nothing to recover from.
@@ -275,7 +275,7 @@ fn effective_discovery_provider_is_none_without_an_explicit_or_env_provider() {
             None,
             None,
             &BTreeMap::from([(
-                "BUZZ_AGENT_PROVIDER".to_string(),
+                "MAJU_AGENT_PROVIDER".to_string(),
                 "databricks_v2".to_string()
             )])
         )
@@ -286,7 +286,7 @@ fn effective_discovery_provider_is_none_without_an_explicit_or_env_provider() {
 
 /// A credential name no environment sets, so `required_env` is exercised without
 /// depending on what the developer happens to have exported.
-const UNSET_CREDENTIAL: &str = "BUZZ_TEST_UNSET_DISCOVERY_CREDENTIAL";
+const UNSET_CREDENTIAL: &str = "MAJU_TEST_UNSET_DISCOVERY_CREDENTIAL";
 
 #[test]
 fn env_derived_provider_falls_through_when_its_credential_is_missing() {
@@ -296,7 +296,7 @@ fn env_derived_provider_falls_through_when_its_credential_is_missing() {
 
     // `export GOOSE_PROVIDER=anthropic` is goose's documented way to pick a
     // provider, and it keeps the API key in its own config/keyring rather than in
-    // Buzz's env — so the provider is visible here and the credential is not.
+    // Maju's env — so the provider is visible here and the credential is not.
     // Erroring would swap the working subprocess catalog for a hard
     // "config: ... required" on exactly the null-provider records this fallback
     // exists to serve; the gate has to decline instead.
@@ -336,12 +336,12 @@ fn required_env_returns_a_configured_credential_however_the_provider_was_resolve
 
 #[test]
 fn effective_discovery_provider_reads_the_runtimes_own_env_var() {
-    // goose keys its provider off GOOSE_PROVIDER, so a BUZZ_AGENT_PROVIDER in
+    // goose keys its provider off GOOSE_PROVIDER, so a MAJU_AGENT_PROVIDER in
     // the env must not be mistaken for this runtime's provider.
     let env = BTreeMap::from([
         ("GOOSE_PROVIDER".to_string(), "databricks".to_string()),
         (
-            "BUZZ_AGENT_PROVIDER".to_string(),
+            "MAJU_AGENT_PROVIDER".to_string(),
             "databricks_v2".to_string(),
         ),
     ]);
@@ -364,7 +364,7 @@ fn model_discovery_ignores_stale_record_for_linked_agent() {
             "persona_id": "persona-1",
             "private_key_nsec": "nsec1fake",
             "relay_url": "wss://localhost:3000",
-            "acp_command": "buzz-acp",
+            "acp_command": "maju-acp",
             "agent_command": "goose",
             "agent_args": [],
             "mcp_command": "",
@@ -433,7 +433,7 @@ fn model_discovery_ignores_stale_record_for_linked_agent() {
 // Databricks provider detection
 // ---------------------------------------------------------------------------
 //
-// Parse/filter/pagination tests live in crates/buzz-agent/src/catalog.rs
+// Parse/filter/pagination tests live in crates/maju-agent/src/catalog.rs
 // (they moved there with the Option C refactor).
 
 // ---------------------------------------------------------------------------
@@ -460,7 +460,7 @@ fn update_request_turn_timeout_parses_for_wire_compat() {
     // backward-compatibility with frontends that still send it: the deprecated
     // field must keep parsing cleanly. Nothing consumes it — the patching loop
     // in update_managed_agent has no turn_timeout_seconds arm
-    // (BUZZ_ACP_TURN_TIMEOUT is deprecated and ignored by the harness). That
+    // (MAJU_ACP_TURN_TIMEOUT is deprecated and ignored by the harness). That
     // absent-arm invariant lives in the code, not in this test: it only
     // guards the wire shape.
     let req: crate::managed_agents::UpdateManagedAgentRequest =
@@ -482,7 +482,7 @@ fn linked_instance_ignores_model_provider_prompt_writes() {
             "persona_id": "p1",
             "private_key_nsec": "nsec1fake",
             "relay_url": "wss://localhost:3000",
-            "acp_command": "buzz-acp",
+            "acp_command": "maju-acp",
             "agent_command": "goose",
             "agent_args": [],
             "mcp_command": "",
@@ -533,7 +533,7 @@ fn definition_less_instance_accepts_model_provider_prompt_writes() {
             "name": "standalone-agent",
             "private_key_nsec": "nsec1fake",
             "relay_url": "wss://localhost:3000",
-            "acp_command": "buzz-acp",
+            "acp_command": "maju-acp",
             "agent_command": "goose",
             "agent_args": [],
             "mcp_command": "",

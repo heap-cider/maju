@@ -11,7 +11,7 @@ fn record() -> ManagedAgentRecord {
         auth_tag: None,
         relay_url: "ws://localhost:3000".into(),
         avatar_url: None,
-        acp_command: "buzz-acp".into(),
+        acp_command: "maju-acp".into(),
         agent_command: "goose".into(),
         agent_command_override: None,
         agent_args: vec![],
@@ -225,7 +225,7 @@ fn respond_to_allowlist_edit_changes_hash() {
 
 #[test]
 fn allowlist_ignored_when_mode_is_not_allowlist() {
-    // Spawn only sets BUZZ_ACP_RESPOND_TO_ALLOWLIST in allowlist mode, so
+    // Spawn only sets MAJU_ACP_RESPOND_TO_ALLOWLIST in allowlist mode, so
     // editing the (dormant) list under owner-only must not badge.
     let rec = record();
     let mut edited = record();
@@ -549,7 +549,7 @@ fn linked_instance_stale_prompt_bytes_are_inert_at_hash_time() {
 
 #[test]
 fn display_name_edit_changes_hash() {
-    // The spawn writes BUZZ_ACP_SESSION_TITLE from display_name-or-name, so a
+    // The spawn writes MAJU_ACP_SESSION_TITLE from display_name-or-name, so a
     // rename must trip the badge: the running process keeps the old title
     // until it restarts, and the operator has to be told that.
     let rec = record();
@@ -578,14 +578,14 @@ fn name_edit_changes_hash_when_display_name_is_absent() {
 
 #[test]
 fn display_name_edit_does_not_change_hash_under_an_explicit_title_override() {
-    // User env is written AFTER the Buzz-set title (last-wins), so an explicit
-    // BUZZ_ACP_SESSION_TITLE is what the child actually runs with. Renaming the
+    // User env is written AFTER the Maju-set title (last-wins), so an explicit
+    // MAJU_ACP_SESSION_TITLE is what the child actually runs with. Renaming the
     // record changes nothing about the spawned process, so badging it would be
     // a false restart prompt. The override itself still reaches the hash
     // through the effective env.
     let mut rec = record();
     rec.env_vars
-        .insert("BUZZ_ACP_SESSION_TITLE".into(), "Pinned Title".into());
+        .insert("MAJU_ACP_SESSION_TITLE".into(), "Pinned Title".into());
     let mut renamed = rec.clone();
     renamed.display_name = Some("Fizz".into());
     assert_eq!(
@@ -601,11 +601,11 @@ fn title_override_edit_changes_hash() {
     // changes what the child runs with and must badge.
     let mut rec = record();
     rec.env_vars
-        .insert("BUZZ_ACP_SESSION_TITLE".into(), "Pinned Title".into());
+        .insert("MAJU_ACP_SESSION_TITLE".into(), "Pinned Title".into());
     let mut edited = record();
     edited
         .env_vars
-        .insert("BUZZ_ACP_SESSION_TITLE".into(), "Other Title".into());
+        .insert("MAJU_ACP_SESSION_TITLE".into(), "Other Title".into());
     assert_ne!(
         spawn_config_hash(&rec, &[], &[], "wss://ws.example", &Default::default()),
         spawn_config_hash(&edited, &[], &[], "wss://ws.example", &Default::default()),

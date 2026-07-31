@@ -21,8 +21,8 @@ import {
 import { setLocalStorageItemWithRecovery } from "@/shared/lib/localStorageQuota";
 import { truncatePubkey } from "@/shared/lib/pubkey";
 
-const CLIENT_ID_KEY_PREFIX = "buzz.nip-rs.client-id";
-const SLOT_ID_KEY_PREFIX = "buzz.nip-rs.slot-id";
+const CLIENT_ID_KEY_PREFIX = "maju.nip-rs.client-id";
+const SLOT_ID_KEY_PREFIX = "maju.nip-rs.slot-id";
 const DEBOUNCE_MS = 5_000;
 
 function generateHex(bytes: number): string {

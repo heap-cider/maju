@@ -107,14 +107,14 @@ async function waitForInvokeBridge(page: import("@playwright/test").Page) {
   await page.waitForFunction(
     () => {
       const tauriWindow = window as Window & {
-        __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: unknown;
+        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: unknown;
         __TAURI_INTERNALS__?: {
           invoke?: unknown;
         };
       };
 
       return (
-        typeof tauriWindow.__BUZZ_E2E_INVOKE_MOCK_COMMAND__ === "function" ||
+        typeof tauriWindow.__MAJU_E2E_INVOKE_MOCK_COMMAND__ === "function" ||
         typeof tauriWindow.__TAURI_INTERNALS__?.invoke === "function"
       );
     },
@@ -133,7 +133,7 @@ async function invokeTauri<T>(
   return page.evaluate(
     async ({ command: targetCommand, payload: targetPayload }) => {
       const tauriWindow = window as Window & {
-        __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
           command: string,
           payload?: Record<string, unknown>,
         ) => Promise<unknown>;
@@ -146,7 +146,7 @@ async function invokeTauri<T>(
       };
 
       const invoke =
-        tauriWindow.__BUZZ_E2E_INVOKE_MOCK_COMMAND__ ??
+        tauriWindow.__MAJU_E2E_INVOKE_MOCK_COMMAND__ ??
         tauriWindow.__TAURI_INTERNALS__?.invoke;
       if (!invoke) {
         throw new Error("Mock invoke bridge is unavailable.");
@@ -168,7 +168,7 @@ async function invokeTauriExpectError(
   return page.evaluate(
     async ({ command: targetCommand, payload: targetPayload }) => {
       const tauriWindow = window as Window & {
-        __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
           command: string,
           payload?: Record<string, unknown>,
         ) => Promise<unknown>;
@@ -181,7 +181,7 @@ async function invokeTauriExpectError(
       };
 
       const invoke =
-        tauriWindow.__BUZZ_E2E_INVOKE_MOCK_COMMAND__ ??
+        tauriWindow.__MAJU_E2E_INVOKE_MOCK_COMMAND__ ??
         tauriWindow.__TAURI_INTERNALS__?.invoke;
       if (!invoke) {
         throw new Error("Mock invoke bridge is unavailable.");
@@ -206,9 +206,9 @@ async function countCommandInvocations(
     (targetCommand) =>
       (
         window as Window & {
-          __BUZZ_E2E_COMMANDS__?: string[];
+          __MAJU_E2E_COMMANDS__?: string[];
         }
-      ).__BUZZ_E2E_COMMANDS__?.filter((invoked) => invoked === targetCommand)
+      ).__MAJU_E2E_COMMANDS__?.filter((invoked) => invoked === targetCommand)
         .length ?? 0,
     command,
   );
@@ -769,9 +769,9 @@ async function readAgentShareCommands(
     () =>
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: AgentShareCommand[];
+          __MAJU_E2E_COMMAND_LOG__?: AgentShareCommand[];
         }
-      ).__BUZZ_E2E_COMMAND_LOG__ ?? [],
+      ).__MAJU_E2E_COMMAND_LOG__ ?? [],
   );
 }
 
@@ -1065,7 +1065,7 @@ test("custom personas share with people and keep export separate", async ({
   ).toBeVisible();
   await expect(exportDialog.getByText("portable snapshot")).toHaveCount(0);
   await expect(
-    exportDialog.getByRole("button", { name: "Send in Buzz" }),
+    exportDialog.getByRole("button", { name: "Send in Maju" }),
   ).toHaveCount(0);
   await expect(exportDialog.getByLabel("Memories")).toHaveCount(0);
   await expect(
@@ -1110,18 +1110,18 @@ test("custom personas share with people and keep export separate", async ({
     const commands =
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          __MAJU_E2E_COMMAND_LOG__?: Array<{
             command: string;
             payload: { html?: string; text?: string };
           }>;
         }
-      ).__BUZZ_E2E_COMMAND_LOG__ ?? [];
+      ).__MAJU_E2E_COMMAND_LOG__ ?? [];
     return commands.findLast(
       (entry) => entry.command === "copy_text_to_clipboard",
     )?.payload;
   });
   expect(copiedAgent?.text).toBe(sharedAgentUrl);
-  expect(copiedAgent?.html).toContain("data-buzz-agent-snapshot");
+  expect(copiedAgent?.html).toContain("data-maju-agent-snapshot");
 
   await page.keyboard.press("Escape");
   await expect(shareDialog).toHaveCount(0);
@@ -1195,25 +1195,25 @@ test("custom personas share with people and keep export separate", async ({
     });
     (
       window as Window & {
-        __BUZZ_RECIPIENT_POPOVER_OBSERVER__?: MutationObserver;
-        __BUZZ_RECIPIENT_POPOVER_STATE_CHANGES__?: string[];
+        __MAJU_RECIPIENT_POPOVER_OBSERVER__?: MutationObserver;
+        __MAJU_RECIPIENT_POPOVER_STATE_CHANGES__?: string[];
       }
-    ).__BUZZ_RECIPIENT_POPOVER_OBSERVER__ = observer;
+    ).__MAJU_RECIPIENT_POPOVER_OBSERVER__ = observer;
     (
       window as Window & {
-        __BUZZ_RECIPIENT_POPOVER_STATE_CHANGES__?: string[];
+        __MAJU_RECIPIENT_POPOVER_STATE_CHANGES__?: string[];
       }
-    ).__BUZZ_RECIPIENT_POPOVER_STATE_CHANGES__ = stateChanges;
+    ).__MAJU_RECIPIENT_POPOVER_STATE_CHANGES__ = stateChanges;
   });
   await recipientSearch.click();
   await waitForAnimations(page);
   const recipientPopoverStateChanges = await page.evaluate(() => {
     const trackedWindow = window as Window & {
-      __BUZZ_RECIPIENT_POPOVER_OBSERVER__?: MutationObserver;
-      __BUZZ_RECIPIENT_POPOVER_STATE_CHANGES__?: string[];
+      __MAJU_RECIPIENT_POPOVER_OBSERVER__?: MutationObserver;
+      __MAJU_RECIPIENT_POPOVER_STATE_CHANGES__?: string[];
     };
-    trackedWindow.__BUZZ_RECIPIENT_POPOVER_OBSERVER__?.disconnect();
-    return trackedWindow.__BUZZ_RECIPIENT_POPOVER_STATE_CHANGES__ ?? [];
+    trackedWindow.__MAJU_RECIPIENT_POPOVER_OBSERVER__?.disconnect();
+    return trackedWindow.__MAJU_RECIPIENT_POPOVER_STATE_CHANGES__ ?? [];
   });
   expect(recipientPopoverStateChanges).not.toContain("closed");
   const recipientList = page.getByTestId("persona-share-recipient-results");
@@ -1271,7 +1271,7 @@ test("custom personas share with people and keep export separate", async ({
     `persona-share-recipient-chip-${TEST_IDENTITIES.bob.pubkey}`,
   );
   await expect(bobChip).toBeVisible();
-  await expect(bobChip).not.toHaveClass(/buzz-poof-trigger/);
+  await expect(bobChip).not.toHaveClass(/maju-poof-trigger/);
   await waitForAnimations(page);
   const bobChipBox = await bobChip.boundingBox();
   expect(bobChipBox).not.toBeNull();
@@ -1282,7 +1282,7 @@ test("custom personas share with people and keep export separate", async ({
   };
   await page.mouse.move(removePointer.x, removePointer.y);
   await page.mouse.down();
-  await expect(page.locator(".buzz-poof-burst")).toHaveCount(0);
+  await expect(page.locator(".maju-poof-burst")).toHaveCount(0);
   await page.mouse.up();
   await expect(bobChip).toHaveCount(0);
 
@@ -1347,12 +1347,12 @@ test("custom personas share with people and keep export separate", async ({
     (
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          __MAJU_E2E_COMMAND_LOG__?: Array<{
             command: string;
             payload: { content?: string };
           }>;
         }
-      ).__BUZZ_E2E_COMMAND_LOG__ ?? []
+      ).__MAJU_E2E_COMMAND_LOG__ ?? []
     ).filter((entry) => entry.command === "send_channel_message"),
   );
   expect(sentAgentMessages.at(-1)?.payload.content).toBe(
@@ -1898,12 +1898,12 @@ test("one share level selector drives both the link and send paths", async ({
     (
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          __MAJU_E2E_COMMAND_LOG__?: Array<{
             command: string;
             payload: { memoryLevel?: string };
           }>;
         }
-      ).__BUZZ_E2E_COMMAND_LOG__ ?? []
+      ).__MAJU_E2E_COMMAND_LOG__ ?? []
     )
       .filter((entry) => entry.command === "encode_agent_snapshot_for_send")
       .map((entry) => entry.payload.memoryLevel),
@@ -1977,12 +1977,12 @@ test("one share level selector drives both the link and send paths", async ({
     (
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          __MAJU_E2E_COMMAND_LOG__?: Array<{
             command: string;
             payload: { memoryLevel?: string };
           }>;
         }
-      ).__BUZZ_E2E_COMMAND_LOG__ ?? []
+      ).__MAJU_E2E_COMMAND_LOG__ ?? []
     )
       .filter((entry) => entry.command === "encode_agent_snapshot_for_send")
       .map((entry) => entry.payload.memoryLevel),
@@ -1999,12 +1999,12 @@ test("one share level selector drives both the link and send paths", async ({
     (
       (
         window as Window & {
-          __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          __MAJU_E2E_COMMAND_LOG__?: Array<{
             command: string;
             payload: unknown;
           }>;
         }
-      ).__BUZZ_E2E_COMMAND_LOG__ ?? []
+      ).__MAJU_E2E_COMMAND_LOG__ ?? []
     )
       .filter((entry) => entry.command === "encode_agent_snapshot_for_send")
       .map((entry) => entry.payload),
@@ -2068,9 +2068,9 @@ test("people sharing blocks a timeout before encoding or upload", async ({
   await page.evaluate(() => {
     (
       window as Window & {
-        __BUZZ_E2E_ACTIVATE_TIMEOUT__?: (expiresAtMs: number) => void;
+        __MAJU_E2E_ACTIVATE_TIMEOUT__?: (expiresAtMs: number) => void;
       }
-    ).__BUZZ_E2E_ACTIVATE_TIMEOUT__?.(Date.now() + 60_000);
+    ).__MAJU_E2E_ACTIVATE_TIMEOUT__?.(Date.now() + 60_000);
   });
 
   await page.getByTestId("persona-share-send").click();
@@ -2106,17 +2106,17 @@ test("people sharing rechecks destination eligibility after encoding", async ({
 
   await page.evaluate(() => {
     const testWindow = window as Window & {
-      __BUZZ_E2E_MUTATE_CHANNEL__?: (options: {
+      __MAJU_E2E_MUTATE_CHANNEL__?: (options: {
         channelId: string;
         channelType: "forum";
       }) => void;
-      __BUZZ_E2E_INVALIDATE_CHANNELS__?: () => Promise<void>;
+      __MAJU_E2E_INVALIDATE_CHANNELS__?: () => Promise<void>;
     };
-    testWindow.__BUZZ_E2E_MUTATE_CHANNEL__?.({
+    testWindow.__MAJU_E2E_MUTATE_CHANNEL__?.({
       channelId: "d1ec7000-d000-4000-8000-000000000001",
       channelType: "forum",
     });
-    return testWindow.__BUZZ_E2E_INVALIDATE_CHANNELS__?.();
+    return testWindow.__MAJU_E2E_INVALIDATE_CHANNELS__?.();
   });
 
   await expect(page.getByText("Couldn’t send agent. Try again.")).toBeVisible({

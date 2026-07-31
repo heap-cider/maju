@@ -337,7 +337,7 @@ pub(crate) fn sign_blossom_get_auth_header(
             .map_err(|e| e.to_string())?,
         Tag::parse(vec!["server".to_string(), server]).map_err(|e| e.to_string())?,
     ];
-    let event = EventBuilder::new(Kind::from(24242), "Get buzz-media")
+    let event = EventBuilder::new(Kind::from(24242), "Get maju-media")
         .tags(tags)
         .sign_with_keys(keys)
         .map_err(|e| e.to_string())?;
@@ -350,7 +350,7 @@ pub(crate) fn sign_blossom_get_auth_header(
 /// Mint a `t=get` Authorization header value for a relay media fetch, or
 /// `None` when signing is unavailable (identity in recovery mode).
 ///
-/// Fail-open by design: while the relay's `BUZZ_REQUIRE_MEDIA_GET_AUTH` flag
+/// Fail-open by design: while the relay's `MAJU_REQUIRE_MEDIA_GET_AUTH` flag
 /// is off, an unauthenticated request still succeeds, so degrading to no
 /// header (instead of erroring) keeps media rendering during key recovery.
 /// Once the flag is on, these requests will 403 — the correct outcome for an
@@ -363,14 +363,14 @@ pub(crate) fn mint_media_get_auth(state: &AppState, base_url: &str) -> Option<St
     let keys = match state.signing_keys() {
         Ok(k) => k,
         Err(e) => {
-            eprintln!("buzz-desktop: media get auth unavailable (unsigned request): {e}");
+            eprintln!("maju-desktop: media get auth unavailable (unsigned request): {e}");
             return None;
         }
     };
     match sign_blossom_get_auth_header(&keys, base_url, MEDIA_GET_AUTH_EXPIRY_SECS) {
         Ok(header) => Some(header),
         Err(e) => {
-            eprintln!("buzz-desktop: media get auth signing failed (unsigned request): {e}");
+            eprintln!("maju-desktop: media get auth signing failed (unsigned request): {e}");
             None
         }
     }
@@ -392,7 +392,7 @@ fn sign_blossom_upload_auth(
     if let Some(domain) = extract_server_authority(base_url) {
         tags.push(Tag::parse(vec!["server".to_string(), domain]).map_err(|e| e.to_string())?);
     }
-    EventBuilder::new(Kind::from(24242), "Upload buzz-media")
+    EventBuilder::new(Kind::from(24242), "Upload maju-media")
         .tags(tags)
         .sign_with_keys(keys)
         .map_err(|e| e.to_string())
@@ -644,7 +644,7 @@ async fn process_picked_path(
     if let Some(poster) = poster_bytes {
         match do_upload(poster, "image/jpeg", state, None).await {
             Ok(poster_desc) => descriptor.image = Some(poster_desc.url),
-            Err(e) => eprintln!("buzz-desktop: poster upload failed (non-fatal): {e}"),
+            Err(e) => eprintln!("maju-desktop: poster upload failed (non-fatal): {e}"),
         }
     }
 
@@ -761,7 +761,7 @@ pub async fn upload_media_bytes(
         // All blocking I/O runs off the async runtime via spawn_blocking.
         tokio::task::spawn_blocking(move || -> Result<(Vec<u8>, Option<Vec<u8>>), String> {
             let tmp_input =
-                std::env::temp_dir().join(format!("buzz-drop-{}", uuid::Uuid::new_v4()));
+                std::env::temp_dir().join(format!("maju-drop-{}", uuid::Uuid::new_v4()));
             // Cleanup guard: remove temp file on ALL exit paths (including write failure).
             let result = (|| {
                 std::fs::write(&tmp_input, &data)
@@ -779,7 +779,7 @@ pub async fn upload_media_bytes(
         // to JPEG, and clean up. (Mirrors mobile's pre-upload transcode.)
         tokio::task::spawn_blocking(move || -> Result<(Vec<u8>, Option<Vec<u8>>), String> {
             let tmp_input =
-                std::env::temp_dir().join(format!("buzz-drop-{}", uuid::Uuid::new_v4()));
+                std::env::temp_dir().join(format!("maju-drop-{}", uuid::Uuid::new_v4()));
             // Cleanup guard: remove temp file on ALL exit paths (including write failure).
             let result = (|| {
                 std::fs::write(&tmp_input, &data)
@@ -805,7 +805,7 @@ pub async fn upload_media_bytes(
     if let Some(poster) = poster_bytes {
         match do_upload(poster, "image/jpeg", &state, None).await {
             Ok(poster_desc) => descriptor.image = Some(poster_desc.url),
-            Err(e) => eprintln!("buzz-desktop: poster upload failed (non-fatal): {e}"),
+            Err(e) => eprintln!("maju-desktop: poster upload failed (non-fatal): {e}"),
         }
     }
 

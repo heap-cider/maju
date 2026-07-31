@@ -10,7 +10,7 @@ import '../../shared/theme/theme.dart';
 import '../../shared/utils/string_utils.dart';
 import '../../shared/widgets/avatar_image.dart';
 import '../../shared/widgets/anchored_popover_menu.dart';
-import '../../shared/widgets/buzz_loading_indicator.dart';
+import '../../shared/widgets/maju_loading_indicator.dart';
 import '../../shared/widgets/frosted_app_bar.dart';
 import '../../shared/widgets/frosted_scaffold.dart';
 import '../../shared/widgets/message_author_meta.dart';

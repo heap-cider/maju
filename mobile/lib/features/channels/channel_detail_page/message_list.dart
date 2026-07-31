@@ -264,7 +264,7 @@ class _MessageList extends HookConsumerWidget {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: Grid.xs),
                   child: Center(
-                    child: BuzzLoadingIndicator(
+                    child: MajuLoadingIndicator(
                       size: 24,
                       semanticLabel: 'Loading older messages',
                     ),

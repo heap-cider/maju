@@ -204,19 +204,19 @@ test("markdown tables overflow wide content and fill the message when narrow", a
   await page.getByTestId("channel-general").click();
   await expect(page.getByTestId("chat-title")).toHaveText("general");
   await page.waitForFunction(
-    () => typeof window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__ === "function",
+    () => typeof window.__MAJU_E2E_EMIT_MOCK_MESSAGE__ === "function",
   );
 
   const longCell = "WIDE TABLE COLUMN VALUE ".repeat(8);
   await page.evaluate(
     ({ wide, narrow }) => {
       const createdAt = Math.floor(Date.now() / 1000);
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "general",
         content: wide,
         createdAt,
       });
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "general",
         content: narrow,
         createdAt: createdAt + 1,
@@ -630,12 +630,12 @@ test("send message to DM channel p-tags the recipient", async ({ page }) => {
       page.evaluate((content) => {
         const events = (
           window as Window & {
-            __BUZZ_E2E_SIGNED_EVENTS__?: Array<{
+            __MAJU_E2E_SIGNED_EVENTS__?: Array<{
               content: string;
               tags: string[][];
             }>;
           }
-        ).__BUZZ_E2E_SIGNED_EVENTS__;
+        ).__MAJU_E2E_SIGNED_EVENTS__;
         return events?.find((event) => event.content === content)?.tags ?? [];
       }, message),
     )
@@ -893,7 +893,7 @@ test("opens a single-level thread panel with inline expansion", async ({
 
   await page.evaluate(
     ({ content, parentEventId, pubkey }) => {
-      window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
         channelName: "general",
         content,
         parentEventId,
@@ -960,7 +960,7 @@ test("thread panel width uses session storage and reset handle", async ({
 
   await page.addInitScript((width) => {
     window.sessionStorage.setItem(
-      "buzz.desktop.thread-panel-width",
+      "maju.desktop.thread-panel-width",
       String(width),
     );
   }, customWidthPx);
@@ -1169,12 +1169,12 @@ test("thread refetch preserves a live reply and reaction received in flight", as
   const replyId = await page.evaluate(
     async ({ channelId, content, parentEventId }) => {
       const bridgeWindow = window as Window & {
-        __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
+        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
           command: string,
           payload?: Record<string, unknown>,
         ) => Promise<unknown>;
       };
-      const invoke = bridgeWindow.__BUZZ_E2E_INVOKE_MOCK_COMMAND__;
+      const invoke = bridgeWindow.__MAJU_E2E_INVOKE_MOCK_COMMAND__;
       if (!invoke) throw new Error("Mock Tauri invoke bridge is unavailable.");
       const sent = (await invoke("send_channel_message", {
         channelId,

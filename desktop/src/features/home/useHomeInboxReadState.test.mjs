@@ -18,7 +18,7 @@ function feedItem(overrides) {
     content: "hello",
     createdAt: overrides.createdAt,
     channelId: overrides.channelId ?? CHANNEL_ID,
-    channelName: "buzz-bugs",
+    channelName: "maju-bugs",
     tags: overrides.tags ?? [["h", CHANNEL_ID]],
     category: overrides.category ?? "activity",
   };

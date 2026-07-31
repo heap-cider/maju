@@ -56,8 +56,8 @@ test("upload a file and see a FileCard in the timeline", async ({ page }) => {
     .poll(() =>
       page.evaluate(
         () =>
-          (window as Window & { __BUZZ_E2E_COMMANDS__?: string[] })
-            .__BUZZ_E2E_COMMANDS__ ?? [],
+          (window as Window & { __MAJU_E2E_COMMANDS__?: string[] })
+            .__MAJU_E2E_COMMANDS__ ?? [],
       ),
     )
     .toContain("download_file");
@@ -95,7 +95,7 @@ test("dropping a file on the channel column attaches it to the composer", async 
         '[data-testid="drop-zone-overlay"]',
       );
       const contentSurface = document.querySelector<HTMLElement>(
-        "[data-buzz-content-surface]",
+        "[data-maju-content-surface]",
       );
       if (!(overlayElement && contentSurface)) return null;
       const overlayStyle = getComputedStyle(overlayElement);
@@ -136,13 +136,13 @@ test("dropping a file on the channel column attaches it to the composer", async 
   );
 });
 
-for (const theme of ["buzz", "buzz-dark", "github-light", "github-dark"]) {
+for (const theme of ["maju", "maju-dark", "github-light", "github-dark"]) {
   test(`drop prompt has accessible text contrast in ${theme}`, async ({
     page,
   }) => {
     await page.goto("/");
     await page.evaluate((selectedTheme) => {
-      window.localStorage.setItem("buzz-theme", selectedTheme);
+      window.localStorage.setItem("maju-theme", selectedTheme);
     }, theme);
     await page.reload();
     await page.getByTestId("channel-general").click();
@@ -225,8 +225,8 @@ test("forum posts emit a FileCard for generic attachments, not a broken image", 
     .poll(() =>
       page.evaluate(
         () =>
-          (window as Window & { __BUZZ_E2E_COMMANDS__?: string[] })
-            .__BUZZ_E2E_COMMANDS__ ?? [],
+          (window as Window & { __MAJU_E2E_COMMANDS__?: string[] })
+            .__MAJU_E2E_COMMANDS__ ?? [],
       ),
     )
     .toContain("download_file");

@@ -1,7 +1,7 @@
-//! Buzz Nest — persistent agent workspace at `~/.buzz`.
+//! Maju Nest — persistent agent workspace at `~/.maju`.
 //!
 //! Creates a shared knowledge directory on first launch so every
-//! Buzz-spawned agent starts with orientation (AGENTS.md) and a
+//! Maju-spawned agent starts with orientation (AGENTS.md) and a
 //! place to accumulate research, plans, and logs across sessions.
 //!
 //! Static template content in AGENTS.md (above the managed-section markers)
@@ -39,9 +39,9 @@ const NEST_DIRS: &[&str] = &[
 /// Fully static — no runtime interpolation, no secrets, no user paths.
 pub(crate) const AGENTS_MD: &str = include_str!("nest_agents.md");
 
-/// Default SKILL.md content for the buzz-cli skill.
-/// Written to ~/.buzz/.agents/skills/buzz-cli/SKILL.md on first init.
-const BUZZ_CLI_SKILL_MD: &str = include_str!("nest_skill.md");
+/// Default SKILL.md content for the maju-cli skill.
+/// Written to ~/.maju/.agents/skills/maju-cli/SKILL.md on first init.
+const MAJU_CLI_SKILL_MD: &str = include_str!("nest_skill.md");
 
 /// Template content version for AGENTS.md static content (above managed markers).
 /// Bump this when changing `nest_agents.md` to trigger refresh on existing installs.
@@ -52,20 +52,20 @@ const NEST_AGENTS_VERSION: u32 = 4;
 /// Bump this when changing `nest_skill.md` to trigger refresh on existing installs.
 const NEST_SKILL_VERSION: u32 = 5;
 
-const BEGIN_MARKER: &str = "<!-- BEGIN BUZZ MANAGED";
-const END_MARKER: &str = "<!-- END BUZZ MANAGED -->";
+const BEGIN_MARKER: &str = "<!-- BEGIN MAJU MANAGED";
+const END_MARKER: &str = "<!-- END MAJU MANAGED -->";
 
 /// Canonical skill directory path relative to the nest root.
-const CANONICAL_SKILL_DIR: &str = ".agents/skills/buzz-cli";
+const CANONICAL_SKILL_DIR: &str = ".agents/skills/maju-cli";
 
 /// Nest directory name for production builds.
-const NEST_DIR_PROD: &str = ".buzz";
+const NEST_DIR_PROD: &str = ".maju";
 
 /// Nest directory name for dev builds. Dev builds (those whose Tauri app-data
-/// directory name starts with `"xyz.block.buzz.app.dev"`) use a separate nest
+/// directory name starts with `"xyz.block.maju.app.dev"`) use a separate nest
 /// so that the DMG and dev-build instances don't clobber each other's
 /// `.repos-dir` dotfile and `REPOS` symlink.
-const NEST_DIR_DEV: &str = ".buzz-dev";
+const NEST_DIR_DEV: &str = ".maju-dev";
 
 /// Process-lifetime nest directory. Initialized once at startup via
 /// [`init_nest_dir`] before any call to [`nest_dir`].
@@ -83,7 +83,7 @@ static NEST_DIR: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new
 /// `OnceLock` is set exactly once.
 ///
 /// `is_dev` should be `true` when the running binary is a dev build — i.e.
-/// when the Tauri app-data directory name starts with `"xyz.block.buzz.app.dev"`.
+/// when the Tauri app-data directory name starts with `"xyz.block.maju.app.dev"`.
 /// Pass `false` for production (signed DMG) builds.
 pub fn init_nest_dir(is_dev: bool) {
     let suffix = if is_dev { NEST_DIR_DEV } else { NEST_DIR_PROD };
@@ -93,11 +93,11 @@ pub fn init_nest_dir(is_dev: bool) {
     let _ = NEST_DIR.set(path);
 }
 
-/// Returns the nest root path (`~/.buzz` for prod, `~/.buzz-dev` for dev),
+/// Returns the nest root path (`~/.maju` for prod, `~/.maju-dev` for dev),
 /// or `None` if the home directory cannot be resolved.
 ///
 /// If [`init_nest_dir`] has not been called yet (e.g. in unit tests), falls
-/// back to the production path `~/.buzz`.
+/// back to the production path `~/.maju`.
 pub fn nest_dir() -> Option<PathBuf> {
     match NEST_DIR.get() {
         Some(path) => path.clone(),
@@ -106,7 +106,7 @@ pub fn nest_dir() -> Option<PathBuf> {
     }
 }
 
-/// Returns `true` iff `path` ends with the dev-nest directory name (`.buzz-dev`).
+/// Returns `true` iff `path` ends with the dev-nest directory name (`.maju-dev`).
 ///
 /// Pure function — no globals — so it can be unit-tested without touching the
 /// process-lifetime [`NEST_DIR`] `OnceLock`.
@@ -117,21 +117,21 @@ fn path_is_dev_nest(path: &std::path::Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Returns `true` when the running binary is using the dev nest (`~/.buzz-dev`).
+/// Returns `true` when the running binary is using the dev nest (`~/.maju-dev`).
 ///
 /// This is `true` for all dev builds — `just staging` and `just dev` — because
 /// [`init_nest_dir`] is called with `is_dev = true` when the Tauri app-data
-/// directory starts with `"xyz.block.buzz.app.dev"`.
+/// directory starts with `"xyz.block.maju.app.dev"`.
 ///
 /// Returns `false` when:
-/// - The nest is the production nest (`~/.buzz`, signed DMG).
+/// - The nest is the production nest (`~/.maju`, signed DMG).
 /// - [`init_nest_dir`] has not been called yet (unit tests, home dir
 ///   unresolvable) — the fallback path is always the prod nest.
 pub fn nest_is_dev() -> bool {
     nest_dir().map(|p| path_is_dev_nest(&p)).unwrap_or(false)
 }
 
-/// Creates the Buzz nest at `~/.buzz` if it doesn't already exist.
+/// Creates the Maju nest at `~/.maju` if it doesn't already exist.
 ///
 /// Delegates to [`ensure_nest_at`] with the resolved nest directory.
 /// Returns an error string if the home directory cannot be resolved.
@@ -140,13 +140,13 @@ pub fn ensure_nest() -> Result<(), String> {
     ensure_nest_at(&root)
 }
 
-/// Creates a Buzz nest at the given `root` path.
+/// Creates a Maju nest at the given `root` path.
 ///
 /// - Creates the root directory and all subdirectories.
 /// - Writes `AGENTS.md` only if it doesn't already exist.
-/// - Writes `.agents/skills/buzz-cli/SKILL.md` only if it doesn't already exist.
+/// - Writes `.agents/skills/maju-cli/SKILL.md` only if it doesn't already exist.
 /// - Creates harness-specific symlinks pointing to the canonical
-///   `.agents/skills/buzz-cli` directory for each known provider.
+///   `.agents/skills/maju-cli` directory for each known provider.
 /// - Sets 700 permissions on the root, all subdirectories, and the skill
 ///   directory tree (Unix).
 ///
@@ -210,7 +210,7 @@ pub fn ensure_nest_at(root: &Path) -> Result<(), String> {
         }
     }
 
-    // Write buzz-cli skill to the harness-agnostic .agents path.
+    // Write maju-cli skill to the harness-agnostic .agents path.
     // The first-init write uses the new canonical path; migration from
     // the old .claude path is handled in refresh_skill_md_if_stale.
     let agents_skill_dir = root.join(CANONICAL_SKILL_DIR);
@@ -225,7 +225,7 @@ pub fn ensure_nest_at(root: &Path) -> Result<(), String> {
     {
         Ok(mut file) => {
             use std::io::Write;
-            file.write_all(BUZZ_CLI_SKILL_MD.as_bytes())
+            file.write_all(MAJU_CLI_SKILL_MD.as_bytes())
                 .map_err(|e| format!("write {}: {e}", skill_md.display()))?;
         }
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
@@ -235,7 +235,7 @@ pub fn ensure_nest_at(root: &Path) -> Result<(), String> {
     }
 
     // Create harness-specific symlinks for all known providers.
-    // Migration of the old .claude/skills/buzz-cli real dir is handled in
+    // Migration of the old .claude/skills/maju-cli real dir is handled in
     // refresh_skill_md_if_stale; ensure_skill_symlinks skips paths that already exist.
     ensure_skill_symlinks(root)?;
 
@@ -315,7 +315,7 @@ fn ensure_skill_symlinks(root: &Path) -> Result<(), String> {
     for skill_dir in known_skill_dirs() {
         let parent = root.join(skill_dir);
         fs::create_dir_all(&parent).map_err(|e| format!("create {}: {e}", parent.display()))?;
-        let link = parent.join("buzz-cli");
+        let link = parent.join("maju-cli");
         if link.symlink_metadata().is_ok() {
             continue; // symlink or real path exists — skip
         }
@@ -335,35 +335,35 @@ fn ensure_skill_symlinks(_root: &Path) -> Result<(), String> {
 
 /// Returns the `~/.local/bin` link name for the bundled CLI.
 ///
-/// Dev builds (`is_dev = true`) use `"buzz-dev"` so that a running DMG and a
+/// Dev builds (`is_dev = true`) use `"maju-dev"` so that a running DMG and a
 /// concurrent dev build each own a separate link and never clobber each other —
-/// the same isolation that separates `~/.buzz` (prod) from `~/.buzz-dev` (dev).
+/// the same isolation that separates `~/.maju` (prod) from `~/.maju-dev` (dev).
 pub fn cli_link_name(is_dev: bool) -> &'static str {
     if is_dev {
-        "buzz-dev"
+        "maju-dev"
     } else {
-        "buzz"
+        "maju"
     }
 }
 
-/// Ensures `~/.local/bin/buzz` (prod) or `~/.local/bin/buzz-dev` (dev) is a
+/// Ensures `~/.local/bin/maju` (prod) or `~/.local/bin/maju-dev` (dev) is a
 /// symlink to the bundled CLI binary.
 ///
 /// The link name is split by `is_dev` so that an installed DMG and a
 /// concurrently running dev build each maintain their own symlink and never
 /// overwrite each other's target — the same isolation that separates the
-/// `~/.buzz` and `~/.buzz-dev` nests (see [`NEST_DIR_DEV`]).
+/// `~/.maju` and `~/.maju-dev` nests (see [`NEST_DIR_DEV`]).
 ///
-/// On every boot: replaces any existing symlink unconditionally (the `buzz` /
-/// `buzz-dev` name is our namespace), creates a new one if absent, and leaves
+/// On every boot: replaces any existing symlink unconditionally (the `maju` /
+/// `maju-dev` name is our namespace), creates a new one if absent, and leaves
 /// regular files alone to avoid clobbering a user-compiled binary.
 ///
 /// Non-fatal: callers should ignore errors — the symlink is a convenience
 /// for human Terminal use; agents find the CLI via PATH augmentation.
 #[cfg(unix)]
 pub fn ensure_cli_symlink(exe_parent: &Path, is_dev: bool) -> Result<(), String> {
-    let buzz_bin = exe_parent.join("buzz");
-    if !buzz_bin.exists() {
+    let maju_bin = exe_parent.join("maju");
+    if !maju_bin.exists() {
         return Ok(()); // CLI not bundled (e.g., dev builds without sidecars).
     }
 
@@ -377,14 +377,14 @@ pub fn ensure_cli_symlink(exe_parent: &Path, is_dev: bool) -> Result<(), String>
     match link.symlink_metadata() {
         Ok(meta) if meta.file_type().is_symlink() => {
             let _ = fs::remove_file(&link);
-            create_symlink(&buzz_bin, &link)
+            create_symlink(&maju_bin, &link)
                 .map_err(|e| format!("symlink {}: {e}", link.display()))?;
         }
         Ok(_) => {
             // Regular file or directory — don't clobber.
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            create_symlink(&buzz_bin, &link)
+            create_symlink(&maju_bin, &link)
                 .map_err(|e| format!("symlink {}: {e}", link.display()))?;
         }
         Err(e) => {
@@ -411,7 +411,7 @@ fn read_version_file(path: &Path) -> u32 {
 
 /// Refresh AGENTS.md static content if the template version has changed.
 ///
-/// Preserves everything from the `<!-- BEGIN BUZZ MANAGED` marker onward
+/// Preserves everything from the `<!-- BEGIN MAJU MANAGED` marker onward
 /// (the dynamic section managed by `upsert_managed_section`). Replaces
 /// only the static template content above the marker.
 fn refresh_agents_md_if_stale(root: &Path) -> Result<(), String> {
@@ -470,16 +470,16 @@ fn refresh_agents_md_if_stale(root: &Path) -> Result<(), String> {
 ///
 /// SKILL.md has no user-editable sections — it is fully overwritten on version bump.
 fn refresh_skill_md_if_stale(root: &Path) -> Result<(), String> {
-    let agents_skill_dir = root.join(".agents/skills/buzz-cli");
+    let agents_skill_dir = root.join(".agents/skills/maju-cli");
     let version_path = agents_skill_dir.join(".skill-version");
     if read_version_file(&version_path) >= NEST_SKILL_VERSION {
         return Ok(());
     }
 
-    // Migration: if .claude/skills/buzz-cli exists as a real directory
+    // Migration: if .claude/skills/maju-cli exists as a real directory
     // (pre-migration install), copy user's SKILL.md to the new location
     // then remove the old directory so we can replace it with a symlink.
-    let old_skill_dir = root.join(".claude/skills/buzz-cli");
+    let old_skill_dir = root.join(".claude/skills/maju-cli");
     let old_is_real_dir = old_skill_dir
         .symlink_metadata()
         .map(|m| m.file_type().is_dir())
@@ -488,9 +488,9 @@ fn refresh_skill_md_if_stale(root: &Path) -> Result<(), String> {
     let skill_content = if old_is_real_dir {
         // Preserve user-edited content during migration.
         fs::read_to_string(old_skill_dir.join("SKILL.md"))
-            .unwrap_or_else(|_| BUZZ_CLI_SKILL_MD.to_string())
+            .unwrap_or_else(|_| MAJU_CLI_SKILL_MD.to_string())
     } else {
-        BUZZ_CLI_SKILL_MD.to_string()
+        MAJU_CLI_SKILL_MD.to_string()
     };
 
     // Ensure the canonical .agents skill directory exists.
@@ -515,13 +515,13 @@ fn refresh_skill_md_if_stale(root: &Path) -> Result<(), String> {
             .map_err(|e| format!("remove {}: {e}", old_skill_dir.display()))?;
     }
 
-    // Create/replace the .claude/skills/buzz-cli symlink.
+    // Create/replace the .claude/skills/maju-cli symlink.
     #[cfg(unix)]
     {
         let claude_skills_dir = root.join(".claude/skills");
         fs::create_dir_all(&claude_skills_dir)
             .map_err(|e| format!("create {}: {e}", claude_skills_dir.display()))?;
-        let symlink_path = root.join(".claude/skills/buzz-cli");
+        let symlink_path = root.join(".claude/skills/maju-cli");
         // Remove any stale symlink before (re)creating.
         let symlink_exists = symlink_path
             .symlink_metadata()
@@ -532,7 +532,7 @@ fn refresh_skill_md_if_stale(root: &Path) -> Result<(), String> {
                 .map_err(|e| format!("remove symlink {}: {e}", symlink_path.display()))?;
         }
         create_symlink(
-            std::path::Path::new("../../.agents/skills/buzz-cli"),
+            std::path::Path::new("../../.agents/skills/maju-cli"),
             &symlink_path,
         )
         .map_err(|e| format!("symlink {}: {e}", symlink_path.display()))?;
@@ -554,7 +554,7 @@ pub fn render_dynamic_section(
     relay_url: &str,
 ) -> String {
     let active_agents = if agents.is_empty() {
-        "## Active Agents\n\n*(No agents deployed yet. Add agents in the Buzz desktop app.)*"
+        "## Active Agents\n\n*(No agents deployed yet. Add agents in the Maju desktop app.)*"
             .to_string()
     } else {
         let mut table =
@@ -695,7 +695,7 @@ pub fn regenerate_nest_context(app: &AppHandle) -> Result<(), String> {
 /// a stale AGENTS.md, so we warn and continue rather than propagating the error.
 pub fn try_regenerate_nest(app: &AppHandle) {
     if let Err(error) = regenerate_nest_context(app) {
-        eprintln!("buzz-desktop: nest context regeneration failed: {error}");
+        eprintln!("maju-desktop: nest context regeneration failed: {error}");
     }
 }
 

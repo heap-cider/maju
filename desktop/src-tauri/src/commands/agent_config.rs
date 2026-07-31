@@ -47,7 +47,7 @@ pub struct RuntimeFileConfigSubset {
 ///
 /// The pipeline: resolve the linked persona's prompt/model/provider, inject
 /// each into the record only where the record lacks its own value, let
-/// `read_config_surface` tag those injected fields `BuzzExplicit`, then re-tag
+/// `read_config_surface` tag those injected fields `MajuExplicit`, then re-tag
 /// exactly the injected fields to `PersonaDefault`.
 ///
 /// Global defaults fill in when neither the record nor the linked persona
@@ -56,8 +56,8 @@ pub struct RuntimeFileConfigSubset {
 ///
 /// The re-tag is triple-gated — a field is re-tagged only when (a) the record
 /// did not already have it (`!had_*`), (b) the surface produced the field, and
-/// (c) the reader tagged it `BuzzExplicit`. A value the user set explicitly in
-/// Buzz keeps `had_* == true` and is never re-tagged.
+/// (c) the reader tagged it `MajuExplicit`. A value the user set explicitly in
+/// Maju keeps `had_* == true` and is never re-tagged.
 fn resolve_config_surface(
     mut record: ManagedAgentRecord,
     personas: &[AgentDefinition],
@@ -71,7 +71,7 @@ fn resolve_config_surface(
     // snapshot from the last `apply_persona_snapshot` — never a legitimate
     // live override, since `update_managed_agent` blocks writing these three
     // fields for linked instances. Clear them before computing `had_*` below
-    // so a stale byte can never masquerade as BuzzExplicit and suppress
+    // so a stale byte can never masquerade as MajuExplicit and suppress
     // definition/global injection. Env var overrides (set via the advanced
     // env-vars editor) are untouched — those remain a legitimate
     // per-instance override regardless of link status.
@@ -82,7 +82,7 @@ fn resolve_config_surface(
     }
 
     let had_prompt =
-        record.system_prompt.is_some() || record.env_vars.contains_key("BUZZ_ACP_SYSTEM_PROMPT");
+        record.system_prompt.is_some() || record.env_vars.contains_key("MAJU_ACP_SYSTEM_PROMPT");
     let had_model = record.model.is_some();
 
     let provider_env_key = runtime_meta.and_then(|m| m.provider_env_var).unwrap_or("");
@@ -101,7 +101,7 @@ fn resolve_config_surface(
     //   - persona-linked, no explicit record model: the persona model is the
     //     baseline (PersonaDefault).
     //   - genuine-explicit (record had its own model) that live-switched: the
-    //     record's own model is the baseline (BuzzExplicit). Gated behind
+    //     record's own model is the baseline (MajuExplicit). Gated behind
     //     `model_overridden` so a persona edited mid-life (override flag false)
     //     never synthesizes a baseline and false-positives an override.
     // An explicit pick with no live switch has no baseline to override.
@@ -111,7 +111,7 @@ fn resolve_config_surface(
             record
                 .model
                 .clone()
-                .map(|m| (m, ConfigOrigin::BuzzExplicit))
+                .map(|m| (m, ConfigOrigin::MajuExplicit))
         } else {
             None
         }
@@ -138,7 +138,7 @@ fn resolve_config_surface(
         if let Some(p) = persona_prompt {
             record
                 .env_vars
-                .insert("BUZZ_ACP_SYSTEM_PROMPT".to_string(), p);
+                .insert("MAJU_ACP_SYSTEM_PROMPT".to_string(), p);
         }
     }
     if !had_model {
@@ -175,7 +175,7 @@ fn resolve_config_surface(
         baseline.as_ref().map(|(m, o)| (m.as_str(), o.clone())),
     );
 
-    // Re-tag persona-sourced fields from BuzzExplicit to PersonaDefault.
+    // Re-tag persona-sourced fields from MajuExplicit to PersonaDefault.
     if !had_prompt {
         retag_persona_default(&mut surface.normalized.system_prompt);
     }
@@ -186,7 +186,7 @@ fn resolve_config_surface(
         retag_persona_default(&mut surface.normalized.provider);
     }
 
-    // Re-tag global-sourced fields from BuzzExplicit to GlobalDefault.
+    // Re-tag global-sourced fields from MajuExplicit to GlobalDefault.
     if inject_global_model {
         retag_global_default(&mut surface.normalized.model);
     }
@@ -197,11 +197,11 @@ fn resolve_config_surface(
     surface
 }
 
-/// Re-tag a field's origin from `BuzzExplicit` to `PersonaDefault`, leaving any
+/// Re-tag a field's origin from `MajuExplicit` to `PersonaDefault`, leaving any
 /// other origin untouched. No-op when the field is absent.
 fn retag_persona_default(field: &mut Option<NormalizedField>) {
     if let Some(field) = field {
-        if field.origin == ConfigOrigin::BuzzExplicit {
+        if field.origin == ConfigOrigin::MajuExplicit {
             field.origin = ConfigOrigin::PersonaDefault;
         }
     }
@@ -242,7 +242,7 @@ pub async fn get_runtime_file_config(
 /// Return the key names of all non-empty baked build env vars.
 ///
 /// Internal (Block) builds bake provider credentials and other env pairs into
-/// the binary at compile time via `BUZZ_BUILD_AGENT_ENV`. The backend readiness
+/// the binary at compile time via `MAJU_BUILD_AGENT_ENV`. The backend readiness
 /// gate already treats these keys as satisfying their requirements (Layer 1 of
 /// `resolve_effective_agent_env`). This command exposes the *key names only* —
 /// never the values — so the frontend dialogs can apply the same logic and avoid
@@ -281,14 +281,14 @@ pub struct BakedEnvEntry {
 /// Any key NOT in this set is masked — default-deny for a security surface.
 ///
 /// Allowlist (case-insensitive):
-/// - `BUZZ_AGENT_PROVIDER`, `BUZZ_AGENT_MODEL` — agent runtime selection
-/// - `BUZZ_AGENT_THINKING_EFFORT` — non-secret enum (none/minimal/low/medium/high/xhigh/max)
+/// - `MAJU_AGENT_PROVIDER`, `MAJU_AGENT_MODEL` — agent runtime selection
+/// - `MAJU_AGENT_THINKING_EFFORT` — non-secret enum (none/minimal/low/medium/high/xhigh/max)
 /// - `DATABRICKS_HOST`, `DATABRICKS_MODEL` — Block non-secret defaults
 fn is_safe_to_reveal(key: &str) -> bool {
     const SAFE_KEYS: &[&str] = &[
-        "BUZZ_AGENT_PROVIDER",
-        "BUZZ_AGENT_MODEL",
-        "BUZZ_AGENT_THINKING_EFFORT",
+        "MAJU_AGENT_PROVIDER",
+        "MAJU_AGENT_MODEL",
+        "MAJU_AGENT_THINKING_EFFORT",
         "DATABRICKS_HOST",
         "DATABRICKS_MODEL",
     ];
@@ -299,7 +299,7 @@ fn is_safe_to_reveal(key: &str) -> bool {
 /// Expose the baked build env to the frontend with values shown, but any
 /// key not in the safe-to-reveal allowlist has its value replaced by `••••••`.
 ///
-/// Provider and model arrive as `BUZZ_AGENT_PROVIDER` / `BUZZ_AGENT_MODEL`
+/// Provider and model arrive as `MAJU_AGENT_PROVIDER` / `MAJU_AGENT_MODEL`
 /// keys in `baked_build_env()` and are included in the returned list like any
 /// other key. Empty-value keys are filtered out (same as
 /// `get_baked_build_env_keys`).
@@ -327,11 +327,11 @@ pub fn get_baked_build_env() -> Vec<BakedEnvEntry> {
         .collect()
 }
 
-/// Re-tag a field's origin from `BuzzExplicit` to `GlobalDefault`, leaving any
+/// Re-tag a field's origin from `MajuExplicit` to `GlobalDefault`, leaving any
 /// other origin untouched. No-op when the field is absent.
 fn retag_global_default(field: &mut Option<NormalizedField>) {
     if let Some(field) = field {
-        if field.origin == ConfigOrigin::BuzzExplicit {
+        if field.origin == ConfigOrigin::MajuExplicit {
             field.origin = ConfigOrigin::GlobalDefault;
         }
     }
@@ -649,7 +649,7 @@ mod tests {
             auth_tag: None,
             relay_url: "ws://localhost:3000".to_string(),
             avatar_url: None,
-            acp_command: "buzz-acp".to_string(),
+            acp_command: "maju-acp".to_string(),
             agent_command: "goose".to_string(),
             agent_args: vec![],
             mcp_command: "".to_string(),
@@ -744,7 +744,7 @@ mod tests {
     /// model/provider/prompt for linked instances, so a non-`None` value here
     /// can only be leftover snapshot bytes from before a persona edit — the
     /// panel must report the persona's current model, tagged `PersonaDefault`,
-    /// not the stale byte as `BuzzExplicit`.
+    /// not the stale byte as `MajuExplicit`.
     #[test]
     fn linked_stale_record_model_never_outranks_persona_model() {
         let mut record = agent_record();
@@ -793,7 +793,7 @@ mod tests {
     /// authoritative — the stale-record clearing above is scoped to linked
     /// instances only.
     #[test]
-    fn definition_less_explicit_record_model_keeps_buzz_explicit_origin() {
+    fn definition_less_explicit_record_model_keeps_maju_explicit_origin() {
         let mut record = agent_record();
         record.persona_id = None;
         record.model = Some("explicit-model".to_string());
@@ -809,7 +809,7 @@ mod tests {
 
         let model = surface.normalized.model.as_ref().expect("model resolved");
         assert_eq!(model.value.as_deref(), Some("explicit-model"));
-        assert_eq!(model.origin, ConfigOrigin::BuzzExplicit);
+        assert_eq!(model.origin, ConfigOrigin::MajuExplicit);
     }
 
     /// Part A — pending-pick: a genuine-explicit pick X with a divergent live
@@ -836,7 +836,7 @@ mod tests {
         let model = surface.normalized.model.expect("model resolved");
 
         assert_eq!(model.value.as_deref(), Some("model-x"));
-        assert_eq!(model.origin, ConfigOrigin::BuzzExplicit);
+        assert_eq!(model.origin, ConfigOrigin::MajuExplicit);
         assert_ne!(model.origin, ConfigOrigin::RuntimeOverride);
         assert_ne!(model.overridden_value.as_deref(), Some("model-y"));
     }
@@ -844,10 +844,10 @@ mod tests {
     /// W2 — genuine-explicit live switch: record.model = X, no persona,
     /// `model_overridden == true`, live model = Y. The live Y must render as the
     /// primary with a `RuntimeOverride` origin and X as the secondary tagged
-    /// `BuzzExplicit` (its true source — NOT `PersonaDefault`). FAILS against the
+    /// `MajuExplicit` (its true source — NOT `PersonaDefault`). FAILS against the
     /// shipped no-persona early-return, which left X as primary and Y struck.
     #[test]
-    fn genuine_explicit_live_switch_renders_y_over_x_buzz_explicit_secondary() {
+    fn genuine_explicit_live_switch_renders_y_over_x_maju_explicit_secondary() {
         let mut record = agent_record();
         record.persona_id = None;
         record.model = Some("model-x".to_string());
@@ -866,7 +866,7 @@ mod tests {
         assert_eq!(model.value.as_deref(), Some("model-y"));
         assert_eq!(model.origin, ConfigOrigin::RuntimeOverride);
         assert_eq!(model.overridden_value.as_deref(), Some("model-x"));
-        assert_eq!(model.overridden_origin, Some(ConfigOrigin::BuzzExplicit));
+        assert_eq!(model.overridden_origin, Some(ConfigOrigin::MajuExplicit));
     }
 
     /// Y==X collision: a genuine-explicit agent live-switches to the SAME value
@@ -961,7 +961,7 @@ mod tests {
         assert_eq!(
             model.overridden_origin,
             Some(ConfigOrigin::GlobalDefault),
-            "override baseline origin must be GlobalDefault, not PersonaDefault or BuzzExplicit"
+            "override baseline origin must be GlobalDefault, not PersonaDefault or MajuExplicit"
         );
     }
 
@@ -990,9 +990,9 @@ mod tests {
 
     #[test]
     fn baked_env_non_secret_key_shows_real_value() {
-        let entries = baked_env_from_map(&[("BUZZ_AGENT_PROVIDER", "databricks_v2")]);
+        let entries = baked_env_from_map(&[("MAJU_AGENT_PROVIDER", "databricks_v2")]);
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].key, "BUZZ_AGENT_PROVIDER");
+        assert_eq!(entries[0].key, "MAJU_AGENT_PROVIDER");
         assert_eq!(entries[0].value, "databricks_v2");
         assert!(!entries[0].masked);
     }
@@ -1028,15 +1028,15 @@ mod tests {
 
     #[test]
     fn baked_env_empty_value_filtered_out() {
-        let entries = baked_env_from_map(&[("BUZZ_AGENT_PROVIDER", "")]);
+        let entries = baked_env_from_map(&[("MAJU_AGENT_PROVIDER", "")]);
         assert!(entries.is_empty());
     }
 
     #[test]
     fn baked_env_mixed_keys_correct_masking() {
         let entries = baked_env_from_map(&[
-            ("BUZZ_AGENT_PROVIDER", "databricks_v2"),
-            ("BUZZ_AGENT_MODEL", "goose-claude-opus-4-8"),
+            ("MAJU_AGENT_PROVIDER", "databricks_v2"),
+            ("MAJU_AGENT_MODEL", "goose-claude-opus-4-8"),
             ("DATABRICKS_HOST", "https://example.com"),
             ("DATABRICKS_TOKEN", "dapi-secret"),
         ]);
@@ -1044,14 +1044,14 @@ mod tests {
 
         let provider = entries
             .iter()
-            .find(|e| e.key == "BUZZ_AGENT_PROVIDER")
+            .find(|e| e.key == "MAJU_AGENT_PROVIDER")
             .unwrap();
         assert_eq!(provider.value, "databricks_v2");
         assert!(!provider.masked);
 
         let model = entries
             .iter()
-            .find(|e| e.key == "BUZZ_AGENT_MODEL")
+            .find(|e| e.key == "MAJU_AGENT_MODEL")
             .unwrap();
         assert_eq!(model.value, "goose-claude-opus-4-8");
         assert!(!model.masked);
@@ -1070,12 +1070,12 @@ mod tests {
 
     #[test]
     fn baked_env_thinking_effort_is_unmasked() {
-        // BUZZ_AGENT_THINKING_EFFORT is a non-secret enum — must not be masked.
-        let entries = baked_env_from_map(&[("BUZZ_AGENT_THINKING_EFFORT", "medium")]);
+        // MAJU_AGENT_THINKING_EFFORT is a non-secret enum — must not be masked.
+        let entries = baked_env_from_map(&[("MAJU_AGENT_THINKING_EFFORT", "medium")]);
         assert_eq!(entries.len(), 1);
         let effort = entries
             .iter()
-            .find(|e| e.key == "BUZZ_AGENT_THINKING_EFFORT")
+            .find(|e| e.key == "MAJU_AGENT_THINKING_EFFORT")
             .unwrap();
         assert_eq!(effort.value, "medium");
         assert!(!effort.masked);
@@ -1084,12 +1084,12 @@ mod tests {
     #[test]
     fn baked_env_allowlist_is_case_insensitive() {
         // Known-safe keys — case-insensitive match must allow them.
-        assert!(super::is_safe_to_reveal("buzz_agent_provider"));
-        assert!(super::is_safe_to_reveal("BUZZ_AGENT_PROVIDER"));
-        assert!(super::is_safe_to_reveal("buzz_agent_model"));
-        assert!(super::is_safe_to_reveal("BUZZ_AGENT_MODEL"));
-        assert!(super::is_safe_to_reveal("buzz_agent_thinking_effort"));
-        assert!(super::is_safe_to_reveal("BUZZ_AGENT_THINKING_EFFORT"));
+        assert!(super::is_safe_to_reveal("maju_agent_provider"));
+        assert!(super::is_safe_to_reveal("MAJU_AGENT_PROVIDER"));
+        assert!(super::is_safe_to_reveal("maju_agent_model"));
+        assert!(super::is_safe_to_reveal("MAJU_AGENT_MODEL"));
+        assert!(super::is_safe_to_reveal("maju_agent_thinking_effort"));
+        assert!(super::is_safe_to_reveal("MAJU_AGENT_THINKING_EFFORT"));
         assert!(super::is_safe_to_reveal("databricks_host"));
         assert!(super::is_safe_to_reveal("DATABRICKS_HOST"));
         assert!(super::is_safe_to_reveal("databricks_model"));

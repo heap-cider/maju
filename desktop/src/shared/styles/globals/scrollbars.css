@@ -1,34 +1,34 @@
-.buzz-sidebar-scrollbar {
+.maju-sidebar-scrollbar {
   scrollbar-color: transparent transparent;
 }
 
-.buzz-sidebar-scrollbar:hover {
+.maju-sidebar-scrollbar:hover {
   scrollbar-color: var(
-      --buzz-sidebar-scrollbar-thumb,
+      --maju-sidebar-scrollbar-thumb,
       hsl(var(--sidebar-border) / 0.8)
     )
     transparent;
 }
 
-.buzz-sidebar-scrollbar::-webkit-scrollbar {
+.maju-sidebar-scrollbar::-webkit-scrollbar {
   height: 10px;
   width: 10px;
 }
 
-.buzz-sidebar-scrollbar::-webkit-scrollbar-track {
+.maju-sidebar-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.buzz-sidebar-scrollbar::-webkit-scrollbar-thumb {
+.maju-sidebar-scrollbar::-webkit-scrollbar-thumb {
   background-clip: content-box;
   background-color: transparent;
   border: 3px solid transparent;
   border-radius: 999px;
 }
 
-.buzz-sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
+.maju-sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
   background-color: var(
-    --buzz-sidebar-scrollbar-thumb,
+    --maju-sidebar-scrollbar-thumb,
     hsl(var(--sidebar-border) / 0.8)
   );
 }
@@ -45,16 +45,16 @@
  * set, engines ignore the `::-webkit-scrollbar` pseudo styles and fall back
  * to overlay scrollbars, which reintroduces the bug.
  */
-.buzz-content-scrollbar {
+.maju-content-scrollbar {
   scrollbar-gutter: stable;
 }
 
-.buzz-content-scrollbar::-webkit-scrollbar {
+.maju-content-scrollbar::-webkit-scrollbar {
   height: 10px;
   width: 10px;
 }
 
-.buzz-content-scrollbar::-webkit-scrollbar-track {
+.maju-content-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -63,7 +63,7 @@
  * indicator element positioned over the gutter, because WebKit does not
  * re-resolve `::-webkit-scrollbar` styles when classes/attributes on the
  * scroller change dynamically. */
-.buzz-content-scrollbar::-webkit-scrollbar-thumb {
+.maju-content-scrollbar::-webkit-scrollbar-thumb {
   background-clip: content-box;
   background-color: transparent;
   border: 3px solid transparent;
@@ -72,7 +72,7 @@
 
 /* Scrollbar-part pseudo-classes are resolved by the scrollbar itself, so
  * these DO update dynamically — keep the thumb visible under the pointer. */
-.buzz-content-scrollbar::-webkit-scrollbar-thumb:hover,
-.buzz-content-scrollbar::-webkit-scrollbar-thumb:active {
+.maju-content-scrollbar::-webkit-scrollbar-thumb:hover,
+.maju-content-scrollbar::-webkit-scrollbar-thumb:active {
   background-color: hsl(var(--border) / 0.9);
 }

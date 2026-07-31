@@ -10,9 +10,9 @@ type ShimmerProps = {
 export function Shimmer({ children, className }: ShimmerProps) {
   return (
     <span
-      className={cn("buzz-shimmer", className)}
+      className={cn("maju-shimmer", className)}
       style={
-        { "--buzz-shimmer-spread": `${children.length * 2}px` } as CSSProperties
+        { "--maju-shimmer-spread": `${children.length * 2}px` } as CSSProperties
       }
     >
       {children}

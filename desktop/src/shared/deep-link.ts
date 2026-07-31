@@ -16,7 +16,7 @@ export interface DeepLinkDeps {
 }
 
 /**
- * Payload emitted by the Rust deep-link handler for `buzz://message?…`.
+ * Payload emitted by the Rust deep-link handler for `maju://message?…`.
  * Field names match the JSON shape produced in `desktop/src-tauri/src/lib.rs`.
  */
 export type MessageDeepLinkPayload = {
@@ -29,9 +29,9 @@ export type NostrBindDeepLinkPayload = {
   challengeId: string;
   nonce: string;
   verificationCode: string;
-  audience: "buzz:nostr-identity";
+  audience: "maju:nostr-identity";
   action: "bind_nostr_identity";
-  protocol: "buzz-nostr-identity";
+  protocol: "maju-nostr-identity";
   version: "1";
   origin: string;
   expiresAt: string;
@@ -40,7 +40,7 @@ export type NostrBindDeepLinkPayload = {
 };
 
 /**
- * Payload emitted by the Rust deep-link handler for `buzz://join?…` —
+ * Payload emitted by the Rust deep-link handler for `maju://join?…` —
  * a relay invite from the web landing page (`/invite/<code>`).
  */
 export type JoinDeepLinkPayload = {
@@ -97,16 +97,16 @@ async function drainPendingCommunityDeepLinks(deps: DeepLinkDeps) {
 /**
  * Register listeners for deep-link events emitted by the Rust backend.
  *
- * When a `buzz://connect?relay=<url>` link is opened, the handler
+ * When a `maju://connect?relay=<url>` link is opened, the handler
  * adds a community for the relay (deduplicating by URL) and switches
  * to it. Returns an unlisten function to tear down all listeners.
  *
- * When a `buzz://join?relay=<url>&code=<invite>` link is opened (relay
+ * When a `maju://join?relay=<url>&code=<invite>` link is opened (relay
  * invite landing page), the handler first claims the invite against the
  * relay's HTTP API — signed by this app's identity key — and only adds and
  * switches to the community once the relay has admitted the key.
  *
- * `buzz://message?…` is handled separately by `listenForMessageDeepLinks`,
+ * `maju://message?…` is handled separately by `listenForMessageDeepLinks`,
  * because it needs to dispatch into the router which only exists below the
  * `RouterProvider` in the component tree.
  */

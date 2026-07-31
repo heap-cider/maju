@@ -6,10 +6,10 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color warning;
   final Color accent;
 
-  /// Gradient for the app's top section, non-null only under the Buzz themes.
+  /// Gradient for the app's top section, non-null only under the Maju themes.
   /// Carried on the theme rather than read from a provider so any surface can
   /// opt in via `context.appColors.topSectionGradient` — see
-  /// `buzzTopSectionGradient`.
+  /// `majuTopSectionGradient`.
   final Gradient? topSectionGradient;
 
   const AppColors({

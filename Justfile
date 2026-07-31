@@ -1,4 +1,4 @@
-# Buzz — development task runner
+# Maju — development task runner
 
 set dotenv-load := true
 
@@ -64,8 +64,8 @@ hooks:
     git config --local core.hooksPath "$HOOKS_DIR"
     lefthook install --force
 
-# Wipe development state and recreate a clean environment. Installed Buzz is preserved.
-[confirm("This will DELETE all development data and preserve installed Buzz. Continue? (y/N)")]
+# Wipe development state and recreate a clean environment. Installed Maju is preserved.
+[confirm("This will DELETE all development data and preserve installed Maju. Continue? (y/N)")]
 reset:
     ./scripts/dev-reset.sh --yes
 
@@ -155,7 +155,7 @@ _ensure-sidecar-stubs:
     set -euo pipefail
     TARGET=$(rustc -vV | sed -n 's|host: ||p')
     mkdir -p desktop/src-tauri/binaries
-    for bin in buzz-acp buzz-agent buzz-dev-mcp git-credential-nostr buzz; do
+    for bin in maju-acp maju-agent maju-dev-mcp git-credential-nostr maju; do
         touch "desktop/src-tauri/binaries/${bin}-${TARGET}"
     done
 
@@ -163,8 +163,8 @@ _ensure-sidecar-stubs:
 _ensure-services:
     #!/usr/bin/env bash
     set -euo pipefail
-    pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-postgres 2>/dev/null || echo "not_found")
-    redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-redis 2>/dev/null || echo "not_found")
+    pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' maju-postgres 2>/dev/null || echo "not_found")
+    redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' maju-redis 2>/dev/null || echo "not_found")
     if [[ "$pg" == "healthy" && "$redis" == "healthy" ]]; then
         echo "Services already healthy"
         exit 0
@@ -173,8 +173,8 @@ _ensure-services:
     docker compose up -d || true
     echo -n "Waiting for services"
     for i in $(seq 1 40); do
-        pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-postgres 2>/dev/null || echo "not_found")
-        redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-redis 2>/dev/null || echo "not_found")
+        pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' maju-postgres 2>/dev/null || echo "not_found")
+        redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' maju-redis 2>/dev/null || echo "not_found")
         if [[ "$pg" == "healthy" && "$redis" == "healthy" ]]; then
             echo " ready"
             exit 0
@@ -187,7 +187,7 @@ _ensure-services:
 
 # Apply database migrations and seed the local dev community if the dev database is running
 _ensure-migrations: _ensure-services
-    cargo run -p buzz-admin -- migrate
+    cargo run -p maju-admin -- migrate
     ./scripts/seed-local-community.sh
 
 # Run clippy on the desktop Tauri Rust crate
@@ -210,19 +210,19 @@ desktop-tauri-test-compiled-flags: _ensure-sidecar-stubs
     set -euo pipefail
     cd desktop/src-tauri
     echo "=== Clean build (no flag) → expect false ==="
-    env -u BUZZ_BUILD_OBSERVER_ARCHIVE_DEFAULT \
-      -u BUZZ_BUILD_AUTO_CONNECT_DEFAULT_RELAY \
-      BUZZ_TEST_EXPECTED_OBSERVER_ARCHIVE_DEFAULT=false \
+    env -u MAJU_BUILD_OBSERVER_ARCHIVE_DEFAULT \
+      -u MAJU_BUILD_AUTO_CONNECT_DEFAULT_RELAY \
+      MAJU_TEST_EXPECTED_OBSERVER_ARCHIVE_DEFAULT=false \
       cargo test observer_archive_default_enabled_matches_expected -- --ignored --nocapture
-    env -u BUZZ_BUILD_AUTO_CONNECT_DEFAULT_RELAY \
-      BUZZ_TEST_EXPECTED_AUTO_CONNECT_DEFAULT_RELAY=false \
+    env -u MAJU_BUILD_AUTO_CONNECT_DEFAULT_RELAY \
+      MAJU_TEST_EXPECTED_AUTO_CONNECT_DEFAULT_RELAY=false \
       cargo test compiled_flag_matches_expected -- --ignored --nocapture
     echo "=== Internal build (flags set) → expect true ==="
-    BUZZ_BUILD_OBSERVER_ARCHIVE_DEFAULT=1 \
-      BUZZ_TEST_EXPECTED_OBSERVER_ARCHIVE_DEFAULT=true \
+    MAJU_BUILD_OBSERVER_ARCHIVE_DEFAULT=1 \
+      MAJU_TEST_EXPECTED_OBSERVER_ARCHIVE_DEFAULT=true \
       cargo test observer_archive_default_enabled_matches_expected -- --ignored --nocapture
-    BUZZ_BUILD_AUTO_CONNECT_DEFAULT_RELAY=1 \
-      BUZZ_TEST_EXPECTED_AUTO_CONNECT_DEFAULT_RELAY=true \
+    MAJU_BUILD_AUTO_CONNECT_DEFAULT_RELAY=1 \
+      MAJU_TEST_EXPECTED_AUTO_CONNECT_DEFAULT_RELAY=true \
       cargo test compiled_flag_matches_expected -- --ignored --nocapture
     echo "Both compiled states verified."
 
@@ -234,11 +234,11 @@ desktop-release-build target="aarch64-apple-darwin":
     set -euo pipefail
     TARGET={{target}}
     mkdir -p desktop/src-tauri/binaries
-    touch "desktop/src-tauri/binaries/buzz-acp-$TARGET"
-    touch "desktop/src-tauri/binaries/buzz-agent-$TARGET"
-    touch "desktop/src-tauri/binaries/buzz-dev-mcp-$TARGET"
+    touch "desktop/src-tauri/binaries/maju-acp-$TARGET"
+    touch "desktop/src-tauri/binaries/maju-agent-$TARGET"
+    touch "desktop/src-tauri/binaries/maju-dev-mcp-$TARGET"
     touch "desktop/src-tauri/binaries/git-credential-nostr-$TARGET"
-    touch "desktop/src-tauri/binaries/buzz-$TARGET"
+    touch "desktop/src-tauri/binaries/maju-$TARGET"
     pnpm install
     cd {{desktop_dir}} && pnpm tauri build --features mesh-llm --target {{target}}
 
@@ -275,22 +275,22 @@ test:
 test-unit:
     #!/usr/bin/env bash
     if command -v cargo-nextest &>/dev/null; then
-        cargo nextest run -p buzz-core -p buzz-auth --lib
-        # buzz-db migrator/lint tests: pure SQL-parsing unit tests (no infra).
+        cargo nextest run -p maju-core -p maju-auth --lib
+        # maju-db migrator/lint tests: pure SQL-parsing unit tests (no infra).
         # They guard the embedded-migrator invariant (exactly the consolidated
         # 0001; cutover/backfill stays an operator script, not startup state)
-        # and the tenant-scoping lints. The Postgres-backed buzz-db tests are
+        # and the tenant-scoping lints. The Postgres-backed maju-db tests are
         # #[ignore]d, so --lib runs only the infra-free set. Without this gate a
         # stray file in migrations/ or a broken lint ships green.
-        cargo nextest run -p buzz-db --lib
-        # Multi-tenant conformance gate (buzz-conformance): the independent
+        cargo nextest run -p maju-db --lib
+        # Multi-tenant conformance gate (maju-conformance): the independent
         # replay checker + golden fixtures. No infra — pure in-process trace
         # replay — so it belongs in the unit job. Run all targets (lib + the
         # tests/replay_fixtures.rs integration test), not just --lib.
-        cargo nextest run -p buzz-conformance
+        cargo nextest run -p maju-conformance
         # Gateway unit and black-box HTTP tests are infra-free. Postgres-backed
         # contract/race tests run in the dedicated CI job below.
-        cargo nextest run -p buzz-push-gateway
+        cargo nextest run -p maju-push-gateway
     else
         ./scripts/run-tests.sh unit
     fi
@@ -299,7 +299,7 @@ test-unit:
 test-integration:
     ./scripts/run-tests.sh integration
 
-# Buzz shared compute e2e: current desktop discovery/admission logic and
+# Maju shared compute e2e: current desktop discovery/admission logic and
 # Playwright UI coverage.
 mesh-e2e:
     cargo test --manifest-path {{desktop_dir}}/src-tauri/Cargo.toml --features mesh-llm mesh_llm --lib
@@ -308,19 +308,19 @@ mesh-e2e:
 # Reset only development state, seed deterministic local channels, and launch
 # the mesh-enabled desktop with the repository's public Tyler test identity.
 # This is for local verification only; never point this identity at staging/prod.
-[confirm("This will reset development data, preserve installed Buzz, then launch a seeded mesh dev app. Continue? (y/N)")]
+[confirm("This will reset development data, preserve installed Maju, then launch a seeded mesh dev app. Continue? (y/N)")]
 mesh-dev-fresh:
     #!/usr/bin/env bash
     set -euo pipefail
     ./scripts/dev-reset.sh --yes
     ./scripts/setup-desktop-test-data.sh
-    export BUZZ_PRIVATE_KEY="3dbaebadb5dfd777ff25149ee230d907a15a9e1294b40b830661e65bb42f6c03"
-    export BUZZ_REQUIRE_RELAY_MEMBERSHIP=true
-    export BUZZ_ALLOW_NIP_OA_AUTH=true
+    export MAJU_PRIVATE_KEY="3dbaebadb5dfd777ff25149ee230d907a15a9e1294b40b830661e65bb42f6c03"
+    export MAJU_REQUIRE_RELAY_MEMBERSHIP=true
+    export MAJU_ALLOW_NIP_OA_AUTH=true
     export RELAY_OWNER_PUBKEY="e5ebc6cdb579be112e336cc319b5989b4bb6af11786ea90dbe52b5f08d741b34"
-    export BUZZ_RELAY_PRIVATE_KEY="0000000000000000000000000000000000000000000000000000000000000001"
-    export BUZZ_RECONCILE_CHANNELS=true
-    export BUZZ_RESET_WEBVIEW_STATE=1
+    export MAJU_RELAY_PRIVATE_KEY="0000000000000000000000000000000000000000000000000000000000000001"
+    export MAJU_RECONCILE_CHANNELS=true
+    export MAJU_RESET_WEBVIEW_STATE=1
     exec just mesh=1 dev
 
 # Real serve->client->inference on this machine (not CI).
@@ -328,25 +328,25 @@ mesh-e2e-hardware:
     #!/usr/bin/env bash
     set -euo pipefail
     export MESH_LLM_NATIVE_RUNTIME_CACHE_DIR="$(./scripts/ensure-mesh-native-runtime.sh)"
-    cargo run -p buzz-relay --example mesh_serve_client_smoke
+    cargo run -p maju-relay --example mesh_serve_client_smoke
 
 # Three isolated node processes: trusted member joins and infers; stranger is rejected.
-# Uses temp homes and explicit mesh owner keystores. Never reads the Buzz Keychain.
+# Uses temp homes and explicit mesh owner keystores. Never reads the Maju Keychain.
 mesh-e2e-admission:
     #!/usr/bin/env bash
     set -euo pipefail
     export MESH_LLM_NATIVE_RUNTIME_CACHE_DIR="$(./scripts/ensure-mesh-native-runtime.sh)"
-    cargo run -p buzz-relay --example mesh_admission_smoke
+    cargo run -p maju-relay --example mesh_admission_smoke
 
 # Full hardware confidence suite: routing, owner admission, and real agent inference.
 mesh-e2e-confidence:
     #!/usr/bin/env bash
     set -euo pipefail
     export MESH_LLM_NATIVE_RUNTIME_CACHE_DIR="$(./scripts/ensure-mesh-native-runtime.sh)"
-    cargo build --release -p buzz-agent -p buzz-dev-mcp
-    cargo run -p buzz-relay --example mesh_serve_client_smoke
-    cargo run -p buzz-relay --example mesh_admission_smoke
-    cargo run -p buzz-relay --example mesh_agent_e2e
+    cargo build --release -p maju-agent -p maju-dev-mcp
+    cargo run -p maju-relay --example mesh_serve_client_smoke
+    cargo run -p maju-relay --example mesh_admission_smoke
+    cargo run -p maju-relay --example mesh_agent_e2e
 
 # Take desktop screenshots using the mock bridge
 desktop-screenshot *ARGS:
@@ -368,7 +368,7 @@ relay: bootstrap _ensure-migrations
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
-    cargo run -p buzz-relay
+    cargo run -p maju-relay
 
 # Start the relay with the built web UI served from it
 relay-web: bootstrap _ensure-migrations
@@ -377,7 +377,7 @@ relay-web: bootstrap _ensure-migrations
     export PATH="{{justfile_directory()}}/bin:$PATH"
     [[ -d node_modules ]] || pnpm install
     pnpm -C web build
-    BUZZ_WEB_DIR=./web/dist cargo run -p buzz-relay
+    MAJU_WEB_DIR=./web/dist cargo run -p maju-relay
 
 # Build and run the private read-only admin dashboard
 admin: bootstrap _ensure-migrations
@@ -386,10 +386,10 @@ admin: bootstrap _ensure-migrations
     export PATH="{{justfile_directory()}}/bin:$PATH"
     [[ -d node_modules ]] || pnpm install
     pnpm -C admin-web build
-    export BUZZ_ADMIN_HOST="${BUZZ_ADMIN_HOST:-admin.localhost:3000}"
-    export BUZZ_ADMIN_WEB_DIR="${BUZZ_ADMIN_WEB_DIR:-{{justfile_directory()}}/admin-web/dist}"
-    echo "Admin dashboard: http://${BUZZ_ADMIN_HOST}/reports"
-    cargo run -p buzz-relay
+    export MAJU_ADMIN_HOST="${MAJU_ADMIN_HOST:-admin.localhost:3000}"
+    export MAJU_ADMIN_WEB_DIR="${MAJU_ADMIN_WEB_DIR:-{{justfile_directory()}}/admin-web/dist}"
+    echo "Admin dashboard: http://${MAJU_ADMIN_HOST}/reports"
+    cargo run -p maju-relay
 
 # Seed deterministic reports and product feedback for local admin dashboard review
 admin-seed: _ensure-migrations
@@ -397,15 +397,15 @@ admin-seed: _ensure-migrations
 
 # Run focused relay and browser checks for the read-only admin dashboard
 admin-check: fmt-check
-    cargo check -p buzz-relay --all-targets
-    cargo test -p buzz-relay api::admin
-    cargo test -p buzz-relay router::tests
+    cargo check -p maju-relay --all-targets
+    cargo test -p maju-relay api::admin
+    cargo test -p maju-relay router::tests
     pnpm -C admin-web check
     pnpm -C admin-web exec playwright test
 
 # Start the relay server in release mode
 relay-release: _ensure-migrations
-    cargo run -p buzz-relay --release
+    cargo run -p maju-relay --release
 
 
 # Run the desktop Tauri app in dev mode with a local relay (ports and identity derived from worktree)
@@ -413,31 +413,31 @@ dev *ARGS: bootstrap _ensure-sidecar-stubs _ensure-migrations
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
-    bind_addr="${BUZZ_BIND_ADDR:-0.0.0.0:3000}"
+    bind_addr="${MAJU_BIND_ADDR:-0.0.0.0:3000}"
     relay_port="${bind_addr##*:}"; [[ -n "$relay_port" ]] || relay_port=3000
-    health_port="${BUZZ_HEALTH_PORT:-8080}"
-    metrics_port="${BUZZ_METRICS_PORT:-9102}"
+    health_port="${MAJU_HEALTH_PORT:-8080}"
+    metrics_port="${MAJU_METRICS_PORT:-9102}"
     if command -v lsof >/dev/null 2>&1; then
         for spec in "relay:$relay_port" "health:$health_port" "metrics:$metrics_port"; do
             name="${spec%%:*}"; port="${spec##*:}"
             if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                 echo "Error: $name port $port is already in use; refusing to launch desktop against a stale relay." >&2
                 lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2 || true
-                echo "Stop the process above (often a stale buzz-relay) and rerun: just dev" >&2
+                echo "Stop the process above (often a stale maju-relay) and rerun: just dev" >&2
                 exit 1
             fi
         done
     fi
-    cargo build -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr -p buzz-relay
+    cargo build -p maju-acp -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr -p maju-relay
     if [[ -n "{{mesh}}" ]]; then
         export MESH_LLM_NATIVE_RUNTIME_CACHE_DIR="$(./scripts/ensure-mesh-native-runtime.sh)"
     fi
     # Docker Desktop's forwarded MinIO port can stall under the deployment
     # probe's 32 concurrent writers. Keep the gate enabled in local dev, using
     # the bounded profile already used by the relay test launcher.
-    export BUZZ_GIT_PROBE_WRITERS="${BUZZ_GIT_PROBE_WRITERS:-8}"
-    export BUZZ_GIT_PROBE_ROUNDS="${BUZZ_GIT_PROBE_ROUNDS:-2}"
-    ./target/debug/buzz-relay &
+    export MAJU_GIT_PROBE_WRITERS="${MAJU_GIT_PROBE_WRITERS:-8}"
+    export MAJU_GIT_PROBE_ROUNDS="${MAJU_GIT_PROBE_ROUNDS:-2}"
+    ./target/debug/maju-relay &
     RELAY_PID=$!
     cleanup() {
         [[ -n "${INSTANCE_ID:-}" ]] && ../scripts/cleanup-instance-agents.sh "$INSTANCE_ID" || true
@@ -447,7 +447,7 @@ dev *ARGS: bootstrap _ensure-sidecar-stubs _ensure-migrations
     relay_ready=false
     for _ in $(seq 1 120); do
         if ! kill -0 "$RELAY_PID" 2>/dev/null; then
-            echo "Error: buzz-relay exited during startup; refusing to launch desktop." >&2
+            echo "Error: maju-relay exited during startup; refusing to launch desktop." >&2
             wait "$RELAY_PID" || true
             exit 1
         fi
@@ -458,16 +458,16 @@ dev *ARGS: bootstrap _ensure-sidecar-stubs _ensure-migrations
         sleep 0.5
     done
     if [[ "$relay_ready" != true ]]; then
-        echo "Error: buzz-relay did not become healthy within 60 seconds; refusing to launch desktop." >&2
+        echo "Error: maju-relay did not become healthy within 60 seconds; refusing to launch desktop." >&2
         exit 1
     fi
     cd {{desktop_dir}}
     [[ -d node_modules ]] || pnpm install
     source ../scripts/instance-env.sh
-    INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.BUZZ_TAURI_CONFIG).identifier)")
-    echo "Starting on Vite port ${BUZZ_VITE_PORT}, relay ${BUZZ_RELAY_URL}"
+    INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.MAJU_TAURI_CONFIG).identifier)")
+    echo "Starting on Vite port ${MAJU_VITE_PORT}, relay ${MAJU_RELAY_URL}"
     FEATURES=(); [[ -n "{{mesh}}" ]] && FEATURES=(--features mesh-llm)
-    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
+    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$MAJU_TAURI_CONFIG" {{ARGS}}
 
 # Run only the desktop app. No relay, database, Docker, migrations, or .env are needed.
 # The app opens normally and asks for a community before making a relay connection.
@@ -475,28 +475,28 @@ desktop-standalone *ARGS: _ensure-sidecar-stubs
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
-    cargo build -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
+    cargo build -p maju-acp -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr
     TARGET=$(rustc -vV | sed -n 's|host: ||p')
     TARGET_DIR=$(cargo metadata --format-version 1 --no-deps | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).target_directory")
-    for bin in buzz-acp buzz-agent buzz-dev-mcp git-credential-nostr buzz; do
+    for bin in maju-acp maju-agent maju-dev-mcp git-credential-nostr maju; do
         cp "${TARGET_DIR}/debug/${bin}" "desktop/src-tauri/binaries/${bin}-${TARGET}"
         chmod +x "desktop/src-tauri/binaries/${bin}-${TARGET}"
     done
     cd {{desktop_dir}}
     [[ -d node_modules ]] || pnpm install
-    unset BUZZ_PRIVATE_KEY BUZZ_SHARE_IDENTITY
+    unset MAJU_PRIVATE_KEY MAJU_SHARE_IDENTITY
     if [[ -n "{{fresh}}" ]]; then
-        export BUZZ_RESET_WEBVIEW_STATE=1
+        export MAJU_RESET_WEBVIEW_STATE=1
     fi
     source ../scripts/instance-env.sh
-    INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.BUZZ_TAURI_CONFIG).identifier)")
-    export BUZZ_DEV_KEYRING_SERVICE="buzz-desktop-dev.${BUZZ_INSTANCE_SLUG:-main}"
+    INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.MAJU_TAURI_CONFIG).identifier)")
+    export MAJU_DEV_KEYRING_SERVICE="maju-desktop-dev.${MAJU_INSTANCE_SLUG:-main}"
     if [[ -n "{{fresh}}" ]]; then
-        ../scripts/reset-desktop-standalone-state.sh "$INSTANCE_ID" "$BUZZ_DEV_KEYRING_SERVICE"
+        ../scripts/reset-desktop-standalone-state.sh "$INSTANCE_ID" "$MAJU_DEV_KEYRING_SERVICE"
     fi
     trap '../scripts/cleanup-instance-agents.sh "$INSTANCE_ID" || true' EXIT
-    echo "Starting standalone desktop on Vite port ${BUZZ_VITE_PORT}; no relay services were started"
-    pnpm exec tauri dev --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
+    echo "Starting standalone desktop on Vite port ${MAJU_VITE_PORT}; no relay services were started"
+    pnpm exec tauri dev --config "$MAJU_TAURI_CONFIG" {{ARGS}}
 
 # Run the desktop app against the internal staging relay (installs deps + builds agent tools automatically)
 staging *ARGS: bootstrap _ensure-sidecar-stubs
@@ -504,7 +504,7 @@ staging *ARGS: bootstrap _ensure-sidecar-stubs
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
     pnpm install  # unconditional: staging must always start with a clean dep tree
-    cargo build --release -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
+    cargo build --release -p maju-acp -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr
     FEATURES=()
     if [[ -n "{{mesh}}" ]]; then
         FEATURES=(--features mesh-llm)
@@ -513,17 +513,17 @@ staging *ARGS: bootstrap _ensure-sidecar-stubs
     # Replace the 0-byte sidecar stub with the real CLI binary so tauri dev picks it up.
     TARGET=$(rustc -vV | sed -n 's|host: ||p')
     TARGET_DIR=$(cargo metadata --format-version 1 --no-deps | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).target_directory")
-    cp "${TARGET_DIR}/release/buzz" "desktop/src-tauri/binaries/buzz-${TARGET}"
-    chmod +x "desktop/src-tauri/binaries/buzz-${TARGET}"
+    cp "${TARGET_DIR}/release/maju" "desktop/src-tauri/binaries/maju-${TARGET}"
+    chmod +x "desktop/src-tauri/binaries/maju-${TARGET}"
     cd {{desktop_dir}}
-    export BUZZ_RELAY_URL="wss://sprout-oss.stage.blox.sqprod.co"
+    export MAJU_RELAY_URL="wss://sprout-oss.stage.blox.sqprod.co"
     source ../scripts/instance-env.sh
     # Ctrl+C kills the Tauri app before its in-process sweep finishes, leaking
     # agent workers. Reap this instance's agents on exit as a backstop.
-    INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.BUZZ_TAURI_CONFIG).identifier)")
+    INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.MAJU_TAURI_CONFIG).identifier)")
     trap '../scripts/cleanup-instance-agents.sh "$INSTANCE_ID" || true' EXIT
-    echo "Starting staging on Vite port ${BUZZ_VITE_PORT}, relay ${BUZZ_RELAY_URL}"
-    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
+    echo "Starting staging on Vite port ${MAJU_VITE_PORT}, relay ${MAJU_RELAY_URL}"
+    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$MAJU_TAURI_CONFIG" {{ARGS}}
 
 # Run the desktop app against the production relay (installs deps + builds agent tools automatically)
 production *ARGS: bootstrap _ensure-sidecar-stubs
@@ -531,7 +531,7 @@ production *ARGS: bootstrap _ensure-sidecar-stubs
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
     pnpm install  # unconditional: production must always start with a clean dep tree
-    cargo build --release -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
+    cargo build --release -p maju-acp -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr
     FEATURES=()
     if [[ -n "{{mesh}}" ]]; then
         FEATURES=(--features mesh-llm)
@@ -540,17 +540,17 @@ production *ARGS: bootstrap _ensure-sidecar-stubs
     # Replace the 0-byte sidecar stub with the real CLI binary so tauri dev picks it up.
     TARGET=$(rustc -vV | sed -n 's|host: ||p')
     TARGET_DIR=$(cargo metadata --format-version 1 --no-deps | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).target_directory")
-    cp "${TARGET_DIR}/release/buzz" "desktop/src-tauri/binaries/buzz-${TARGET}"
-    chmod +x "desktop/src-tauri/binaries/buzz-${TARGET}"
+    cp "${TARGET_DIR}/release/maju" "desktop/src-tauri/binaries/maju-${TARGET}"
+    chmod +x "desktop/src-tauri/binaries/maju-${TARGET}"
     cd {{desktop_dir}}
-    export BUZZ_RELAY_URL="wss://buzz.block.builderlab.xyz"
+    export MAJU_RELAY_URL="wss://maju.block.builderlab.xyz"
     source ../scripts/instance-env.sh
     # Ctrl+C kills the Tauri app before its in-process sweep finishes, leaking
     # agent workers. Reap this instance's agents on exit as a backstop.
-    INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.BUZZ_TAURI_CONFIG).identifier)")
+    INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.MAJU_TAURI_CONFIG).identifier)")
     trap '../scripts/cleanup-instance-agents.sh "$INSTANCE_ID" || true' EXIT
-    echo "Starting production on Vite port ${BUZZ_VITE_PORT}, relay ${BUZZ_RELAY_URL}"
-    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
+    echo "Starting production on Vite port ${MAJU_VITE_PORT}, relay ${MAJU_RELAY_URL}"
+    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$MAJU_TAURI_CONFIG" {{ARGS}}
 
 # Run the desktop frontend dev server (port derived from worktree)
 desktop-dev:
@@ -559,8 +559,8 @@ desktop-dev:
     cd {{desktop_dir}}
     [[ -d node_modules ]] || pnpm install
     source ../scripts/instance-env.sh
-    echo "Starting frontend dev server on Vite port ${BUZZ_VITE_PORT}, relay ${BUZZ_RELAY_URL}"
-    pnpm exec vite --port "${BUZZ_VITE_PORT}" --strictPort
+    echo "Starting frontend dev server on Vite port ${MAJU_VITE_PORT}, relay ${MAJU_RELAY_URL}"
+    pnpm exec vite --port "${MAJU_VITE_PORT}" --strictPort
 
 # ─── Web ─────────────────────────────────────────────────────────────────────
 
@@ -570,9 +570,9 @@ web:
     set -euo pipefail
     [[ -d node_modules ]] || pnpm install
     source scripts/instance-env.sh
-    export VITE_PORT=$((BUZZ_VITE_PORT + 100))
-    export VITE_RELAY_URL="${BUZZ_RELAY_URL}"
-    echo "Starting web dev server on port ${VITE_PORT}, relay ${BUZZ_RELAY_URL}"
+    export VITE_PORT=$((MAJU_VITE_PORT + 100))
+    export VITE_RELAY_URL="${MAJU_RELAY_URL}"
+    echo "Starting web dev server on port ${VITE_PORT}, relay ${MAJU_RELAY_URL}"
     cd {{web_dir}}
     pnpm exec vite --port "${VITE_PORT}" --strictPort
 
@@ -638,7 +638,7 @@ mobile-dev:
     unset GIT_DIR GIT_WORK_TREE
     flutter run
 
-# Uninstall stale worktree-suffixed Buzz debug installs (production apps kept)
+# Uninstall stale worktree-suffixed Maju debug installs (production apps kept)
 mobile-clean:
     ./scripts/mobile-worktree-clean.sh
 
@@ -666,7 +666,7 @@ get-current-version:
 
 # Read the current relay version from its crate manifest
 get-current-relay-version:
-    @grep -m1 '^version = ' crates/buzz-relay/Cargo.toml | sed -E 's/version = "(.*)"/\1/'
+    @grep -m1 '^version = ' crates/maju-relay/Cargo.toml | sed -E 's/version = "(.*)"/\1/'
 
 # Compute next minor version (e.g., 0.3.0 → 0.4.0)
 get-next-minor-version:
@@ -706,18 +706,18 @@ bump-desktop-version version:
     "
     # Regenerate lockfiles
     pnpm install --lockfile-only
-    cargo update -p buzz-desktop --manifest-path desktop/src-tauri/Cargo.toml
+    cargo update -p maju-desktop --manifest-path desktop/src-tauri/Cargo.toml
     echo "Bumped desktop manifests to {{ version }} and regenerated lockfiles"
 
 # Bump the relay crate version and regenerate the lockfile
 bump-relay-version version:
     #!/usr/bin/env bash
     set -euo pipefail
-    # buzz-relay carries its own `version =` (not version.workspace), so the
+    # maju-relay carries its own `version =` (not version.workspace), so the
     # replace targets the package version line only.
-    perl -i -pe 's/^version = ".*"/version = "{{ version }}"/' crates/buzz-relay/Cargo.toml
-    cargo update -p buzz-relay
-    echo "Bumped buzz-relay to {{ version }} and regenerated Cargo.lock"
+    perl -i -pe 's/^version = ".*"/version = "{{ version }}"/' crates/maju-relay/Cargo.toml
+    cargo update -p maju-relay
+    echo "Bumped maju-relay to {{ version }} and regenerated Cargo.lock"
 
 # Open or update the desktop release PR (signed desktop app)
 release-desktop *ARGS:
@@ -731,7 +731,7 @@ release-desktop *ARGS:
     fi
     just _release-pr desktop "$VERSION"
 
-# Open or update the relay release PR (ghcr.io/block/buzz image)
+# Open or update the relay release PR (ghcr.io/heap-cider/maju image)
 release-relay *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -763,18 +763,18 @@ _release-pr lane version:
             TAG_PREFIX="v"
             CHANGELOG="CHANGELOG.md"
             ADD_FILES=(desktop/package.json desktop/src-tauri/tauri.conf.json desktop/src-tauri/Cargo.toml desktop/src-tauri/Cargo.lock pnpm-lock.yaml CHANGELOG.md)
-            LOG_PATHS=(desktop/ crates/buzz-core/ crates/buzz-persona/ crates/buzz-sdk/ crates/buzz-agent/)
-            ARTIFACT="Buzz Desktop" ;;
+            LOG_PATHS=(desktop/ crates/maju-core/ crates/maju-persona/ crates/maju-sdk/ crates/maju-agent/)
+            ARTIFACT="Maju Desktop" ;;
         relay)
             BRANCH_PREFIX="relay-release"
             TAG_FETCH='relay-v*'
             TAG_MATCH='relay-v[0-9]*'
             TAG_EXCLUDE='relay-v*-*'
             TAG_PREFIX="relay-v"
-            CHANGELOG="crates/buzz-relay/CHANGELOG.md"
-            ADD_FILES=(crates/buzz-relay/Cargo.toml Cargo.lock crates/buzz-relay/CHANGELOG.md)
-            LOG_PATHS=(crates/buzz-relay/ crates/buzz-core/ crates/buzz-db/ crates/buzz-auth/ crates/buzz-pubsub/ crates/buzz-search/ crates/buzz-audit/ crates/buzz-media/ crates/buzz-sdk/ crates/buzz-workflow/ crates/buzz-conformance/ migrations/)
-            ARTIFACT="Buzz Relay" ;;
+            CHANGELOG="crates/maju-relay/CHANGELOG.md"
+            ADD_FILES=(crates/maju-relay/Cargo.toml Cargo.lock crates/maju-relay/CHANGELOG.md)
+            LOG_PATHS=(crates/maju-relay/ crates/maju-core/ crates/maju-db/ crates/maju-auth/ crates/maju-pubsub/ crates/maju-search/ crates/maju-audit/ crates/maju-media/ crates/maju-sdk/ crates/maju-workflow/ crates/maju-conformance/ migrations/)
+            ARTIFACT="Maju Relay" ;;
         *)
             echo "Error: unknown release lane '{{ lane }}'"
             exit 1 ;;
@@ -896,33 +896,33 @@ _release-pr lane version:
 
 # ─── Agent Harness ────────────────────────────────────────────────────────────
 
-# Run a goose agent connected to a Buzz relay (foreground)
-goose relay="ws://localhost:3000" agents="1" heartbeat="0" prompt="" key="$BUZZ_PRIVATE_KEY":
+# Run a goose agent connected to a Maju relay (foreground)
+goose relay="ws://localhost:3000" agents="1" heartbeat="0" prompt="" key="$MAJU_PRIVATE_KEY":
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
     source ./scripts/_goose-env.sh "{{relay}}" "{{key}}" "{{agents}}" "{{heartbeat}}" "{{prompt}}"
-    exec env "${env_args[@]}" ./target/release/buzz-acp
+    exec env "${env_args[@]}" ./target/release/maju-acp
 
 # Run a goose agent in the background (screen session named 'goose-agent-N')
-goose-bg relay="ws://localhost:3000" agents="1" heartbeat="0" prompt="" key="$BUZZ_PRIVATE_KEY":
+goose-bg relay="ws://localhost:3000" agents="1" heartbeat="0" prompt="" key="$MAJU_PRIVATE_KEY":
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
     source ./scripts/_goose-env.sh "{{relay}}" "{{key}}" "{{agents}}" "{{heartbeat}}" "{{prompt}}"
-    screen -dmS goose-agent-{{agents}} bash -c "$(printf '%q ' env "${env_args[@]}") ./target/release/buzz-acp"
+    screen -dmS goose-agent-{{agents}} bash -c "$(printf '%q ' env "${env_args[@]}") ./target/release/maju-acp"
     echo "Agent running in screen session 'goose-agent-{{agents}}'. Attach with: screen -r goose-agent-{{agents}}"
 
 # ─── Benchmarking ─────────────────────────────────────────────────────────────
 
-# Run the Buzz orchestra benchmark — leaderboard-eligible by default (TB 2.1, k=5, Sonnet+Haiku). Stands up its own Docker stack; --gui opens a live spectator desktop app; other flags pass to benchmark.py (--dataset/--path, --include-task, --attempts, --manifest, --dry-run, ...)
+# Run the Maju orchestra benchmark — leaderboard-eligible by default (TB 2.1, k=5, Sonnet+Haiku). Stands up its own Docker stack; --gui opens a live spectator desktop app; other flags pass to benchmark.py (--dataset/--path, --include-task, --attempts, --manifest, --dry-run, ...)
 benchmark *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
-    uv run --project benchmarks/harbor-buzz-orchestra/testbed \
-        benchmarks/harbor-buzz-orchestra/scripts/benchmark.py {{ARGS}}
+    uv run --project benchmarks/harbor-maju-orchestra/testbed \
+        benchmarks/harbor-maju-orchestra/scripts/benchmark.py {{ARGS}}
 
 # Stop the benchmark Docker stack (state and channels are kept)
 benchmark-down:
-    docker compose --project-name buzz-benchmark down
+    docker compose --project-name maju-benchmark down

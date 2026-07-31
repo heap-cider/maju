@@ -460,18 +460,18 @@ test("inheritedRows_masked_secret_local_override_shows_masked_build_value", () =
 });
 
 test("inheritedRows_structured_keys_excluded_from_generic_rows", () => {
-  // BUZZ_AGENT_PROVIDER, BUZZ_AGENT_MODEL, BUZZ_AGENT_THINKING_EFFORT must
+  // MAJU_AGENT_PROVIDER, MAJU_AGENT_MODEL, MAJU_AGENT_THINKING_EFFORT must
   // be excluded from bakedGenericRows (they go to structured fields instead).
   // This mirrors the BAKED_STRUCTURED_KEYS filter in AgentDefaultsSettingsCard.
   const STRUCTURED = new Set([
-    "BUZZ_AGENT_PROVIDER",
-    "BUZZ_AGENT_MODEL",
-    "BUZZ_AGENT_THINKING_EFFORT",
+    "MAJU_AGENT_PROVIDER",
+    "MAJU_AGENT_MODEL",
+    "MAJU_AGENT_THINKING_EFFORT",
   ]);
   const allBaked = [
-    { key: "BUZZ_AGENT_PROVIDER", value: "databricks_v2", masked: false },
-    { key: "BUZZ_AGENT_MODEL", value: "goose-claude-opus-4-8", masked: false },
-    { key: "BUZZ_AGENT_THINKING_EFFORT", value: "medium", masked: false },
+    { key: "MAJU_AGENT_PROVIDER", value: "databricks_v2", masked: false },
+    { key: "MAJU_AGENT_MODEL", value: "goose-claude-opus-4-8", masked: false },
+    { key: "MAJU_AGENT_THINKING_EFFORT", value: "medium", masked: false },
     {
       key: "DATABRICKS_HOST",
       value: "https://example.databricks.com/",

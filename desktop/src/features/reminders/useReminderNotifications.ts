@@ -22,7 +22,7 @@ import {
   resolveSlotSound,
 } from "@/features/notifications/lib/sound";
 
-const WATERMARK_STORAGE_PREFIX = "buzz:lastReminderCheck:";
+const WATERMARK_STORAGE_PREFIX = "maju:lastReminderCheck:";
 const POLL_INTERVAL_MS = 30_000;
 
 function watermarkStorageKey(pubkey: string): string {

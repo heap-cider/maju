@@ -14,8 +14,8 @@ fn dispatch() -> Result<(), String> {
         .to_ascii_lowercase();
 
     match cmd.as_str() {
-        "buzz-acp" => buzz_acp::run().map_err(|e| e.to_string()),
-        "buzz-agent" => buzz_agent::run().map_err(|e| e.to_string()),
+        "maju-acp" => maju_acp::run().map_err(|e| e.to_string()),
+        "maju-agent" => maju_agent::run().map_err(|e| e.to_string()),
         "sprig" => match std::env::args().nth(1).as_deref() {
             Some("-V") | Some("--version") => {
                 println!("sprig {}", env!("CARGO_PKG_VERSION"));
@@ -36,18 +36,18 @@ fn dispatch() -> Result<(), String> {
                 ))
             }
         },
-        // buzz-dev-mcp also handles its own multicall names: rg, tree,
-        // buzz, git-credential-nostr, and git-sign-nostr.
-        _ => buzz_dev_mcp::run().map_err(|e| e.to_string()),
+        // maju-dev-mcp also handles its own multicall names: rg, tree,
+        // maju, git-credential-nostr, and git-sign-nostr.
+        _ => maju_dev_mcp::run().map_err(|e| e.to_string()),
     }
 }
 
 fn print_usage() {
     println!(
-        "Sprig — all-in-one Buzz ACP harness, agent, and developer MCP\n\n\
+        "Sprig — all-in-one Maju ACP harness, agent, and developer MCP\n\n\
 Sprig is a multicall binary. Invoke it through one of the personality names:\n\n\
-  buzz-acp       ACP harness\n  buzz-agent     ACP-compliant agent\n  buzz-dev-mcp   Developer MCP server\n\n\
-Developer MCP helper names are also supported: rg, tree, buzz, git-credential-nostr, git-sign-nostr.\n\n\
-Installers can create links with:\n  ln -s sprig buzz-acp\n  ln -s sprig buzz-agent\n  ln -s sprig buzz-dev-mcp"
+  maju-acp       ACP harness\n  maju-agent     ACP-compliant agent\n  maju-dev-mcp   Developer MCP server\n\n\
+Developer MCP helper names are also supported: rg, tree, maju, git-credential-nostr, git-sign-nostr.\n\n\
+Installers can create links with:\n  ln -s sprig maju-acp\n  ln -s sprig maju-agent\n  ln -s sprig maju-dev-mcp"
     );
 }

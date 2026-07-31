@@ -16,7 +16,7 @@ fn bare_agent_record(
         auth_tag: None,
         relay_url: "ws://localhost:3000".to_string(),
         avatar_url: None,
-        acp_command: "buzz-acp".to_string(),
+        acp_command: "maju-acp".to_string(),
         agent_command: "goose".to_string(),
         agent_command_override: None,
         agent_args: vec![],
@@ -229,7 +229,7 @@ fn normalize_relay_mesh_rejects_empty_model_ref() {
 
     assert_eq!(
         normalize_relay_mesh(Some(&config), &BackendKind::Local).unwrap_err(),
-        "Buzz shared compute model is required"
+        "Maju shared compute model is required"
     );
 }
 
@@ -245,7 +245,7 @@ fn normalize_relay_mesh_rejects_non_local_backend() {
 
     assert_eq!(
         normalize_relay_mesh(Some(&config), &backend).unwrap_err(),
-        "Buzz shared compute agents must use the local backend"
+        "Maju shared compute agents must use the local backend"
     );
 }
 
@@ -410,7 +410,7 @@ fn deploy_payload_carries_the_full_behavioral_quad() {
             "name": "test-agent",
             "private_key_nsec": "nsec1fake",
             "relay_url": "wss://localhost:3000",
-            "acp_command": "buzz-acp",
+            "acp_command": "maju-acp",
             "agent_command": "goose",
             "agent_args": [],
             "mcp_command": "",

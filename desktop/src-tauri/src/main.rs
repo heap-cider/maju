@@ -7,10 +7,10 @@ fn main() {
     // single threaded and no GTK object exists yet, which is what makes
     // `std::env::set_var` sound.
     #[cfg(target_os = "linux")]
-    if let Err(diagnostic) = buzz_lib::webkit_rendering::apply() {
-        eprintln!("buzz-desktop: {diagnostic}");
+    if let Err(diagnostic) = maju_lib::webkit_rendering::apply() {
+        eprintln!("maju-desktop: {diagnostic}");
         std::process::exit(1);
     }
 
-    buzz_lib::run()
+    maju_lib::run()
 }

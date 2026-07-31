@@ -75,7 +75,7 @@ pub(crate) fn profile_valid_oa_owner_pubkey(event: &Event) -> Option<String> {
         let Ok(json) = serde_json::to_string(slice) else {
             continue;
         };
-        if let Ok(owner_pubkey) = buzz_sdk_pkg::nip_oa::verify_auth_tag(&json, &target_pubkey) {
+        if let Ok(owner_pubkey) = maju_sdk_pkg::nip_oa::verify_auth_tag(&json, &target_pubkey) {
             return Some(owner_pubkey.to_hex());
         }
     }
@@ -600,7 +600,7 @@ mod tests {
         let agent_keys = Keys::generate();
         let owner_keys = Keys::generate();
         let agent_pubkey = agent_keys.public_key();
-        let tag_json = buzz_sdk_pkg::nip_oa::compute_auth_tag(&owner_keys, &agent_pubkey, "")
+        let tag_json = maju_sdk_pkg::nip_oa::compute_auth_tag(&owner_keys, &agent_pubkey, "")
             .expect("compute auth tag");
         let tag_values: Vec<String> = serde_json::from_str(&tag_json).expect("parse auth tag json");
         let auth_tag = Tag::parse(tag_values).expect("parse auth tag");

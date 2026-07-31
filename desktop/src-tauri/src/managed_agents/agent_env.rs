@@ -1,7 +1,7 @@
 //! Build-time agent env passthrough.
 //!
-//! Internal builds (buzz-releases) bake arbitrary `KEY=VALUE` pairs into the
-//! binary via `BUZZ_BUILD_AGENT_ENV` (base64-encoded, newline-delimited).
+//! Internal builds (maju-releases) bake arbitrary `KEY=VALUE` pairs into the
+//! binary via `MAJU_BUILD_AGENT_ENV` (base64-encoded, newline-delimited).
 //! OSS builds leave the compile-time var unset — nothing is injected.
 
 use std::collections::BTreeMap;
@@ -10,7 +10,7 @@ use base64::Engine as _;
 
 /// Return the baked-in build-time env pairs as a map.
 ///
-/// Internal builds (buzz-releases) bake provider/model defaults and arbitrary
+/// Internal builds (maju-releases) bake provider/model defaults and arbitrary
 /// `KEY=VALUE` pairs into the binary at compile time. This function returns
 /// those pairs as an owned map so callers can fold them into an in-process env
 /// at the **lowest** precedence layer — user/persona values layered on top
@@ -21,9 +21,9 @@ use base64::Engine as _;
 /// map — a safe no-op.
 pub(crate) fn baked_build_env() -> BTreeMap<String, String> {
     build_env_map(
-        option_env!("BUZZ_DESKTOP_BUILD_BUZZ_AGENT_PROVIDER"),
-        option_env!("BUZZ_DESKTOP_BUILD_BUZZ_AGENT_MODEL"),
-        option_env!("BUZZ_DESKTOP_BUILD_AGENT_ENV"),
+        option_env!("MAJU_DESKTOP_BUILD_MAJU_AGENT_PROVIDER"),
+        option_env!("MAJU_DESKTOP_BUILD_MAJU_AGENT_MODEL"),
+        option_env!("MAJU_DESKTOP_BUILD_AGENT_ENV"),
     )
 }
 
@@ -39,12 +39,12 @@ fn build_env_map(
     let mut map = BTreeMap::new();
     if let Some(provider) = raw_provider {
         if !provider.is_empty() {
-            map.insert("BUZZ_AGENT_PROVIDER".to_string(), provider.to_string());
+            map.insert("MAJU_AGENT_PROVIDER".to_string(), provider.to_string());
         }
     }
     if let Some(model) = raw_model {
         if !model.is_empty() {
-            map.insert("BUZZ_AGENT_MODEL".to_string(), model.to_string());
+            map.insert("MAJU_AGENT_MODEL".to_string(), model.to_string());
         }
     }
     if let Some(raw) = raw_agent_env {
@@ -78,7 +78,7 @@ pub(crate) fn discovery_env_with_baked_floor(
 /// Call this BEFORE writing record/persona metadata env vars so that the
 /// record's explicit choices (written after) override the baked defaults.
 /// User-supplied `record.env_vars` (written last) always win.
-pub(crate) fn build_buzz_agent_provider_defaults(cmd: &mut std::process::Command) {
+pub(crate) fn build_maju_agent_provider_defaults(cmd: &mut std::process::Command) {
     for (key, value) in baked_build_env() {
         cmd.env(key, value);
     }
@@ -108,26 +108,26 @@ pub(crate) fn parse_agent_env_lines(raw: &str) -> Vec<(&str, &str)> {
 #[cfg(test)]
 mod tests {
     use super::{
-        baked_build_env, build_buzz_agent_provider_defaults, build_env_map,
+        baked_build_env, build_env_map, build_maju_agent_provider_defaults,
         discovery_env_with_baked_floor, parse_agent_env_lines,
     };
 
     #[test]
-    fn buzz_agent_provider_defaults_empty_in_oss_build() {
-        // OSS (and normal test) builds set neither BUZZ_BUILD_BUZZ_AGENT_*,
-        // so nothing is baked in and no BUZZ_AGENT_* is injected on spawn.
+    fn maju_agent_provider_defaults_empty_in_oss_build() {
+        // OSS (and normal test) builds set neither MAJU_BUILD_MAJU_AGENT_*,
+        // so nothing is baked in and no MAJU_AGENT_* is injected on spawn.
         let mut cmd = std::process::Command::new("env");
         cmd.env_clear();
-        build_buzz_agent_provider_defaults(&mut cmd);
+        build_maju_agent_provider_defaults(&mut cmd);
         let output = cmd.output().expect("env should run");
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-            !stdout.contains("BUZZ_AGENT_PROVIDER="),
-            "BUZZ_AGENT_PROVIDER should not be injected in OSS builds"
+            !stdout.contains("MAJU_AGENT_PROVIDER="),
+            "MAJU_AGENT_PROVIDER should not be injected in OSS builds"
         );
         assert!(
-            !stdout.contains("BUZZ_AGENT_MODEL="),
-            "BUZZ_AGENT_MODEL should not be injected in OSS builds"
+            !stdout.contains("MAJU_AGENT_MODEL="),
+            "MAJU_AGENT_MODEL should not be injected in OSS builds"
         );
         assert!(
             !stdout.contains("DATABRICKS_HOST="),
@@ -217,7 +217,7 @@ mod tests {
 
     // ── baked defaults ordering regression ───────────────────────────────
     //
-    // `build_buzz_agent_provider_defaults` must run BEFORE
+    // `build_maju_agent_provider_defaults` must run BEFORE
     // `runtime_metadata_env_vars` writes the record's provider/model so that
     // record values win (last-write-wins). This test simulates the ordering by
     // writing the baked default first, then overwriting with the record value.
@@ -226,17 +226,17 @@ mod tests {
         let mut cmd = std::process::Command::new("env");
         cmd.env_clear();
         // Simulate what an internal build's baked defaults would inject.
-        cmd.env("BUZZ_AGENT_PROVIDER", "databricks");
+        cmd.env("MAJU_AGENT_PROVIDER", "databricks");
         // Simulate what runtime_metadata_env_vars writes from the record (comes after).
-        cmd.env("BUZZ_AGENT_PROVIDER", "anthropic");
+        cmd.env("MAJU_AGENT_PROVIDER", "anthropic");
         let output = cmd.output().expect("env should run");
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-            stdout.contains("BUZZ_AGENT_PROVIDER=anthropic"),
+            stdout.contains("MAJU_AGENT_PROVIDER=anthropic"),
             "record provider must win over baked default (last-write-wins)"
         );
         assert!(
-            !stdout.contains("BUZZ_AGENT_PROVIDER=databricks"),
+            !stdout.contains("MAJU_AGENT_PROVIDER=databricks"),
             "baked default must not survive when record provider is written after"
         );
     }
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn baked_build_env_is_empty_in_oss_build() {
-        // In OSS/test builds none of the BUZZ_DESKTOP_BUILD_* compile-time vars
+        // In OSS/test builds none of the MAJU_DESKTOP_BUILD_* compile-time vars
         // are set, so baked_build_env() must return an empty map — no
         // accidental injection onto in-process discovery.
         assert!(
@@ -263,11 +263,11 @@ mod tests {
     fn build_env_map_provider_and_model_are_mapped() {
         let map = build_env_map(Some("databricks"), Some("my-model"), None);
         assert_eq!(
-            map.get("BUZZ_AGENT_PROVIDER").map(String::as_str),
+            map.get("MAJU_AGENT_PROVIDER").map(String::as_str),
             Some("databricks")
         );
         assert_eq!(
-            map.get("BUZZ_AGENT_MODEL").map(String::as_str),
+            map.get("MAJU_AGENT_MODEL").map(String::as_str),
             Some("my-model")
         );
     }
@@ -276,11 +276,11 @@ mod tests {
     fn build_env_map_empty_provider_is_skipped() {
         let map = build_env_map(Some(""), Some("my-model"), None);
         assert!(
-            !map.contains_key("BUZZ_AGENT_PROVIDER"),
+            !map.contains_key("MAJU_AGENT_PROVIDER"),
             "empty provider must be skipped"
         );
         assert_eq!(
-            map.get("BUZZ_AGENT_MODEL").map(String::as_str),
+            map.get("MAJU_AGENT_MODEL").map(String::as_str),
             Some("my-model")
         );
     }

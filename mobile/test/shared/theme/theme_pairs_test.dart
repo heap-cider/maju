@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:buzz/shared/theme/theme.dart';
+import 'package:maju/shared/theme/theme.dart';
 
 void main() {
   group('themePairs', () {
@@ -151,8 +151,8 @@ void main() {
 
       expect(resolved.forcedMode, ThemeMode.dark);
       expect(resolved.dark.brightness, Brightness.dark);
-      expect(resolved.darkTheme?.name, buzzDarkThemeName);
-      expect(resolved.dark, generateColorScheme(findTheme(buzzDarkThemeName)!));
+      expect(resolved.darkTheme?.name, majuDarkThemeName);
+      expect(resolved.dark, generateColorScheme(findTheme(majuDarkThemeName)!));
     });
 
     test('light mode falls back to the default pair when pick is unpaired', () {
@@ -160,8 +160,8 @@ void main() {
 
       expect(resolved.forcedMode, ThemeMode.light);
       expect(resolved.light.brightness, Brightness.light);
-      expect(resolved.lightTheme?.name, buzzThemeName);
-      expect(resolved.light, generateColorScheme(findTheme(buzzThemeName)!));
+      expect(resolved.lightTheme?.name, majuThemeName);
+      expect(resolved.light, generateColorScheme(findTheme(majuThemeName)!));
     });
 
     test('an unknown scheme name falls back to the default theme', () {
