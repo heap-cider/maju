@@ -1,3 +1,25 @@
+# Maju Fork Policy
+
+- Maju is an unofficial fork of [`block/buzz`](https://github.com/block/buzz).
+- `origin` (`heap-cider/maju`) is the writable primary repository. `upstream`
+  (`block/buzz`) is read-only and must never receive pushes, issues, or pull
+  requests from Maju work.
+- Maju is currently synchronized through Buzz release `v0.5.2`.
+- Do not merge, rebase, or cherry-pick an upstream release directly into Maju.
+  Use the project-local `sync-buzz-upstream` skill to inspect and normalize the
+  upstream release delta first.
+- Compare upstream changes after translating Buzz names and paths to their Maju
+  equivalents. Classify results as safe to apply, conflicting, intentionally
+  excluded, or requiring user judgment.
+- Analysis and dry runs must not modify the worktree. Apply only the changes the
+  user approves, then run the relevant quality gates before updating the last
+  synchronized Buzz version above.
+- Do not propose sending general fixes back to Buzz. If Maju fixed something
+  first and Buzz later resolves it at the source, explain the difference and
+  obtain the user's agreement before replacing Maju's direction or code.
+
+---
+
 # AGENTS.md — AI Agent Contributor Guide
 
 This guide is for AI agents contributing to the Maju codebase. It covers

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sync Buzz Upstream"
+  short_description: "Compare Buzz releases safely against Maju"
+  default_prompt: "Use $sync-buzz-upstream to compare a Buzz release with Maju and report conflicts before applying changes."
