@@ -84,6 +84,12 @@ run_unit_tests() {
   run_test_step "maju-auth unit tests" \
     cargo test -p maju-auth --lib -- --nocapture
 
+  run_test_step "maju-voice tests" \
+    cargo test -p maju-voice --lib -- --nocapture
+
+  run_test_step "maju-cli tests" \
+    cargo test -p maju-cli -- --nocapture
+
   # maju-db migrator/lint unit tests (no infra): guard the embedded-migrator
   # invariant (exactly the consolidated 0001; cutover/backfill stays an operator
   # script, not startup state) and the tenant-scoping lints. The Postgres-backed

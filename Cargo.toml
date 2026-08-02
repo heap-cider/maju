@@ -26,6 +26,7 @@ members = [
     "crates/maju-pair-relay",
     "crates/maju-relay-mesh",
     "crates/maju-dev-mcp",
+    "crates/maju-voice",
     "examples/countdown-bot",
 ]
 exclude = ["desktop/src-tauri"]

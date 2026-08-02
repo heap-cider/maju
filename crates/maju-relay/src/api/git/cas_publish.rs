@@ -1583,22 +1583,15 @@ mod tests {
     }
 
     fn live_store() -> GitStore {
-        let endpoint = std::env::var("MAJU_GIT_S3_ENDPOINT")
-            .or_else(|_| std::env::var("MAJU_S3_ENDPOINT"))
-            .unwrap_or_else(|_| "http://localhost:9000".into());
-        let access_key = std::env::var("MAJU_GIT_S3_ACCESS_KEY")
-            .or_else(|_| std::env::var("MAJU_S3_ACCESS_KEY"))
-            .unwrap_or_else(|_| "maju_dev".into());
-        let secret_key = std::env::var("MAJU_GIT_S3_SECRET_KEY")
-            .or_else(|_| std::env::var("MAJU_S3_SECRET_KEY"))
-            .unwrap_or_else(|_| "maju_dev_secret".into());
-        let bucket = std::env::var("MAJU_GIT_S3_BUCKET")
-            .or_else(|_| std::env::var("MAJU_S3_BUCKET"))
-            .unwrap_or_else(|_| "maju-media".into());
-        let region = std::env::var("MAJU_GIT_S3_REGION")
-            .or_else(|_| std::env::var("MAJU_S3_REGION"))
-            .unwrap_or_else(|_| "us-east-1".into());
-        GitStore::new(&endpoint, &access_key, &secret_key, &bucket, &region).expect("connect minio")
+        GitStore::new(
+            "http://localhost:9000",
+            "maju_dev",
+            "maju_dev_secret",
+            "maju-media",
+            "us-east-1",
+            maju_media::config::S3AddressingStyle::Path,
+        )
+        .expect("connect local MinIO")
     }
 
     fn tenant() -> TenantContext {

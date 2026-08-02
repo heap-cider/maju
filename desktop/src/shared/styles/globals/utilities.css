@@ -75,6 +75,15 @@
     );
   }
 
+  .maju-huddle-drawer .maju-huddle-control-button[aria-pressed="true"] {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .maju-huddle-drawer .maju-huddle-control-button[aria-pressed="true"]:hover {
+    background: hsl(var(--primary) / 90%);
+  }
+
   .maju-huddle-drawer .maju-huddle-split-chevron {
     background: hsl(var(--huddle-control-chevron-surface, var(--secondary)));
   }

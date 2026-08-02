@@ -1,5 +1,5 @@
-//! Live round-trip test for the **static-credentials** S3 path against a local
-//! MinIO, guarded by `#[ignore]`.
+//! Live round-trip test for the **static-credentials** S3 path against an
+//! S3-compatible service. It is guarded by `#[ignore]`.
 //!
 //! This is the path local/dev and any static-key deployment uses
 //! (`s3_access_key`/`s3_secret_key` both non-empty -> `Credentials::new`). It
@@ -15,7 +15,8 @@
 //! ```
 //!
 //! Overridable via `MAJU_S3_ENDPOINT` / `MAJU_S3_ACCESS_KEY` /
-//! `MAJU_S3_SECRET_KEY` / `MAJU_S3_BUCKET`.
+//! `MAJU_S3_SECRET_KEY` / `MAJU_S3_BUCKET` / `MAJU_S3_REGION` /
+//! `MAJU_S3_ADDRESSING_STYLE`. The default remains `path` for MinIO.
 
 use maju_media::config::MediaConfig;
 use maju_media::storage::MediaStorage;
@@ -29,7 +30,11 @@ fn minio_config() -> MediaConfig {
         s3_secret_key: std::env::var("MAJU_S3_SECRET_KEY")
             .unwrap_or_else(|_| "maju_dev_secret".to_string()),
         s3_bucket: std::env::var("MAJU_S3_BUCKET").unwrap_or_else(|_| "maju-media".to_string()),
-        s3_region: "us-east-1".to_string(),
+        s3_region: std::env::var("MAJU_S3_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
+        s3_addressing_style: std::env::var("MAJU_S3_ADDRESSING_STYLE")
+            .unwrap_or_else(|_| "path".to_string())
+            .parse()
+            .expect("MAJU_S3_ADDRESSING_STYLE must be path or virtual"),
         max_image_bytes: 50 * 1024 * 1024,
         max_gif_bytes: 10 * 1024 * 1024,
         max_video_bytes: 524_288_000,

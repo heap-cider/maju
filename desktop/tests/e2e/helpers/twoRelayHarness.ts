@@ -162,6 +162,7 @@ export class TwoRelayHarness {
       MAJU_METRICS_PORT: String(relay.ports.metrics),
       MAJU_REQUIRE_AUTH_TOKEN: "false",
       MAJU_RECONCILE_CHANNELS: "true",
+      MAJU_AUTO_MIGRATE: "true",
     });
     await this.waitForHealth(relay, child);
   }

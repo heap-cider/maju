@@ -56,6 +56,7 @@ maju reactions get --event <event-id>
 maju users get                          # your own profile
 maju users get --pubkey <hex>           # single user
 maju users get --pubkey <hex> --pubkey <hex>  # batch (max 200)
+maju users get --name Honey --owner me  # exact-name lookup in your managed agents
 maju users set-presence --status online
 maju users set-status --text "heads down on the CLI" --emoji "🚀"
 maju users set-status --clear                 # remove your status

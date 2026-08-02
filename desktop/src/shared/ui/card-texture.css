@@ -7,6 +7,11 @@
  * fixed and repeats edge texture while the white center fills any card size.
  */
 .maju-card-textured {
+  --maju-card-textured-source: url("./assets/card-texture.png");
+  --maju-card-textured-slice: 416;
+  --maju-card-textured-width: 208px;
+  --maju-card-textured-outset: 96px;
+  --maju-card-textured-min-size: 224px;
   /*
    * The asset has three zones, from outside in:
    *   1. transparent powder bleed (outside the layout box, via outset)
@@ -31,11 +36,41 @@
    * into a smaller height with `--maju-card-textured-min-height` when the
    * center seam is acceptable for that deliberately compressed surface.
    */
-  min-height: var(--maju-card-textured-min-height, 224px);
-  min-width: 224px;
-  border-image-source: url("./assets/card-texture.png");
-  border-image-slice: 416 fill;
-  border-image-width: 208px;
-  border-image-outset: 96px;
+  min-height: var(
+    --maju-card-textured-min-height,
+    var(--maju-card-textured-min-size)
+  );
+  min-width: var(
+    --maju-card-textured-min-width,
+    var(--maju-card-textured-min-size)
+  );
+  border-image-source: var(--maju-card-textured-source);
+  border-image-slice: var(--maju-card-textured-slice) fill;
+  border-image-width: var(--maju-card-textured-width);
+  border-image-outset: var(--maju-card-textured-outset);
   border-image-repeat: repeat;
+}
+
+/* Dark backup surfaces use a separately baked fill so their content stays
+ * bright; applying `filter: brightness()` to the element would dim children. */
+.maju-card-textured-dark {
+  --maju-card-textured-source: url("./assets/card-texture-dark.png");
+}
+
+/*
+ * Popovers, confirmations, and compact callouts need the same powder edge
+ * without the full card's 96px bleed or 224px floor. This independently baked
+ * nine-slice keeps the edge legible at overlay scale.
+ */
+.maju-card-textured-compact {
+  --maju-card-textured-source: url("./assets/card-texture-compact.png");
+  --maju-card-textured-slice: 136;
+  --maju-card-textured-width: 68px;
+  --maju-card-textured-outset: 24px;
+  --maju-card-textured-safe-inset: 1.75rem;
+  --maju-card-textured-min-size: 136px;
+}
+
+.maju-card-textured-dark.maju-card-textured-compact {
+  --maju-card-textured-source: url("./assets/card-texture-dark-compact.png");
 }

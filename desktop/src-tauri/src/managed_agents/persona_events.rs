@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use maju_core_pkg::kind::{persona_event_is_shared, KIND_PERSONA};
+use maju_core_pkg::kind::{event_is_shared, KIND_PERSONA};
 use nostr::{EventBuilder, Kind, Tag};
 use serde::{Deserialize, Serialize};
 
@@ -192,7 +192,7 @@ pub fn persona_from_event(event: &nostr::Event) -> Result<AgentDefinition, Strin
         name_pool: content.name_pool,
         is_builtin: false,
         is_active: true,
-        shared: persona_event_is_shared(event),
+        shared: event_is_shared(event),
         source_team: None,
         source_team_persona_slug: Some(d_tag),
         catalog_source: None,
@@ -224,7 +224,7 @@ pub fn persona_from_event(event: &nostr::Event) -> Result<AgentDefinition, Strin
 /// Returns the number of events the relay accepted. Best-effort: a relay
 /// failure on one row leaves it pending for the next sweep and does not abort
 /// the remaining rows.
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 pub async fn flush_pending_events(
     db_path: &std::path::Path,
     state: &AppState,

@@ -447,7 +447,7 @@ The subscriber uses a **dedicated** `redis::aio::PubSub` connection — not from
 
 **Reconnection:** exponential backoff 1s → 30s (`backoff_secs * 2`). Backoff resets to 1s only after a clean stream end, not on each reconnect attempt.
 
-**Presence:** `SET maju:presence:{pubkey_hex} {status} EX 90` — 90-second TTL (3× the 30-second heartbeat interval). Single missed heartbeat does not cause presence flap.
+**Presence:** `SET maju:presence:{pubkey_hex} {status} EX 180` — 180-second TTL (3× the 60-second heartbeat interval). Single missed heartbeat does not cause presence flap.
 
 **Typing indicators:**
 ```
@@ -797,7 +797,7 @@ Docker Compose provides the full local development stack. All services include h
 | Pattern | Type | TTL | Purpose |
 |---------|------|-----|---------|
 | `maju:channel:{uuid}` | Pub/Sub channel | — | Event fan-out (single-community form; shared multi-community Redis must use `maju:{community}:channel:{uuid}` or equivalent) |
-| `maju:presence:{pubkey_hex}` | String | 90s | Online/away status (single-community form; shared multi-community Redis must scope by community) |
+| `maju:presence:{pubkey_hex}` | String | 180s | Online/away status (single-community form; shared multi-community Redis must scope by community) |
 | `maju:typing:{channel_uuid}` | Sorted Set | 60s | Active typers (5s window; shared multi-community Redis must scope by community) |
 
 ### Full-Text Search (Postgres FTS)

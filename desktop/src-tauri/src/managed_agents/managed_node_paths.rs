@@ -45,16 +45,14 @@ pub(crate) fn maju_managed_node_bin_path() -> Option<PathBuf> {
 }
 
 pub(crate) fn maju_managed_npm_bin_dir() -> Option<PathBuf> {
-    maju_managed_npm_prefix().map(|prefix| {
-        #[cfg(windows)]
-        {
-            prefix
-        }
-        #[cfg(not(windows))]
-        {
-            prefix.join("bin")
-        }
-    })
+    #[cfg(windows)]
+    {
+        maju_managed_npm_prefix()
+    }
+    #[cfg(not(windows))]
+    {
+        maju_managed_npm_prefix().map(|prefix| prefix.join("bin"))
+    }
 }
 
 pub(crate) fn maju_managed_command_path(command: &str, basename: &str) -> Option<PathBuf> {
