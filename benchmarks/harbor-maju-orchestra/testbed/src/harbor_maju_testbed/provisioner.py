@@ -13,8 +13,8 @@ import psycopg
 from harbor_maju_orchestra.manifest import ExperimentManifest
 from harbor_maju_orchestra.provisioning import AgentCredential, TrialHandle
 
-from .maju_cli import MajuCli
 from .keys import compute_auth_tag, generate_keypair, keypair_from_secret
+from .maju_cli import MajuCli
 
 
 class ProvisioningError(RuntimeError):
