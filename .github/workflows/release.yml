@@ -49,8 +49,6 @@ jobs:
           node -e 'const p=require("./desktop/package.json"); if(p.version!==process.argv[1]) process.exit(1)' "$VERSION"
           node -e 'const p=require("./desktop/src-tauri/tauri.conf.json"); if(p.version!==process.argv[1]) process.exit(1)' "$VERSION"
           grep -q "^version = \"$VERSION\"$" desktop/src-tauri/Cargo.toml
-          grep -q "^version = \"$VERSION\"$" crates/maju-relay/Cargo.toml
-          grep -q "^version: $VERSION+1$" mobile/pubspec.yaml
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Record immutable source

@@ -53,6 +53,11 @@ fi
 grep -q 'verify-release-ref\.sh' "$repo_root/.github/workflows/release.yml"
 grep -q 'verify-release-ref\.sh' "$repo_root/.github/workflows/docker.yml"
 grep -q 'test-release-ref-contract\.sh' "$repo_root/.github/workflows/ci.yml"
+if grep -qE 'crates/maju-relay/Cargo\.toml|mobile/pubspec\.yaml' \
+  "$repo_root/.github/workflows/release.yml"; then
+  echo "desktop release still requires relay or mobile to share its version" >&2
+  exit 1
+fi
 "$repo_root/scripts/test-signed-canary-contract.sh"
 auto_tag="$repo_root/.github/workflows/auto-tag-on-release-pr-merge.yml"
 grep -q 'actions/create-github-app-token@' "$auto_tag"
