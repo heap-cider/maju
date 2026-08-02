@@ -31,7 +31,7 @@ import { ancestorIsland, seedScenario } from "../helpers/seedRelay";
 const RELAY_HTTP = process.env.MAJU_E2E_RELAY_URL ?? "http://localhost:3000";
 
 // uuid5(NAMESPACE_DNS, "maju.channel.general") — the seeded `general` channel.
-const GENERAL_CHANNEL_ID = "9f28288a-d724-587a-9709-92dc7f967110";
+const GENERAL_CHANNEL_ID = "84700770-dd3d-5a5a-85cb-bd4f1fc8ef3b";
 
 // >60 newest rows so the cold window (CHANNEL_HISTORY_LIMIT=60) does NOT reach
 // the gap; the gap sits below the frontier, the old root below the gap.

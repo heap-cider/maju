@@ -12,7 +12,7 @@ const RELAY_HTTP_URL =
   process.env.MAJU_E2E_RELAY_URL ?? "http://localhost:3000";
 
 // setup-desktop-test-data.sh: uuid5(NAMESPACE_DNS, "maju.channel.dm.alice-tyler")
-const ALICE_TYLER_DM_CHANNEL_ID = "5a9c064e-0411-5242-ae6b-0363ba99b8e6";
+const ALICE_TYLER_DM_CHANNEL_ID = "0f0118bf-614f-5ca9-b0f8-351187ebd105";
 
 async function getLoggedNotifications(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
