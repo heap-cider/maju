@@ -116,7 +116,10 @@ New to Maju? Pick the path that matches you.
 
 ### I just want to try the app
 
-Grab a packaged build from the [latest release](https://github.com/heap-cider/maju/releases/latest) — macOS (`.dmg`), Linux (`.AppImage` / `.deb`), or Windows (`.exe`). Install it like any other app.
+Grab the Windows installer or Android APK from the
+[latest release](https://github.com/heap-cider/maju/releases/latest). The same
+release also publishes a standalone Linux relay archive and a multi-architecture
+Docker image for self-hosting.
 
 By default the app connects to `ws://localhost:3000`. To point it at a relay you're running or one someone shared with you, set `MAJU_RELAY_URL` before launching, or switch the relay from inside the app. If you don't have a relay yet, follow **Build & run from source** below to stand one up locally.
 

@@ -1,37 +1,32 @@
 # Releasing Maju
 
-Maju has three independent release lanes. Desktop and relay use release PRs.
-Mobile uses immutable release-candidate tags cut directly from remote `main`:
+Maju has one bundled public release lane. Mobile candidates outside the bundled
+Android APK keep their immutable tags cut directly from remote `main`:
 
 | Lane | Entry point | Artifact |
 |------|-------------|----------|
-| Desktop | `just release-desktop` | Signed desktop app (macOS/Linux) |
-| Relay | `just release-relay` | `ghcr.io/heap-cider/maju` container image |
+| Maju bundle | `just release-desktop` | Windows installer, Android APK, Linux relay archive, and `ghcr.io/heap-cider/maju` image |
 | Mobile | `scripts/mobile-release.sh candidate X.Y.Z` | Exact `mobile-vX.Y.Z-rc.N` source identity |
 
-The lanes version independently. Desktop reads its manifests, relay reads its
-crate manifest, and mobile derives both source and marketing version from the
-exact candidate tag. The mobile handoff to the private `maju-releases` pipeline
-remains manual because OSS CI cannot trigger private CI.
+The ordinary `vX.Y.Z` tag identifies every artifact in the Maju bundle. Mobile
+candidates derive both source and marketing version from their exact candidate
+tag. The mobile handoff to the private `maju-releases` pipeline remains manual
+because OSS CI cannot trigger private CI.
 
 ## Quick Start
 
 ```sh
-# Desktop release (next patch version)
+# Maju release (next patch version)
 just release-desktop
 
-# Desktop explicit version
+# Explicit version
 just release-desktop 0.4.0
-
-# Relay release
-just release-relay
-just release-relay 0.4.0
 
 # Publish the next mobile candidate from the exact current remote main commit
 scripts/mobile-release.sh candidate 0.5.0
 ```
 
-Desktop and relay releases use metadata PRs. Mobile does not. Each
+Maju releases use metadata PRs. Mobile candidates do not. Each
 `mobile-vX.Y.Z-rc.N` tag is an immutable candidate and the artifact of record.
 There is no mobile release branch, stable mobile tag alias, finalization step,
 or mobile GitHub Release.
@@ -40,30 +35,20 @@ or mobile GitHub Release.
 
 ## How It Works
 
-### Desktop
+### Maju bundle
 
 1. **`just release-desktop`** runs locally on `main`, creates or updates a
    `version-bump/<version>` PR, bumps the desktop manifests, regenerates
    lockfiles, and updates `CHANGELOG.md`.
 2. **Merge the PR.** `auto-tag-on-release-pr-merge` pushes `v<version>`.
-3. **The tag triggers `release.yml`.** It builds, signs, notarizes, and
-   publishes the desktop app for macOS and Linux.
-
-### Relay
-
-1. **`just release-relay`** runs locally on `main`, creates or updates a
-   `relay-release/<version>` PR, bumps `crates/maju-relay/Cargo.toml`,
-   regenerates `Cargo.lock`, and updates the relay changelog.
-2. **Merge the PR.** `auto-tag-on-release-pr-merge` pushes
-   `relay-v<version>`.
-3. **The tag triggers `docker.yml`.** Stable releases update the version
-   aliases and `latest`; prereleases do not. Each release also publishes an
-   optimized, symbol-bearing image under matching `debug-` tags (for example,
-   `debug-0.3.0` and `debug-latest`) for native profiling. The ordinary tags
-   remain stripped and are the default for deployments that do not need it.
-
-Every push to `main` continues to publish the rolling relay `:main` and
-`:sha-<7>` tags, plus matching `:debug-main` and `:debug-sha-<7>` variants.
+3. **The tag triggers both publishers.** `release.yml` publishes the Windows
+   installer, Android APK, and standalone Linux relay archive. `docker.yml`
+   publishes the same relay source as an amd64/arm64 GHCR image under the full
+   semver, major/minor, major, SHA, and stable `latest` aliases. Matching
+   `debug-` tags retain symbols for profiling.
+4. **First publication only:** change the new `maju` package visibility to
+   Public in GitHub Packages. Public GHCR images can then be pulled by a VPS
+   without registry credentials.
 
 ### Mobile
 
@@ -106,14 +91,14 @@ release data. It is not a release ledger for this flow.
 
 | Lane | Release version authority |
 |------|---------------------------|
-| Desktop | `desktop/package.json` and synchronized desktop manifests |
-| Relay | `crates/maju-relay/Cargo.toml` |
+| Maju bundle | `desktop/package.json` and synchronized desktop manifests |
+| Relay crate metadata | `crates/maju-relay/Cargo.toml` |
 | Mobile | Exact `mobile-vX.Y.Z-rc.N` remote tag |
 
 `just bump-desktop-version <version>` updates the desktop manifests and
-regenerates their lockfiles. `just bump-relay-version <version>` updates the
-relay crate and regenerates `Cargo.lock`. Mobile has no bump recipe or
-release-metadata PR.
+regenerates their lockfiles. The relay crate version remains internal package
+metadata; public relay archives and images take the immutable Maju tag version.
+Mobile has no bump recipe or release-metadata PR.
 
 ---
 
@@ -169,9 +154,10 @@ for the private pipeline contract.
 
 ## What Gets Published
 
-Desktop publishes two GitHub releases:
+Maju publishes two GitHub releases plus a GHCR image:
 
-1. **`v<version>`**: the user-facing release with installers.
+1. **`v<version>`**: the user-facing release with Windows, Android, and Linux
+   relay downloads; the same tag publishes `ghcr.io/heap-cider/maju:<version>`.
 2. **`maju-desktop-latest`**: the rolling auto-updater release.
 
 Mobile publishes only annotated `mobile-vX.Y.Z-rc.N` git tags. Store artifacts
@@ -182,20 +168,9 @@ GitHub Release or a stable `mobile-vX.Y.Z` alias.
 
 ## Platform Support
 
-The release workflow builds **two separate macOS DMGs**: Apple
-Silicon (`darwin-aarch64`, the `release` job) and Intel
-(`darwin-x86_64`, the `release-macos-x64` job), plus Linux `.deb` and
-`.AppImage`. Both macOS DMGs are codesigned, notarized, and attached to
-the same `v<version>` release. Intel users download the `_x64.dmg`.
-
-The Linux AppImage is post-processed by `desktop/scripts/fix-appimage.sh`,
-which strips infra libraries over-bundled by linuxdeploy (they crash on
-Mesa 25+ / GLib 2.88 distros; see
-[tauri-apps/tauri#15665](https://github.com/tauri-apps/tauri/issues/15665))
-and re-signs the artifact. As a result the AppImage relies on the
-host's Wayland/GStreamer/graphics stack and requires GLib >= 2.72
-(Ubuntu 22.04 or newer). The `release-linux` job builds inside a
-`ubuntu:22.04` container for broad GLIBC compatibility.
+The public release builds a Windows x86_64 installer, Android APK, standalone
+Linux x86_64 relay archive, and an amd64/arm64 relay container manifest. macOS
+and iOS are not public Maju release targets.
 
 ---
 

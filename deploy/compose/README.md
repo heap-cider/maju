@@ -27,7 +27,9 @@ keypair.
 
 - Requires Docker Compose v2.24.4 or newer; the TLS override uses Compose's
   `!reset` tag to remove the direct relay port when Caddy terminates HTTPS.
-- Default `MAJU_IMAGE` tracks `ghcr.io/heap-cider/maju:main` for early testing. Pin it to `ghcr.io/heap-cider/maju:sha-<7>` or a semver release tag for production once available.
+- Default `MAJU_IMAGE` tracks `ghcr.io/heap-cider/maju:latest`, published by
+  stable Maju `v*` releases. Pin it to an exact semver tag such as
+  `ghcr.io/heap-cider/maju:0.1.2` for reproducible production upgrades.
 - Keep `MAJU_RELAY_PRIVATE_KEY`, `MAJU_GIT_HOOK_HMAC_SECRET`, database/Redis,
   and S3 secrets stable across restarts.
 - `RELAY_OWNER_PUBKEY` is intentionally not prefixed with `MAJU_`; it must be a

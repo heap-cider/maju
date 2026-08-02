@@ -671,10 +671,6 @@ check-compile:
 get-current-version:
     @node -p "require('./desktop/package.json').version"
 
-# Read the current relay version from its crate manifest
-get-current-relay-version:
-    @grep -m1 '^version = ' crates/maju-relay/Cargo.toml | sed -E 's/version = "(.*)"/\1/'
-
 # Compute next minor version (e.g., 0.3.0 → 0.4.0)
 get-next-minor-version:
     @python3 -c "v='$(just get-current-version)'.split('.'); print(f'{v[0]}.{int(v[1])+1}.0')"
@@ -682,10 +678,6 @@ get-next-minor-version:
 # Compute next patch version (e.g., 0.3.0 → 0.3.1)
 get-next-patch-version:
     @python3 -c "v='$(just get-current-version)'.split('.'); print(f'{v[0]}.{v[1]}.{int(v[2])+1}')"
-
-# Compute next relay patch version (e.g., 0.3.0 → 0.3.1)
-get-next-relay-patch-version:
-    @python3 -c "v='$(just get-current-relay-version)'.split('.'); print(f'{v[0]}.{v[1]}.{int(v[2])+1}')"
 
 # Update version in desktop package manifests and regenerate lockfiles
 bump-desktop-version version:
@@ -716,17 +708,8 @@ bump-desktop-version version:
     cargo update -p maju-desktop --manifest-path desktop/src-tauri/Cargo.toml
     echo "Bumped desktop manifests to {{ version }} and regenerated lockfiles"
 
-# Bump the relay crate version and regenerate the lockfile
-bump-relay-version version:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    # maju-relay carries its own `version =` (not version.workspace), so the
-    # replace targets the package version line only.
-    perl -i -pe 's/^version = ".*"/version = "{{ version }}"/' crates/maju-relay/Cargo.toml
-    cargo update -p maju-relay
-    echo "Bumped maju-relay to {{ version }} and regenerated Cargo.lock"
-
-# Open or update the desktop release PR (signed desktop app)
+# Open or update the bundled Maju release PR.
+# The resulting v* tag publishes desktop, Android, relay archive, and GHCR.
 release-desktop *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -738,20 +721,7 @@ release-desktop *ARGS:
     fi
     just _release-pr desktop "$VERSION"
 
-# Open or update the relay release PR (ghcr.io/heap-cider/maju image)
-release-relay *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    ARG="{{ ARGS }}"
-    if [[ -z "$ARG" || "$ARG" == "patch" ]]; then
-        VERSION=$(just get-next-relay-patch-version)
-    else
-        VERSION="$ARG"
-    fi
-    just _release-pr relay "$VERSION"
-
-# Shared release-PR engine for desktop and relay. Mobile publishes immutable
-# candidate tags directly from remote main instead of using metadata-only PRs.
+# Mobile candidates outside the bundled Android APK keep their dedicated flow.
 _release-pr lane version:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -760,7 +730,7 @@ _release-pr lane version:
         echo "Error: '$VERSION' is not valid semver (expected X.Y.Z)"
         exit 1
     fi
-    # Lane-specific identifiers. The bump command runs after the branch switch.
+    # The public Maju release uses one version and one immutable v* tag.
     case "{{ lane }}" in
         desktop)
             BRANCH_PREFIX="version-bump"
@@ -770,18 +740,8 @@ _release-pr lane version:
             TAG_PREFIX="v"
             CHANGELOG="CHANGELOG.md"
             ADD_FILES=(desktop/package.json desktop/src-tauri/tauri.conf.json desktop/src-tauri/Cargo.toml desktop/src-tauri/Cargo.lock pnpm-lock.yaml CHANGELOG.md)
-            LOG_PATHS=(desktop/ crates/maju-core/ crates/maju-persona/ crates/maju-sdk/ crates/maju-agent/)
-            ARTIFACT="Maju Desktop" ;;
-        relay)
-            BRANCH_PREFIX="relay-release"
-            TAG_FETCH='relay-v*'
-            TAG_MATCH='relay-v[0-9]*'
-            TAG_EXCLUDE='relay-v*-*'
-            TAG_PREFIX="relay-v"
-            CHANGELOG="crates/maju-relay/CHANGELOG.md"
-            ADD_FILES=(crates/maju-relay/Cargo.toml Cargo.lock crates/maju-relay/CHANGELOG.md)
-            LOG_PATHS=(crates/maju-relay/ crates/maju-core/ crates/maju-db/ crates/maju-auth/ crates/maju-pubsub/ crates/maju-search/ crates/maju-audit/ crates/maju-media/ crates/maju-sdk/ crates/maju-workflow/ crates/maju-conformance/ migrations/)
-            ARTIFACT="Maju Relay" ;;
+            LOG_PATHS=(.)
+            ARTIFACT="Maju" ;;
         *)
             echo "Error: unknown release lane '{{ lane }}'"
             exit 1 ;;
@@ -818,11 +778,7 @@ _release-pr lane version:
     else
         git switch -c "$BRANCH"
     fi
-    # Lane-specific bump (the one diverging step).
-    case "{{ lane }}" in
-        desktop) just bump-desktop-version "$VERSION" ;;
-        relay)   just bump-relay-version "$VERSION" ;;
-    esac
+    just bump-desktop-version "$VERSION"
     # Generate the changelog from commits since this lane's last release tag.
     LAST_TAG=$(git describe --tags --abbrev=0 --match "$TAG_MATCH" --exclude "$TAG_EXCLUDE" 2>/dev/null || echo "")
     REPO=$(git remote get-url origin | sed -E 's|.*github\.com[:/]||; s|\.git$||')
