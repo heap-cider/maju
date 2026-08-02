@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.1
+
+- feat: sync Buzz desktop-v0.5.3 ([`74b1c4108`](https://github.com/heap-cider/maju/commit/74b1c4108ca76c031b526ac929677ccb076f2616))
+
+
 ## v0.1.0
 
 - First Maju release based on the upstream 0.5.2 source.
