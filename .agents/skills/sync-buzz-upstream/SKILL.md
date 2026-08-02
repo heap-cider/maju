@@ -19,8 +19,13 @@ Windows support, and repository ownership while reviewing upstream releases.
 
    ```bash
    node .agents/skills/sync-buzz-upstream/scripts/compare-upstream.mjs \
-     --from v0.5.2 --to v0.5.3 --fetch --json
+     --from desktop-v0.5.2 --to desktop-v0.5.3 --fetch --json
    ```
+
+   Pass the exact upstream tag names. The analyzer accepts any valid Git tag
+   name instead of assuming a version prefix or release naming scheme, then
+   resolves only `refs/tags/<name>` so branches and arbitrary commits cannot be
+   substituted for release tags.
 
    Omit `--fetch` when both tags already exist locally. Use `--expect-zero` for
    a same-version smoke test.

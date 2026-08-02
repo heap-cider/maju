@@ -43,12 +43,13 @@ function gitBuffer(args, options) {
   return Buffer.isBuffer(output) ? output : Buffer.from(output ?? "");
 }
 
-function normalizeTag(value) {
-  const tag = value.startsWith("v") ? value : `v${value}`;
-  if (!/^v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(tag)) {
-    fail(`Invalid release tag: ${value}`, 2);
+function validateTagName(value) {
+  const ref = `refs/tags/${value}`;
+  const validation = runGit(["check-ref-format", ref], { allowFailure: true });
+  if (validation.status !== 0) {
+    fail(`Invalid Git tag name: ${value}`, 2);
   }
-  return tag;
+  return value;
 }
 
 function parseArgs(argv) {
@@ -58,7 +59,7 @@ function parseArgs(argv) {
     if (argument === "--from" || argument === "--to") {
       const value = argv[index + 1];
       if (!value) fail(`Missing value for ${argument}`, 2);
-      options[argument.slice(2)] = normalizeTag(value);
+      options[argument.slice(2)] = validateTagName(value);
       index += 1;
     } else if (argument === "--fetch") {
       options.fetch = true;
@@ -125,6 +126,16 @@ function fetchTags(tags) {
 }
 
 function resolveTag(tag) {
+  const ref = `refs/tags/${tag}`;
+  const exists = runGit(["show-ref", "--verify", "--quiet", ref], {
+    allowFailure: true,
+  });
+  if (exists.status !== 0) {
+    fail(
+      `Tag not found locally: ${tag}. Re-run with --fetch if it exists upstream.`,
+      2,
+    );
+  }
   return gitText(["rev-parse", `refs/tags/${tag}^{commit}`]);
 }
 
@@ -302,15 +313,14 @@ function printHuman(report) {
   );
 }
 
-const options = parseArgs(process.argv.slice(2));
-const worktreeBefore = gitBuffer([
-  "status",
-  "--porcelain=v1",
-  "-z",
-  "--untracked-files=all",
-]);
-
 try {
+  const options = parseArgs(process.argv.slice(2));
+  const worktreeBefore = gitBuffer([
+    "status",
+    "--porcelain=v1",
+    "-z",
+    "--untracked-files=all",
+  ]);
   const remotes = verifyRemotes();
   if (options.fetch) fetchTags([options.from, options.to]);
 
