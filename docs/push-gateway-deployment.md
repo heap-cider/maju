@@ -91,7 +91,10 @@ capability—not a raw APNs token—into the encrypted relay lease.
 
 ## Helm production inputs
 
-The chart defaults to the `main` image tag because `.github/workflows/docker.yml` publishes it from the push-gateway lane. For a production rollout, open that workflow run's **Publish public push gateway image** job summary and copy its `sha256:...` digest. Verify the published subject and provenance before injecting it:
+The chart defaults to the `latest` stable image tag published with a Maju
+release. For a production rollout, open that workflow run's **Publish public
+push gateway image** job summary and copy its `sha256:...` digest. Verify the
+published subject and provenance before injecting it:
 
 ```bash
 gh attestation verify \

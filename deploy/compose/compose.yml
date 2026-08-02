@@ -2,7 +2,7 @@ name: maju-prod
 
 services:
   relay:
-    image: ${MAJU_IMAGE:-ghcr.io/heap-cider/maju:main}
+    image: ${MAJU_IMAGE:-ghcr.io/heap-cider/maju:latest}
     env_file:
       - .env
     environment:

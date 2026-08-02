@@ -239,7 +239,7 @@ so an in-progress `main` can never overwrite a released version.
 
 To cut a release, push a `chart-release/<version>` branch whose `<version>`
 matches `Chart.yaml`'s `version`; merging it auto-tags `chart-v<version>` and
-dispatches the publish job (same lane machinery as the desktop and relay
+dispatches the publish job (the same tagging machinery used by Maju bundle
 releases — see `.github/workflows/auto-tag-on-release-pr-merge.yml`). The publish
 job fails loudly if the tag version and `Chart.yaml` version disagree.
 

@@ -37,12 +37,6 @@ if (
   exit 1
 fi
 
-git -C "$tmp" tag -m "relay release" relay-v2.0.0
-(
-  cd "$tmp"
-  GITHUB_REF=refs/tags/relay-v2.0.0 "$verify" relay-v 2.0.0
-)
-
 if grep -q 'inputs\.ref' \
   "$repo_root/.github/workflows/release.yml" \
   "$repo_root/.github/workflows/docker.yml"; then
@@ -52,6 +46,15 @@ fi
 
 grep -q 'verify-release-ref\.sh' "$repo_root/.github/workflows/release.yml"
 grep -q 'verify-release-ref\.sh' "$repo_root/.github/workflows/docker.yml"
+grep -Fq 'tags: ["v[0-9]*"]' "$repo_root/.github/workflows/docker.yml"
+grep -Fq 'scripts/verify-release-ref.sh v "$VERSION"' "$repo_root/.github/workflows/docker.yml"
+if grep -q 'relay-v' \
+  "$repo_root/.github/workflows/docker.yml" \
+  "$repo_root/.github/workflows/auto-tag-on-release-pr-merge.yml" \
+  "$repo_root/Justfile"; then
+  echo "a separate relay-v release lane still exists" >&2
+  exit 1
+fi
 grep -q 'test-release-ref-contract\.sh' "$repo_root/.github/workflows/ci.yml"
 if grep -qE 'crates/maju-relay/Cargo\.toml|mobile/pubspec\.yaml' \
   "$repo_root/.github/workflows/release.yml"; then
