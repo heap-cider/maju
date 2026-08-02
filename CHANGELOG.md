@@ -2,6 +2,7 @@
 
 ## v0.1.2
 
+- fix: update `nostr-relay-pool` to 0.44.2 so failed signatures cannot poison the verification cache
 - ci(release): bundle relay image with Maju releases ([`1913c3ab8`](https://github.com/heap-cider/maju/commit/1913c3ab8fa3444296f2c97c8a754c70826f95f4))
 - fix: accept arbitrary upstream release tags ([`3a4ee12bd`](https://github.com/heap-cider/maju/commit/3a4ee12bdae8f31110b31f922d5e3db0ad0e76ca))
 
