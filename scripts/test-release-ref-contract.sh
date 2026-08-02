@@ -63,20 +63,22 @@ if grep -qE 'crates/maju-relay/Cargo\.toml|mobile/pubspec\.yaml' \
 fi
 "$repo_root/scripts/test-signed-canary-contract.sh"
 auto_tag="$repo_root/.github/workflows/auto-tag-on-release-pr-merge.yml"
-grep -q 'actions/create-github-app-token@' "$auto_tag"
-grep -q 'client-id:.*vars\.MAJU_RELEASE_TAGGER_CLIENT_ID' "$auto_tag"
-grep -q 'private-key:.*secrets\.MAJU_RELEASE_TAGGER_PRIVATE_KEY' "$auto_tag"
-grep -q 'permission-contents: write' "$auto_tag"
-grep -q 'GH_TOKEN:.*steps\.release-tagger\.outputs\.token' "$auto_tag"
+if grep -q 'actions/create-github-app-token@\|MAJU_RELEASE_TAGGER_' "$auto_tag"; then
+  echo "auto-tag still requires an unconfigured release GitHub App" >&2
+  exit 1
+fi
+grep -q '^  actions: write' "$auto_tag"
+grep -q '^  contents: write' "$auto_tag"
+grep -q 'GH_TOKEN:.*secrets\.GITHUB_TOKEN' "$auto_tag"
 grep -Fq 'git/refs' "$auto_tag"
 grep -Fq 'if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --silent 2>/dev/null; then' "$auto_tag"
 if grep -F 'git/ref/tags/$TAG' "$auto_tag" | grep -Fq '|| true'; then
   echo "auto-tag ignores a failed tag lookup, so a 404 body can look like an existing tag" >&2
   exit 1
 fi
-if grep -q 'gh workflow run' "$auto_tag"; then
-  echo "auto-tag still dispatches a publisher instead of using the tag push" >&2
-  exit 1
-fi
+grep -Fq 'PUBLISHERS="release.yml docker.yml"' "$auto_tag"
+grep -Fq 'PUBLISHERS="helm-chart.yml"' "$auto_tag"
+grep -Fq 'PUBLISHERS="push-gateway-helm-chart.yml"' "$auto_tag"
+grep -q 'gh workflow run' "$auto_tag"
 
 echo "release ref contract passed"

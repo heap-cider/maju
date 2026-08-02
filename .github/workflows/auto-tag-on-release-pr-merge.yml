@@ -14,10 +14,10 @@ name: Auto-tag on Release PR Merge
 # mobile-v<v>-rc.N tags directly from remote main with scripts/mobile-release.sh,
 # then hand the exact tag to maju-releases.
 #
-# Release tags are created with a short-lived token from the dedicated
-# maju-release-bot GitHub App. GitHub attributes the ref creation to that
-# App, so the consumer's `on.push.tags` trigger runs normally. The workflow's
-# default GITHUB_TOKEN remains read-only and is never used to create a tag.
+# Release tags are created with GITHUB_TOKEN, then the matching publishers are
+# dispatched explicitly at that immutable tag. GitHub intentionally suppresses
+# push workflows for refs created by GITHUB_TOKEN; workflow_dispatch is the
+# supported exception and avoids a separately managed GitHub App or PAT.
 #
 # Mobile is manual-only by infosec necessity: OSS `heap-cider/maju` CI must
 # not trigger CI in the private `maju-releases` repo. A human feeds the exact
@@ -30,7 +30,8 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  actions: write
+  contents: write
 
 jobs:
   auto-tag:
@@ -56,13 +57,16 @@ jobs:
           case "$BRANCH" in
             version-bump/*)
               VERSION="${BRANCH#version-bump/}"
-              TAG_PREFIX="v" ;;
+              TAG_PREFIX="v"
+              PUBLISHERS="release.yml docker.yml" ;;
             chart-release/*)
               VERSION="${BRANCH#chart-release/}"
-              TAG_PREFIX="chart-v" ;;
+              TAG_PREFIX="chart-v"
+              PUBLISHERS="helm-chart.yml" ;;
             push-chart-release/*)
               VERSION="${BRANCH#push-chart-release/}"
-              TAG_PREFIX="push-chart-v" ;;
+              TAG_PREFIX="push-chart-v"
+              PUBLISHERS="push-gateway-helm-chart.yml" ;;
             *)
               parent_sha="$(git rev-parse HEAD^)"
               old_version="$(git show "${parent_sha}:deploy/charts/maju/Chart.yaml" 2>/dev/null | awk '/^version:/ {print $2}')"
@@ -72,7 +76,8 @@ jobs:
                 echo "enabled=false" >> "$GITHUB_OUTPUT"
                 exit 0
               fi
-              TAG_PREFIX="chart-v" ;;
+              TAG_PREFIX="chart-v"
+              PUBLISHERS="helm-chart.yml" ;;
           esac
           if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
             echo "::error::Invalid release version: '$VERSION'"
@@ -81,22 +86,15 @@ jobs:
           {
             echo "enabled=true"
             echo "tag=${TAG_PREFIX}${VERSION}"
+            echo "version=${VERSION}"
+            echo "publishers=${PUBLISHERS}"
           } >> "$GITHUB_OUTPUT"
           echo "Tagging ${TAG_PREFIX}${VERSION}"
-
-      - name: Create release tagger token
-        if: steps.release.outputs.enabled == 'true'
-        id: release-tagger
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.MAJU_RELEASE_TAGGER_CLIENT_ID }}
-          private-key: ${{ secrets.MAJU_RELEASE_TAGGER_PRIVATE_KEY }}
-          permission-contents: write
 
       - name: Create and push tag
         if: steps.release.outputs.enabled == 'true'
         env:
-          GH_TOKEN: ${{ steps.release-tagger.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
@@ -116,3 +114,27 @@ jobs:
             -f ref="refs/tags/$TAG" \
             -f sha="$GITHUB_SHA" \
             --silent
+
+      - name: Dispatch publishers at the release tag
+        if: steps.release.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISHERS: ${{ steps.release.outputs.publishers }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          for WORKFLOW in $PUBLISHERS; do
+            case "$WORKFLOW" in
+              release.yml)
+                gh workflow run "$WORKFLOW" --ref "$TAG" ;;
+              docker.yml)
+                gh workflow run "$WORKFLOW" --ref "$TAG" -f version="$VERSION" ;;
+              helm-chart.yml|push-gateway-helm-chart.yml)
+                gh workflow run "$WORKFLOW" --ref "$TAG" \
+                  -f version="$VERSION" -f ref="$TAG" ;;
+              *)
+                echo "::error::Unknown release publisher: $WORKFLOW"
+                exit 1 ;;
+            esac
+          done
