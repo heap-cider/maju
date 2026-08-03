@@ -111,6 +111,19 @@ impl ConnectionState {
             }
         }
     }
+
+    /// Queues a final protocol message on the priority channel, then closes.
+    ///
+    /// The normal data channel is intentionally not used here: cancellation
+    /// wins the send-loop race, so a queued data frame could be stranded
+    /// behind the WebSocket Close frame. The send loop drains control frames
+    /// before closing, which guarantees that the client receives the reason.
+    pub(crate) fn send_before_close(&self, msg: String) {
+        if self.ctrl_tx.try_send(WsMessage::Text(msg.into())).is_err() {
+            warn!(conn_id = %self.conn_id, "control channel full while sending final protocol message");
+        }
+        self.cancel.cancel();
+    }
 }
 
 /// Entry point for a new WebSocket connection.
@@ -872,7 +885,7 @@ mod tests {
 
     #[tokio::test]
     async fn send_loop_flushes_queued_control_before_close_on_cancel() {
-        // A ban disconnect queues its `OK false "blocked: …"` reason frame on
+        // An auth rejection queues its `OK false "standby: …"` reason frame on
         // the control channel and then cancels the token (B3). The biased
         // select polls the cancel branch first, so the reason frame would be
         // stranded unless the cancel branch drains ctrl before emitting Close.
@@ -881,9 +894,11 @@ mod tests {
         let (_data_tx, data_rx) = mpsc::channel(1);
         let (ctrl_tx, ctrl_rx) = mpsc::channel(1);
         ctrl_tx
-            .send(WsMessage::Text("blocked: you are banned".into()))
+            .send(WsMessage::Text(
+                "standby: agent is active on Office PC".into(),
+            ))
             .await
-            .expect("queue ban reason frame");
+            .expect("queue standby reason frame");
 
         let cancel = CancellationToken::new();
         cancel.cancel();
@@ -899,9 +914,9 @@ mod tests {
         );
         match &state.messages[0] {
             WsMessage::Text(text) => {
-                assert_eq!(text.as_str(), "blocked: you are banned")
+                assert_eq!(text.as_str(), "standby: agent is active on Office PC")
             }
-            other => panic!("expected the ban reason frame first, got {other:?}"),
+            other => panic!("expected the standby reason frame first, got {other:?}"),
         }
         assert!(
             matches!(state.messages[1], WsMessage::Close(_)),

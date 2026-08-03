@@ -57,6 +57,9 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
 - Settings includes **내 기기**, showing current and previously signed-in PCs,
   online state, last seen time, Maju version, and which agents are representative
   or standby on each PC.
+- The Agents view shows the actual representative PC and whether this PC is
+  standing by. A stale local process error must not make an agent look offline
+  while another PC is actively running it.
 - Disconnecting another device ends that official Maju login session and stops
   its agent runners. It does not revoke the account private key, so the user may
   explicitly sign in again with that key.

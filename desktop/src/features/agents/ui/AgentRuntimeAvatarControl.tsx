@@ -14,6 +14,7 @@ import { IdentityInitialsAvatar } from "./IdentityInitialsAvatar";
 
 type AgentRuntimeAvatarControlProps = {
   activeTestId: string;
+  activeLabel?: string;
   avatarUrl?: string | null;
   errorLabel?: string | null;
   errorTestId?: string;
@@ -97,6 +98,7 @@ const MASK_TRANSITION = {
 
 export function AgentRuntimeAvatarControl({
   activeTestId,
+  activeLabel,
   avatarUrl,
   errorLabel,
   errorTestId,
@@ -110,6 +112,7 @@ export function AgentRuntimeAvatarControl({
   const shouldReduceMotion = useReducedMotion();
   const trimmedAvatarUrl = avatarUrl?.trim() || null;
   const actionLabel = isStarting ? `Starting ${label}` : `Start ${label}`;
+  const runningLabel = activeLabel ?? `${label} is running`;
   const hasError = !isActive && !isStarting && Boolean(errorLabel);
   const errorActionLabel = `${label} has a runtime error. Open runtime details.`;
   const transition = shouldReduceMotion ? { duration: 0 } : MASK_TRANSITION;
@@ -121,11 +124,11 @@ export function AgentRuntimeAvatarControl({
         <span className="grid h-full w-full place-items-center">
           {isActive ? (
             <span
-              aria-label={`${label} is running`}
+              aria-label={runningLabel}
               className="flex h-6 w-6 items-center justify-center rounded-full"
               data-testid={activeTestId}
               role="img"
-              title={`${label} is running`}
+              title={runningLabel}
             >
               <PresenceDot className={ACTIVE_DOT_CLASS_NAME} status="online" />
             </span>

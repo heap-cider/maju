@@ -9937,31 +9937,44 @@ export function maybeInstallE2eTauriMocks() {
 
   const mockLoggedInDevices = () => {
     const now = Math.floor(Date.now() / 1_000);
-    const agentPubkey = mockManagedAgents[0]?.pubkey ?? "agent-pubkey";
+    const firstAgent = mockManagedAgents[0];
+    const agentPubkey = firstAgent?.pubkey ?? "agent-pubkey";
+    const remoteStandbyPreview =
+      new URLSearchParams(window.location.search).get(
+        "mock-agent-execution",
+      ) === "remote-standby";
+    const defaultRepresentativeVisible =
+      firstAgent?.status === "running" || !firstAgent;
     return [
       {
         device_id: "11111111-1111-4111-8111-111111111111",
         session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        name: mockCurrentDeviceName,
+        name: remoteStandbyPreview ? "집 PC" : mockCurrentDeviceName,
         platform: "windows",
         app_version: "0.1.2",
         last_seen: now,
         online: true,
         current: true,
-        active_agents: [agentPubkey],
-        standby_agents: [],
+        active_agents:
+          defaultRepresentativeVisible && !remoteStandbyPreview
+            ? [agentPubkey]
+            : [],
+        standby_agents: remoteStandbyPreview ? [agentPubkey] : [],
       },
       {
         device_id: "22222222-2222-4222-8222-222222222222",
         session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-        name: "집 PC",
+        name: remoteStandbyPreview ? "사무실 PC" : "집 PC",
         platform: "windows",
         app_version: "0.1.2",
         last_seen: now - 12,
         online: true,
         current: false,
-        active_agents: [],
-        standby_agents: [agentPubkey],
+        active_agents: remoteStandbyPreview ? [agentPubkey] : [],
+        standby_agents:
+          defaultRepresentativeVisible && !remoteStandbyPreview
+            ? [agentPubkey]
+            : [],
       },
       {
         device_id: "33333333-3333-4333-8333-333333333333",

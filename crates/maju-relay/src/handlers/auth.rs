@@ -11,7 +11,6 @@
 
 use std::sync::Arc;
 
-use axum::extract::ws::Message as WsMessage;
 use tracing::{debug, info, warn};
 
 use crate::connection::{AuthState, ConnectionState};
@@ -81,12 +80,11 @@ pub async fn handle_auth(event: nostr::Event, conn: Arc<ConnectionState>, state:
         Err(error) => {
             warn!(conn_id = %conn_id, %error, "invalid signed device AUTH tag");
             *conn.auth_state.write().await = AuthState::Failed;
-            conn.send(RelayMessage::ok(
+            conn.send_before_close(RelayMessage::ok(
                 &event_id_hex,
                 false,
                 &format!("invalid: {error}"),
             ));
-            conn.cancel.cancel();
             return;
         }
     };
@@ -185,14 +183,7 @@ pub async fn handle_auth(event: nostr::Event, conn: Arc<ConnectionState>, state:
                         .increment(1);
                     *conn.auth_state.write().await = AuthState::Failed;
                     // Decision 4: banned ⇒ OK false + immediate WebSocket close.
-                    // Route the reason frame on the control channel (not `send`,
-                    // which uses the data channel and would race the cancel), so
-                    // the send loop drains it ahead of the Close it emits on
-                    // cancel. Then cancel to close the socket immediately.
-                    let _ = conn.ctrl_tx.try_send(WsMessage::Text(
-                        RelayMessage::ok(&event_id_hex, false, deny_reason).into(),
-                    ));
-                    conn.cancel.cancel();
+                    conn.send_before_close(RelayMessage::ok(&event_id_hex, false, deny_reason));
                     return;
                 }
             }
@@ -297,8 +288,7 @@ pub async fn handle_auth(event: nostr::Event, conn: Arc<ConnectionState>, state:
                     "managed agent omitted its signed device session"
                 );
                 *conn.auth_state.write().await = AuthState::Failed;
-                conn.send(RelayMessage::ok(&event_id_hex, false, message));
-                conn.cancel.cancel();
+                conn.send_before_close(RelayMessage::ok(&event_id_hex, false, message));
                 return;
             }
 
@@ -325,8 +315,7 @@ pub async fn handle_auth(event: nostr::Event, conn: Arc<ConnectionState>, state:
                         };
                         warn!(conn_id = %conn_id, pubkey = %pubkey.to_hex(), %message, "device session admission denied");
                         *conn.auth_state.write().await = AuthState::Failed;
-                        conn.send(RelayMessage::ok(&event_id_hex, false, &message));
-                        conn.cancel.cancel();
+                        conn.send_before_close(RelayMessage::ok(&event_id_hex, false, &message));
                         return;
                     }
                 }

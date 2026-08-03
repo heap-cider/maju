@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ChevronDown,
@@ -7,10 +8,16 @@ import {
 } from "lucide-react";
 
 import { resolveAgentCardModelLabel } from "@/features/agents/lib/agentCardModelLabel";
+import {
+  type AgentExecutionLocation,
+  findAgentExecutionLocation,
+  indexAgentExecutionLocations,
+} from "@/features/agents/agentExecutionLocations";
 import { friendlyAgentLastError } from "@/features/agents/lib/friendlyAgentLastError";
 import { isManagedAgentActive } from "@/features/agents/lib/managedAgentControlActions";
 import { useUserProfileQuery } from "@/features/profile/hooks";
 import type { AgentPersona, ManagedAgent } from "@/shared/api/types";
+import { listLoggedInDevices } from "@/shared/api/tauriDevices";
 import type { ProfilePanelOpenOptions } from "@/shared/context/ProfilePanelContext";
 import { useFeedbackToasts } from "@/shared/hooks/useToastEffect";
 import { useFileImportZone } from "@/shared/hooks/useFileImportZone";
@@ -105,6 +112,17 @@ export function UnifiedAgentsSection(props: UnifiedAgentsSectionProps) {
     () => buildUnifiedGroups(personas, agents),
     [personas, agents],
   );
+  const devicesQuery = useQuery({
+    enabled: agents.length > 0,
+    queryKey: ["logged-in-devices"],
+    queryFn: listLoggedInDevices,
+    refetchInterval: 15_000,
+    staleTime: 5_000,
+  });
+  const executionLocations = React.useMemo(
+    () => indexAgentExecutionLocations(devicesQuery.data ?? []),
+    [devicesQuery.data],
+  );
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
   const {
     fileInputRef,
@@ -177,6 +195,14 @@ export function UnifiedAgentsSection(props: UnifiedAgentsSectionProps) {
                   )}
                   agent={profileAgent}
                   defaultModel={defaultModel}
+                  executionLocation={
+                    profileAgent
+                      ? findAgentExecutionLocation(
+                          executionLocations,
+                          profileAgent.pubkey,
+                        )
+                      : undefined
+                  }
                   key={group.persona.id}
                   persona={group.persona}
                   startingAgentPubkey={startingAgentPubkey}
@@ -201,6 +227,7 @@ export function UnifiedAgentsSection(props: UnifiedAgentsSectionProps) {
               agents={unknown}
               collapsed={collapsed}
               defaultModel={defaultModel}
+              executionLocations={executionLocations}
               groupKey="__unknown__"
               label="Unknown agents"
               startingAgentPubkey={startingAgentPubkey}
@@ -214,6 +241,7 @@ export function UnifiedAgentsSection(props: UnifiedAgentsSectionProps) {
               agents={ungrouped}
               collapsed={collapsed}
               defaultModel={defaultModel}
+              executionLocations={executionLocations}
               groupKey="__ungrouped__"
               label="Custom agents"
               startingAgentPubkey={startingAgentPubkey}
@@ -247,6 +275,7 @@ function AgentPersonaCard({
   actions,
   agent,
   defaultModel,
+  executionLocation,
   persona,
   startingAgentPubkey,
   startingPersonaIds,
@@ -261,6 +290,7 @@ function AgentPersonaCard({
   ) => React.ReactNode;
   agent: ManagedAgent | undefined;
   defaultModel: string;
+  executionLocation: AgentExecutionLocation | undefined;
   persona: AgentPersona;
   startingAgentPubkey: string | null;
   startingPersonaIds: ReadonlySet<string>;
@@ -278,7 +308,10 @@ function AgentPersonaCard({
     personaModel: persona.model,
     defaultModel,
   });
-  const isActive = agent ? isManagedAgentActive(agent) : false;
+  const isLocallyActive = agent ? isManagedAgentActive(agent) : false;
+  const isActive = Boolean(
+    isLocallyActive || executionLocation?.representativeDeviceName,
+  );
   const profileQuery = useUserProfileQuery(agent?.pubkey);
   const avatarUrl = agent
     ? firstAvatarUrl(persona.avatarUrl, profileQuery.data?.avatarUrl)
@@ -286,7 +319,12 @@ function AgentPersonaCard({
   const friendlyError = agent
     ? friendlyAgentLastError(agent.lastError, agent.lastErrorCode)?.copy
     : null;
-  const opensRuntimeTab = Boolean(agent && friendlyError && !isActive);
+  const visibleError =
+    executionLocation?.representativeDeviceName ||
+    executionLocation?.currentDeviceIsStandby
+      ? null
+      : friendlyError;
+  const opensRuntimeTab = Boolean(agent && visibleError && !isActive);
 
   return (
     <AgentIdentityCard
@@ -299,8 +337,9 @@ function AgentPersonaCard({
         agent ? (
           <AgentRuntimeAvatarControl
             activeTestId={`agent-runtime-active-${agent.pubkey}`}
+            activeLabel={executionAriaLabel(title, executionLocation)}
             avatarUrl={avatarUrl}
-            errorLabel={friendlyError}
+            errorLabel={visibleError}
             errorTestId={`agent-runtime-error-${agent.pubkey}`}
             isActive={isActive}
             isStarting={startingAgentPubkey === agent.pubkey}
@@ -338,16 +377,12 @@ function AgentPersonaCard({
         onOpenPersonaProfile(persona);
       }}
       statusBadge={
-        agent?.personaOrphaned ? (
-          <Badge className="gap-1" variant="warning">
-            <AlertTriangle className="h-3 w-3" />
-            Configuration missing
-          </Badge>
-        ) : agent?.needsRestart ? (
-          <Badge className="gap-1" variant="warning">
-            <RefreshCw className="h-3 w-3" />
-            Restart required
-          </Badge>
+        agent ? (
+          <AgentCardStatus
+            agent={agent}
+            executionLocation={executionLocation}
+            isLocallyActive={isLocallyActive}
+          />
         ) : null
       }
     />
@@ -357,12 +392,14 @@ function AgentPersonaCard({
 function StandaloneAgentCard({
   agent,
   defaultModel,
+  executionLocation,
   startingAgentPubkey,
   onOpenAgentProfile,
   onStartAgent,
 }: {
   agent: ManagedAgent;
   defaultModel: string;
+  executionLocation: AgentExecutionLocation | undefined;
   startingAgentPubkey: string | null;
   onOpenAgentProfile: (
     pubkey: string,
@@ -376,8 +413,16 @@ function StandaloneAgentCard({
     agent.lastError,
     agent.lastErrorCode,
   )?.copy;
-  const isActive = isManagedAgentActive(agent);
-  const opensRuntimeTab = Boolean(friendlyError && !isActive);
+  const isLocallyActive = isManagedAgentActive(agent);
+  const isActive = Boolean(
+    isLocallyActive || executionLocation?.representativeDeviceName,
+  );
+  const visibleError =
+    executionLocation?.representativeDeviceName ||
+    executionLocation?.currentDeviceIsStandby
+      ? null
+      : friendlyError;
+  const opensRuntimeTab = Boolean(visibleError && !isActive);
 
   return (
     <AgentIdentityCard
@@ -385,8 +430,9 @@ function StandaloneAgentCard({
       avatar={
         <AgentRuntimeAvatarControl
           activeTestId={`agent-runtime-active-${agent.pubkey}`}
+          activeLabel={executionAriaLabel(title, executionLocation)}
           avatarUrl={profileQuery.data?.avatarUrl}
-          errorLabel={friendlyError}
+          errorLabel={visibleError}
           errorTestId={`agent-runtime-error-${agent.pubkey}`}
           isActive={isActive}
           isStarting={startingAgentPubkey === agent.pubkey}
@@ -413,19 +459,88 @@ function StandaloneAgentCard({
         );
       }}
       statusBadge={
-        agent.personaOrphaned ? (
-          <Badge className="gap-1" variant="warning">
-            <AlertTriangle className="h-3 w-3" />
-            Configuration missing
-          </Badge>
-        ) : agent.needsRestart ? (
-          <Badge className="gap-1" variant="warning">
-            <RefreshCw className="h-3 w-3" />
-            Restart required
-          </Badge>
-        ) : null
+        <AgentCardStatus
+          agent={agent}
+          executionLocation={executionLocation}
+          isLocallyActive={isLocallyActive}
+        />
       }
     />
+  );
+}
+
+function executionAriaLabel(
+  agentName: string,
+  executionLocation: AgentExecutionLocation | undefined,
+): string {
+  if (executionLocation?.representativeIsCurrent) {
+    return `${agentName}, 이 기기에서 실행 중`;
+  }
+  if (executionLocation?.representativeDeviceName) {
+    return `${agentName}, ${executionLocation.representativeDeviceName}에서 실행 중`;
+  }
+  return `${agentName} 실행 중`;
+}
+
+function AgentCardStatus({
+  agent,
+  executionLocation,
+  isLocallyActive,
+}: {
+  agent: ManagedAgent;
+  executionLocation: AgentExecutionLocation | undefined;
+  isLocallyActive: boolean;
+}) {
+  const representativeLabel = executionLocation?.representativeIsCurrent
+    ? "이 기기에서 실행 중"
+    : executionLocation?.representativeDeviceName
+      ? `${executionLocation.representativeDeviceName}에서 실행 중`
+      : isLocallyActive
+        ? "이 기기에서 실행 중"
+        : null;
+  const isCurrentStandby = Boolean(
+    executionLocation?.currentDeviceIsStandby &&
+      !executionLocation.representativeIsCurrent,
+  );
+  const hasWarning = agent.personaOrphaned || agent.needsRestart;
+
+  if (!hasWarning && !representativeLabel && !isCurrentStandby) {
+    return null;
+  }
+
+  return (
+    <div className="mt-1 flex min-w-0 flex-col items-start gap-1">
+      {agent.personaOrphaned ? (
+        <Badge className="max-w-full gap-1" variant="warning">
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          <span className="truncate">Configuration missing</span>
+        </Badge>
+      ) : agent.needsRestart ? (
+        <Badge className="max-w-full gap-1" variant="warning">
+          <RefreshCw className="h-3 w-3 shrink-0" />
+          <span className="truncate">Restart required</span>
+        </Badge>
+      ) : null}
+      {representativeLabel ? (
+        <span
+          className="flex min-w-0 max-w-full items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+          data-testid={`agent-execution-location-${agent.pubkey}`}
+          title={representativeLabel}
+        >
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+          <span className="truncate">{representativeLabel}</span>
+        </span>
+      ) : null}
+      {isCurrentStandby ? (
+        <span
+          className="max-w-full truncate text-2xs font-medium text-muted-foreground"
+          data-testid={`agent-standby-location-${agent.pubkey}`}
+          title="이 기기는 자동 대기 중"
+        >
+          이 기기는 자동 대기 중
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -502,6 +617,7 @@ function CollapsibleAgentGroup({
   agents,
   collapsed,
   defaultModel,
+  executionLocations,
   startingAgentPubkey,
   onToggle,
   onOpenAgentProfile,
@@ -512,6 +628,7 @@ function CollapsibleAgentGroup({
   agents: ManagedAgent[];
   collapsed: ReadonlySet<string>;
   defaultModel: string;
+  executionLocations: ReadonlyMap<string, AgentExecutionLocation>;
   startingAgentPubkey: string | null;
   onToggle: (key: string) => void;
   onOpenAgentProfile: (
@@ -542,6 +659,10 @@ function CollapsibleAgentGroup({
             <StandaloneAgentCard
               agent={agent}
               defaultModel={defaultModel}
+              executionLocation={findAgentExecutionLocation(
+                executionLocations,
+                agent.pubkey,
+              )}
               key={agent.pubkey}
               startingAgentPubkey={startingAgentPubkey}
               onOpenAgentProfile={onOpenAgentProfile}

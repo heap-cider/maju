@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.1
+
+- Keep non-representative agent runners alive in standby instead of recording a false relay connection failure.
+- Show the actual representative PC and this PC's standby state on agent cards.
+- Preserve real runtime errors while suppressing stale local errors when another device is running the agent normally.
+
 ## v0.2.0
 
 - Simplify self-hosted onboarding around a single relay connection.
