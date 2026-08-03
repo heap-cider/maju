@@ -89,4 +89,5 @@ test("normalizeRelayUrl_ftp_scheme_returns_null", () => {
 
 test("normalizeRelayUrl_garbage_returns_null", () => {
   assert.equal(normalizeRelayUrl("not a url at all"), null);
+  assert.equal(normalizeRelayUrl("not a relay address/path"), null);
 });

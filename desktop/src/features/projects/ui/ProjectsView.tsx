@@ -13,7 +13,10 @@ import {
   useProjectsQuery,
   useProjectsWorkItemsQuery,
 } from "@/features/projects/hooks";
-import { useCreateProjectMutation } from "@/features/projects/useCreateProject";
+import {
+  type CreateProjectInput,
+  useCreateProjectMutation,
+} from "@/features/projects/useCreateProject";
 import { useProjectsRepoSnapshotsQuery } from "@/features/projects/useProjectsRepoSnapshots";
 import { ProjectsActivityFeed } from "@/features/projects/ui/ProjectsActivityFeed";
 import {
@@ -428,6 +431,22 @@ export function ProjectsView() {
     [deleteProjectMutation],
   );
 
+  const handleCreateProject = React.useCallback(
+    async (input: CreateProjectInput) => {
+      const project = await createProjectMutation.mutateAsync(input);
+      toast.success(`Project "${project.name}" created.`);
+      // Land on the list that actually shows the new project — the
+      // Overview only surfaces the top few most-active repositories.
+      handleRepositoryScopeChange("all");
+      handleFilterChange("repositories");
+    },
+    [
+      createProjectMutation.mutateAsync,
+      handleFilterChange,
+      handleRepositoryScopeChange,
+    ],
+  );
+
   if (projectsQuery.isLoading) {
     return null;
   }
@@ -448,7 +467,30 @@ export function ProjectsView() {
   }
 
   if (projects.length === 0) {
-    return <EmptyState />;
+    return (
+      <div
+        className={cn(
+          "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-tl-xl",
+          topChromeInset.divider,
+        )}
+      >
+        <CreateProjectDialog
+          isCreating={createProjectMutation.isPending}
+          onCreate={handleCreateProject}
+          onOpenChange={setCreateProjectOpen}
+          open={createProjectOpen}
+        />
+        <div className="maju-content-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-4 pb-8 pt-7 sm:px-6 sm:pt-8">
+            <PageHeader
+              description="Set up and manage your projects."
+              title="Projects"
+            />
+            <EmptyState onCreate={() => setCreateProjectOpen(true)} />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const repositoryItems =
@@ -604,14 +646,7 @@ export function ProjectsView() {
       />
       <CreateProjectDialog
         isCreating={createProjectMutation.isPending}
-        onCreate={async (input) => {
-          const project = await createProjectMutation.mutateAsync(input);
-          toast.success(`Project "${project.name}" created.`);
-          // Land on the list that actually shows the new project — the
-          // Overview only surfaces the top few most-active repositories.
-          handleRepositoryScopeChange("all");
-          handleFilterChange("repositories");
-        }}
+        onCreate={handleCreateProject}
         onOpenChange={setCreateProjectOpen}
         open={createProjectOpen}
       />

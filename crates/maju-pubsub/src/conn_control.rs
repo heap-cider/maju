@@ -68,6 +68,19 @@ pub enum ConnControl {
         /// Human-readable close reason for the `OK` frame.
         reason: String,
     },
+    /// Disconnect every socket belonging to one account device login session.
+    DisconnectDevice {
+        /// Owning account pubkey (hex).
+        owner_pubkey: String,
+        /// Stable installation id.
+        device_id: String,
+        /// Exact login session id being disconnected.
+        session_id: String,
+        /// Id echoed in the final `OK false` frame.
+        event_id: String,
+        /// Human-readable machine-prefixed close reason.
+        reason: String,
+    },
 }
 
 /// A connection-control command received from a community-scoped Redis channel.
@@ -222,6 +235,19 @@ mod tests {
             pubkey: vec![7u8; 32],
             event_id: "abc123".to_string(),
             reason: "blocked: you are banned from this community".to_string(),
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        assert_eq!(serde_json::from_str::<ConnControl>(&json).unwrap(), cmd);
+    }
+
+    #[test]
+    fn disconnect_device_command_serde_round_trips() {
+        let cmd = ConnControl::DisconnectDevice {
+            owner_pubkey: "ab".repeat(32),
+            device_id: Uuid::new_v4().to_string(),
+            session_id: Uuid::new_v4().to_string(),
+            event_id: "cd".repeat(32),
+            reason: "blocked: device session disconnected".to_string(),
         };
         let json = serde_json::to_string(&cmd).unwrap();
         assert_eq!(serde_json::from_str::<ConnControl>(&json).unwrap(), cmd);

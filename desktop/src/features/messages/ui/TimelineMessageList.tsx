@@ -26,8 +26,11 @@ import { buildVideoReviewContextsByMessageId } from "@/features/messages/lib/vid
 import type { buildVideoReviewContextForMessage } from "@/features/messages/lib/videoReviewContext";
 import type { TimelineMessage } from "@/features/messages/types";
 import { canManageMessageForCurrentUser } from "@/features/messages/lib/canManageMessage";
+import { useMyRelayMembershipQuery } from "@/features/community-members/hooks";
+import { canModerateCommunityContent } from "@/features/moderation/lib/contentModeration";
 import type { UserProfileLookup } from "@/features/profile/lib/identity";
 import type { ChannelType } from "@/shared/api/types";
+import { KIND_HUDDLE_STARTED } from "@/shared/constants/kinds";
 import { cn } from "@/shared/lib/cn";
 import { DayDivider } from "./DayDivider";
 import { MessageRow } from "./MessageRow";
@@ -161,6 +164,12 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
   onVirtualizerRangeChanged,
   onVirtualizerScrollerChange,
 }: TimelineMessageListProps) {
+  const relayMembershipQuery = useMyRelayMembershipQuery();
+  // Community moderators may edit; their kind:40003 signer is retained and
+  // rendered as the editor. Deletion stays on the separate kind:9005 path.
+  const canModerateContent = canModerateCommunityContent(
+    relayMembershipQuery.data?.role,
+  );
   const entries = React.useMemo(
     () =>
       mainEntries ??
@@ -236,6 +245,7 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
         case "message":
           return (
             <MessageRowItem
+              canModerateContent={canModerateContent}
               channelId={channelId}
               currentPubkey={currentPubkey}
               entry={item.entry}
@@ -271,6 +281,7 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
     },
     [
       channelId,
+      canModerateContent,
       currentPubkey,
       followThreadById,
       highlightedMessageId,
@@ -707,6 +718,7 @@ type MessageRowItemProps = Pick<
   | "threadUnreadCounts"
   | "unfollowThreadById"
 > & {
+  canModerateContent: boolean;
   entry: MainTimelineEntry;
   footer: React.ReactNode;
   isContinuation?: boolean;
@@ -718,6 +730,7 @@ type MessageRowItemProps = Pick<
 };
 
 function MessageRowItem({
+  canModerateContent,
   channelId,
   currentPubkey,
   entry,
@@ -753,7 +766,12 @@ function MessageRowItem({
     profiles,
   );
   const canDelete = canManage && onDelete ? onDelete : undefined;
-  const canEdit = canManage && onEdit ? onEdit : undefined;
+  const canEdit =
+    message.kind !== KIND_HUDDLE_STARTED &&
+    (canManage || canModerateContent) &&
+    onEdit
+      ? onEdit
+      : undefined;
 
   if (summary && onReply) {
     const isHighlighted = message.id === highlightedMessageId;

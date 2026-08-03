@@ -5125,6 +5125,9 @@ function writeMockProjectBranch(
 }
 
 function buildMockProjectEvents(): RelayEvent[] {
+  if (window.localStorage.getItem("maju-e2e-empty-projects") === "1") {
+    return [];
+  }
   const events: RelayEvent[] = [];
   const daySeconds = 86_400;
   const now = Math.floor(Date.now() / 1000);
@@ -5237,6 +5240,7 @@ function getMockProjectEventStore(): RelayEvent[] {
  * a repo-address `a` tag instead of a channel `h` tag — store them with the
  * seeded project events so refetches see them. */
 function isMockProjectScopedEvent(event: RelayEvent): boolean {
+  if (event.kind === KIND_REPO_ANNOUNCEMENT) return true;
   const hasRepoAddressTag = event.tags.some(
     (tag) => tag[0] === "a" && (tag[1] ?? "").startsWith("30617:"),
   );
@@ -9928,6 +9932,52 @@ export function maybeInstallE2eTauriMocks() {
       sourceUrl: null;
     };
   }> = [];
+  let mockCurrentDeviceName = "사무실 PC";
+  const mockDisconnectedDeviceIds = new Set<string>();
+
+  const mockLoggedInDevices = () => {
+    const now = Math.floor(Date.now() / 1_000);
+    const agentPubkey = mockManagedAgents[0]?.pubkey ?? "agent-pubkey";
+    return [
+      {
+        device_id: "11111111-1111-4111-8111-111111111111",
+        session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        name: mockCurrentDeviceName,
+        platform: "windows",
+        app_version: "0.1.2",
+        last_seen: now,
+        online: true,
+        current: true,
+        active_agents: [agentPubkey],
+        standby_agents: [],
+      },
+      {
+        device_id: "22222222-2222-4222-8222-222222222222",
+        session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        name: "집 PC",
+        platform: "windows",
+        app_version: "0.1.2",
+        last_seen: now - 12,
+        online: true,
+        current: false,
+        active_agents: [],
+        standby_agents: [agentPubkey],
+      },
+      {
+        device_id: "33333333-3333-4333-8333-333333333333",
+        session_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        name: "여행용 노트북",
+        platform: "linux",
+        app_version: "0.1.1",
+        last_seen: now - 7_200,
+        online: false,
+        current: false,
+        active_agents: [],
+        standby_agents: [],
+      },
+    ].filter((device) => !mockDisconnectedDeviceIds.has(device.device_id));
+  };
+
   const handleMockCommand = async (
     command: string,
     payload: unknown,
@@ -11385,6 +11435,22 @@ export function maybeInstallE2eTauriMocks() {
       }
       case "list_managed_agents":
         return handleListManagedAgents(activeConfig);
+      case "list_logged_in_devices":
+        return mockLoggedInDevices();
+      case "get_current_device":
+        return {
+          device_id: "11111111-1111-4111-8111-111111111111",
+          session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          name: mockCurrentDeviceName,
+        };
+      case "rename_current_device":
+        mockCurrentDeviceName = (payload as { name: string }).name;
+        return null;
+      case "disconnect_logged_in_device":
+        mockDisconnectedDeviceIds.add(
+          (payload as { deviceId: string }).deviceId,
+        );
+        return null;
       case "get_agent_memory":
         return handleGetAgentMemory(
           (payload as Parameters<typeof handleGetAgentMemory>[0]) ?? {},

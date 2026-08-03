@@ -5,7 +5,7 @@
 /** Normalize a user-entered relay URL to ws(s):// form. Returns null if invalid. */
 export function normalizeRelayUrl(input: string): string | null {
   const trimmed = input.trim().replace(/\/+$/, "");
-  if (!trimmed) return null;
+  if (!trimmed || /\s/.test(trimmed)) return null;
 
   // Already ws(s)://
   if (trimmed.startsWith("wss://") || trimmed.startsWith("ws://")) {

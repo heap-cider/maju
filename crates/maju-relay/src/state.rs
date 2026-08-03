@@ -54,6 +54,8 @@ struct ConnEntry {
     backpressure_count: Arc<AtomicU8>,
     subscriptions: ConnectionSubscriptions,
     authenticated_pubkey: Arc<std::sync::RwLock<Option<Vec<u8>>>>,
+    authenticated_device:
+        Arc<std::sync::RwLock<Option<crate::device_sessions::AuthenticatedDevice>>>,
     grace_limit: u8,
 }
 
@@ -225,6 +227,7 @@ impl ConnectionManager {
                 backpressure_count,
                 subscriptions,
                 authenticated_pubkey: Arc::new(std::sync::RwLock::new(None)),
+                authenticated_device: Arc::new(std::sync::RwLock::new(None)),
                 grace_limit,
             },
         );
@@ -250,6 +253,58 @@ impl ConnectionManager {
                 *slot = Some(pubkey_bytes);
             }
         }
+    }
+
+    /// Record the signed device session attached to an authenticated socket.
+    pub fn set_authenticated_device(
+        &self,
+        conn_id: Uuid,
+        device: crate::device_sessions::AuthenticatedDevice,
+    ) {
+        if let Some(entry) = self.connections.get(&conn_id) {
+            if let Ok(mut slot) = entry.authenticated_device.write() {
+                *slot = Some(device);
+            }
+        }
+    }
+
+    /// Disconnect every account and delegated-agent socket for one login session.
+    #[allow(clippy::too_many_arguments)]
+    pub fn disconnect_device(
+        &self,
+        community: CommunityId,
+        owner_pubkey: &str,
+        device_id: &str,
+        session_id: &str,
+        event_id: &str,
+        reason: &str,
+    ) -> usize {
+        let frame = crate::protocol::RelayMessage::ok(event_id, false, reason);
+        let mut closed = 0usize;
+        for entry in self.connections.iter() {
+            if entry.community_id != community {
+                continue;
+            }
+            let matches = entry
+                .authenticated_device
+                .read()
+                .ok()
+                .and_then(|value| value.clone())
+                .is_some_and(|device| {
+                    device.owner_pubkey == owner_pubkey
+                        && device.descriptor.device_id == device_id
+                        && device.descriptor.session_id == session_id
+                });
+            if !matches {
+                continue;
+            }
+            let _ = entry
+                .ctrl_tx
+                .try_send(WsMessage::Text(frame.clone().into()));
+            entry.cancel.cancel();
+            closed += 1;
+        }
+        closed
     }
 
     /// Return live connection IDs authenticated as `pubkey_bytes` in one community.
@@ -1358,6 +1413,7 @@ mod tests {
             ),
             remote_addr: "127.0.0.1:1234".parse().unwrap(),
             auth_state: RwLock::new(AuthState::Failed),
+            device_session: RwLock::new(None),
             subscriptions: Arc::new(Mutex::new(HashMap::new())),
             send_tx: tx.clone(),
             ctrl_tx,

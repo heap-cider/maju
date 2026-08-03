@@ -65,6 +65,7 @@ import {
   STALL_IDLE_TIMEOUT_MS,
 } from "@/shared/api/relayClientTimings";
 import { closeWebSocket } from "@/shared/api/relayWebSocketClose";
+import { beginDeviceSessionDisconnect } from "@/shared/api/deviceSessionDisconnect";
 import { buildThreadReferenceTags } from "@/features/messages/lib/threading";
 
 export class RelayClient {
@@ -92,9 +93,7 @@ export class RelayClient {
   private connectionGeneration = 0;
   private stabilityTimer: number | null = null;
   private visibleChannelId: string | null = null;
-
   private terminal = false;
-
   private connectionStateEmitter = new RelayConnectionStateEmitter("idle");
   private stallWatchdog = new RelayStallWatchdog({
     intervalMs: STALL_CHECK_INTERVAL_MS,
@@ -104,14 +103,11 @@ export class RelayClient {
       this.resetConnection(error);
     },
   });
-
   setVisibleChannelId(id: string | null) {
     this.visibleChannelId = id;
   }
-
   disconnect() {
     const error = new Error("Relay disconnected for community switch.");
-
     if (this.reconnectTimeout) {
       window.clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -129,12 +125,10 @@ export class RelayClient {
     this.terminal = false;
     this.visibleChannelId = null;
     this.connectionStateEmitter.set("idle");
-
     if (this.wsId !== null) {
       void closeWebSocket(this.wsId, "community switch");
       this.wsId = null;
     }
-
     this.connectPromise = null;
     this.reconnectWaiters.settle(error);
 
@@ -887,6 +881,12 @@ export class RelayClient {
   }
 
   private handleOk(eventId: string, success: boolean, message: string) {
+    const disconnected = beginDeviceSessionDisconnect(success, message);
+    if (disconnected) {
+      this.terminal = true;
+      this.resetConnection(disconnected, { reconnect: false });
+      return;
+    }
     if (this.authRequest && this.authRequest.pendingEventId === eventId) {
       window.clearTimeout(this.authRequest.timeout);
       const authRequest = this.authRequest;

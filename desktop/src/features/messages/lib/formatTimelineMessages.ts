@@ -219,14 +219,21 @@ export function formatTimelineMessages(
     }
   }
 
-  // Build a map of latest edit per original message: targetId → { content, tags, createdAt }.
-  // When multiple edits exist for the same message, the most recent one wins.
+  // Build a map of latest edit per original message. Keep the edit signer so
+  // owner/moderator edits remain visible provenance instead of looking like
+  // the original author silently rewrote the message. When multiple edits
+  // exist for the same message, the most recent one wins.
   // The edit's own tags are kept so the renderer can overlay imeta tags
   // (attachments) from the edit onto the original event — non-imeta tags on
   // the original (`h`, `p` mentions, etc.) stay untouched.
   const editsByTargetId = new Map<
     string,
-    { content: string; tags: string[][]; createdAt: number }
+    {
+      content: string;
+      tags: string[][];
+      createdAt: number;
+      editorPubkey: string;
+    }
   >();
   for (const event of events) {
     if (
@@ -247,6 +254,7 @@ export function formatTimelineMessages(
         content: event.content,
         tags: event.tags,
         createdAt: event.created_at,
+        editorPubkey: event.pubkey.toLowerCase(),
       });
     }
   }
@@ -464,6 +472,7 @@ export function formatTimelineMessages(
       accent: currentPubkey === authorPubkey,
       pending: event.pending,
       edited: edit !== undefined,
+      editedByPubkey: edit?.editorPubkey,
       kind: event.kind,
       // When edited, swap the original event's imeta tags for the edit's
       // imeta tags. All non-imeta tags on the original are preserved.

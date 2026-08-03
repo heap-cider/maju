@@ -23,7 +23,6 @@ import { KnownAgentPubkeysProvider } from "@/features/agents/useKnownAgentPubkey
 import { useAppOnboardingState } from "@/features/onboarding/hooks";
 import { useMachineOnboardingState } from "@/features/onboarding/machineOnboarding";
 import {
-  type FirstCommunityPage,
   useCommunityOnboarding,
   markCommunityOnboardingComplete,
   resolveProfileCheckAction,
@@ -316,8 +315,6 @@ function CommunityApp({
   const transactionRef = useRef(communityOnboarding.transaction);
   transactionRef.current = communityOnboarding.transaction;
   const [isCommunityChangeOpen, setIsCommunityChangeOpen] = useState(false);
-  const [resumeFirstCommunityPage, setResumeFirstCommunityPage] =
-    useState<FirstCommunityPage | null>(null);
 
   // Surface nest-related backend events (repos-dir errors, legacy migration)
   // as toasts. Mounted before useCommunityInit so the listeners are registered
@@ -423,9 +420,6 @@ function CommunityApp({
       return;
     }
     if (communities.length === 1) {
-      if (transaction.source === "first-community") {
-        setResumeFirstCommunityPage(transaction.firstCommunityPage ?? "join");
-      }
       clearCommunities();
       return;
     }
@@ -508,12 +502,7 @@ function CommunityApp({
   if (!transaction) {
     if (community.needsSetup) {
       // Show welcome setup for first-run users with no communities
-      appContent = (
-        <WelcomeSetup
-          initialPage={resumeFirstCommunityPage ?? undefined}
-          onBack={onBackToMachineConfig}
-        />
-      );
+      appContent = <WelcomeSetup onBack={onBackToMachineConfig} />;
     } else if ("error" in community && community.error) {
       // Surface apply failures so the user can retry or change community.
       appContent = (

@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import * as React from "react";
 
 import type { CreateProjectInput } from "@/features/projects/useCreateProject";
@@ -33,6 +34,7 @@ export function CreateProjectDialog({
   const [description, setDescription] = React.useState("");
   const [cloneUrl, setCloneUrl] = React.useState("");
   const [webUrl, setWebUrl] = React.useState("");
+  const [showRepositoryLinks, setShowRepositoryLinks] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const nameInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -43,6 +45,7 @@ export function CreateProjectDialog({
     setDescription("");
     setCloneUrl("");
     setWebUrl("");
+    setShowRepositoryLinks(false);
     setErrorMessage(null);
 
     // Small delay to let the dialog animation start before focusing.
@@ -88,7 +91,7 @@ export function CreateProjectDialog({
         className="max-w-lg"
         contentClassName="pt-3"
         data-testid="create-project-dialog"
-        description="Projects are repositories published to this workspace's relay."
+        description="Start with a name. Maju creates the repository on your relay."
         footer={
           <div className="flex w-full items-center justify-end gap-3">
             <Button
@@ -176,76 +179,103 @@ export function CreateProjectDialog({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label
-              className="text-sm font-medium text-foreground"
-              htmlFor="create-project-clone-url"
+          <div className="border-border/70 border-t pt-4">
+            <button
+              aria-expanded={showRepositoryLinks}
+              className="flex w-full items-center justify-between rounded-lg px-1 py-1.5 text-left text-sm font-medium text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+              data-testid="create-project-advanced-toggle"
+              onClick={() => setShowRepositoryLinks((current) => !current)}
+              type="button"
             >
-              Clone URL
-              <span className={CREATE_LABEL_OPTIONAL_CLASS}>Optional</span>
-            </label>
-            <div
-              className={cn(
-                "flex min-h-11 items-center px-3",
-                CREATE_FIELD_SHELL_CLASS,
-              )}
-            >
-              <Input
-                autoCapitalize="none"
-                autoComplete="off"
-                autoCorrect="off"
+              <span>
+                Existing repository links
+                <span className={CREATE_LABEL_OPTIONAL_CLASS}>Optional</span>
+              </span>
+              <ChevronDown
                 className={cn(
-                  "h-8 px-0 py-0 leading-6",
-                  CREATE_FIELD_CONTROL_CLASS,
+                  "h-4 w-4 transition-transform",
+                  showRepositoryLinks && "rotate-180",
                 )}
-                data-testid="create-project-clone-url"
-                disabled={isCreating}
-                id="create-project-clone-url"
-                onChange={(event) => {
-                  setCloneUrl(event.target.value);
-                  setErrorMessage(null);
-                }}
-                placeholder="https://relay.example.com/git/bee-garden-game.git"
-                spellCheck={false}
-                value={cloneUrl}
               />
-            </div>
-          </div>
+            </button>
 
-          <div className="space-y-1.5">
-            <label
-              className="text-sm font-medium text-foreground"
-              htmlFor="create-project-web-url"
-            >
-              Web URL
-              <span className={CREATE_LABEL_OPTIONAL_CLASS}>Optional</span>
-            </label>
-            <div
-              className={cn(
-                "flex min-h-11 items-center px-3",
-                CREATE_FIELD_SHELL_CLASS,
-              )}
-            >
-              <Input
-                autoCapitalize="none"
-                autoComplete="off"
-                autoCorrect="off"
-                className={cn(
-                  "h-8 px-0 py-0 leading-6",
-                  CREATE_FIELD_CONTROL_CLASS,
-                )}
-                data-testid="create-project-web-url"
-                disabled={isCreating}
-                id="create-project-web-url"
-                onChange={(event) => {
-                  setWebUrl(event.target.value);
-                  setErrorMessage(null);
-                }}
-                placeholder="https://github.com/owner/repo"
-                spellCheck={false}
-                value={webUrl}
-              />
-            </div>
+            {showRepositoryLinks ? (
+              <div className="space-y-4 pt-4">
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Add these only when the project already has a remote
+                  repository or website.
+                </p>
+                <div className="space-y-1.5">
+                  <label
+                    className="text-sm font-medium text-foreground"
+                    htmlFor="create-project-clone-url"
+                  >
+                    Clone URL
+                  </label>
+                  <div
+                    className={cn(
+                      "flex min-h-11 items-center px-3",
+                      CREATE_FIELD_SHELL_CLASS,
+                    )}
+                  >
+                    <Input
+                      autoCapitalize="none"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      className={cn(
+                        "h-8 px-0 py-0 leading-6",
+                        CREATE_FIELD_CONTROL_CLASS,
+                      )}
+                      data-testid="create-project-clone-url"
+                      disabled={isCreating}
+                      id="create-project-clone-url"
+                      onChange={(event) => {
+                        setCloneUrl(event.target.value);
+                        setErrorMessage(null);
+                      }}
+                      placeholder="https://github.com/owner/repository.git"
+                      spellCheck={false}
+                      value={cloneUrl}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    className="text-sm font-medium text-foreground"
+                    htmlFor="create-project-web-url"
+                  >
+                    Project website
+                  </label>
+                  <div
+                    className={cn(
+                      "flex min-h-11 items-center px-3",
+                      CREATE_FIELD_SHELL_CLASS,
+                    )}
+                  >
+                    <Input
+                      autoCapitalize="none"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      className={cn(
+                        "h-8 px-0 py-0 leading-6",
+                        CREATE_FIELD_CONTROL_CLASS,
+                      )}
+                      data-testid="create-project-web-url"
+                      disabled={isCreating}
+                      id="create-project-web-url"
+                      onChange={(event) => {
+                        setWebUrl(event.target.value);
+                        setErrorMessage(null);
+                      }}
+                      placeholder="https://github.com/owner/repository"
+                      spellCheck={false}
+                      value={webUrl}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {errorMessage ? (

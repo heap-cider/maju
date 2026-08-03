@@ -3399,7 +3399,7 @@ packages:
     engines: {node: '>=14.0.0'}
 
   tiptap-markdown@0.9.0:
-    resolution: {integrity: "sha512-dKLQ9iiuGNgrlGVjrNauF/UBzWu4LYOx5pkD0jNkmQt/GOwfCJs\u0042uzZTsf1jZ204ANHOm572mZ9PYvGh1S7tpQ=="}
+    resolution: {integrity: sha512-dKLQ9iiuGNgrlGVjrNauF/UBzWu4LYOx5pkD0jNkmQt/GOwfCJsBuzZTsf1jZ204ANHOm572mZ9PYvGh1S7tpQ==}
     peerDependencies:
       '@tiptap/core': ^3.0.1
 

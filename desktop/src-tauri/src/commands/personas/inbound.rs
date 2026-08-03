@@ -105,13 +105,37 @@ fn reconcile_inbound_persona_event_blocking(
     // d-tag directly. The persona is parsed once here and reused in the apply
     // branch below — team/agent content is parsed in-branch since their d-tag
     // comes from the event tag, not the content.
+    let owner_keys = state.signing_keys()?;
+    let owner_pubkey = owner_keys.public_key().to_hex();
+    if !event.pubkey.to_hex().eq_ignore_ascii_case(&owner_pubkey) {
+        return Err(
+            "inbound agent-definition event was not authored by the active owner".to_string(),
+        );
+    }
+
     let inbound_persona = (kind == KIND_PERSONA)
         .then(|| persona_from_event(&event))
+        .transpose()?;
+    let inbound_managed_agent = (kind == KIND_MANAGED_AGENT)
+        .then(|| managed_agent_content_from_event(&event))
         .transpose()?;
     let d_tag = match &inbound_persona {
         Some(persona) => persona_d_tag(persona),
         None => event_d_tag(&event)?,
     };
+    // Validate the encrypted identity before the inbound event is allowed to
+    // replace the retained head. A corrupt envelope must not overwrite the
+    // last recoverable copy and only then fail during local-store apply.
+    if let Some(envelope) = inbound_managed_agent
+        .as_ref()
+        .and_then(|content| content.identity_key_envelope.as_deref())
+    {
+        crate::managed_agents::agent_events::decrypt_agent_identity_key(
+            &owner_keys,
+            envelope,
+            &d_tag,
+        )?;
+    }
 
     let _store_guard = state
         .managed_agents_store_lock
@@ -164,11 +188,9 @@ fn reconcile_inbound_persona_event_blocking(
         }
         KIND_MANAGED_AGENT => {
             let mut agents = load_managed_agents(&app)?;
-            apply_inbound_managed_agent(
-                &mut agents,
-                &d_tag,
-                managed_agent_content_from_event(&event)?,
-            );
+            let inbound = inbound_managed_agent
+                .ok_or_else(|| "managed-agent event content was not parsed".to_string())?;
+            apply_inbound_managed_agent(&mut agents, &d_tag, inbound, &owner_keys)?;
             save_managed_agents(&app, &agents)?;
         }
         _ => unreachable!("kind gated above"),
@@ -367,22 +389,32 @@ fn apply_inbound_persona(personas: &mut Vec<AgentDefinition>, inbound: AgentDefi
 ///
 /// Matches the local record whose `pubkey` equals the event's d-tag (the d-tag
 /// IS the agent pubkey — see `build_agent_event`). On match, overwrite ONLY the
-/// 10 projected fields; every secret (`private_key_nsec`, `auth_tag`,
-/// `env_vars`, `backend`), the harness pins (`agent_command`,
-/// `agent_command_override`), and all runtime/local fields are preserved
-/// untouched. The projection type carries none of them, so they cannot be
-/// reached here even if a foreign event tried to inject them.
+/// projected config fields. Runtime credentials, backend placement, harness
+/// pins, and runtime state stay local. The agent key is the sole exception: a
+/// valid owner-encrypted envelope may hydrate it so the logical signing
+/// identity follows the owner across devices.
 ///
-/// No match is a no-op: managed agents carry device-local secrets and are never
-/// minted from a relay event — an agent that does not already exist locally has
-/// no secret key to run with, so inserting a secretless shell would be useless
-/// and misleading. This diverges from the persona path, which DOES insert on no
-/// match (personas are secretless definitions). Flagged in the reconcile docs.
+/// On a new device, a valid owner-self-encrypted identity envelope materializes
+/// a stopped local runtime record with the same agent pubkey and key. Runtime
+/// placement and credentials remain device-local; only the logical signing
+/// identity follows the owner. An old event without an envelope still no-ops on
+/// no match, because it cannot create a runnable identity safely.
 fn apply_inbound_managed_agent(
-    agents: &mut [ManagedAgentRecord],
+    agents: &mut Vec<ManagedAgentRecord>,
     d_tag: &str,
     inbound: ManagedAgentEventContent,
-) {
+    owner_keys: &nostr::Keys,
+) -> Result<(), String> {
+    let recovered_nsec = inbound
+        .identity_key_envelope
+        .as_deref()
+        .map(|envelope| {
+            crate::managed_agents::agent_events::decrypt_agent_identity_key(
+                owner_keys, envelope, d_tag,
+            )
+        })
+        .transpose()?;
+
     if let Some(local) = agents.iter_mut().find(|record| record.pubkey == d_tag) {
         local.name = inbound.name;
         // Mirror of the slimmed writer (agent_event_content): a
@@ -401,7 +433,86 @@ fn apply_inbound_managed_agent(
         local.parallelism = inbound.parallelism;
         local.respond_to = inbound.respond_to;
         local.respond_to_allowlist = inbound.respond_to_allowlist;
+        if let Some(nsec) = recovered_nsec {
+            local.private_key_nsec = nsec;
+            if local.auth_tag.is_none() {
+                local.auth_tag = Some(agent_owner_auth_tag(owner_keys, d_tag)?);
+            }
+        }
+        return Ok(());
     }
+
+    let Some(private_key_nsec) = recovered_nsec else {
+        return Ok(());
+    };
+    let now = now_iso();
+    agents.push(ManagedAgentRecord {
+        pubkey: d_tag.to_ascii_lowercase(),
+        name: inbound.name,
+        persona_id: inbound.persona_id,
+        team_id: None,
+        private_key_nsec,
+        auth_tag: Some(agent_owner_auth_tag(owner_keys, d_tag)?),
+        // Empty means "use this device's active community". Runtime placement
+        // is deliberately local even though the signing identity is shared.
+        relay_url: String::new(),
+        avatar_url: None,
+        acp_command: crate::managed_agents::DEFAULT_ACP_COMMAND.to_string(),
+        agent_command: crate::managed_agents::default_agent_command(),
+        agent_command_override: None,
+        agent_args: Vec::new(),
+        mcp_command: String::new(),
+        turn_timeout_seconds: crate::managed_agents::DEFAULT_AGENT_TURN_TIMEOUT_SECONDS,
+        idle_timeout_seconds: None,
+        max_turn_duration_seconds: None,
+        parallelism: inbound.parallelism,
+        system_prompt: inbound.system_prompt,
+        model: inbound.model,
+        provider: inbound.provider,
+        persona_source_version: inbound.persona_source_version,
+        env_vars: Default::default(),
+        start_on_app_launch: false,
+        auto_restart_on_config_change: true,
+        runtime_pid: None,
+        backend: crate::managed_agents::BackendKind::Local,
+        backend_agent_id: None,
+        provider_binary_path: None,
+        persona_team_dir: None,
+        persona_name_in_team: None,
+        created_at: now.clone(),
+        updated_at: now,
+        last_started_at: None,
+        last_stopped_at: None,
+        last_exit_code: None,
+        last_error: None,
+        last_error_code: None,
+        respond_to: inbound.respond_to,
+        respond_to_allowlist: inbound.respond_to_allowlist,
+        display_name: None,
+        slug: None,
+        runtime: None,
+        name_pool: Vec::new(),
+        is_builtin: false,
+        is_active: true,
+        shared: false,
+        source_team: None,
+        source_team_persona_slug: None,
+        catalog_source: None,
+        definition_respond_to: None,
+        definition_respond_to_allowlist: Vec::new(),
+        definition_parallelism: None,
+        relay_mesh: None,
+    });
+    Ok(())
+}
+
+fn agent_owner_auth_tag(owner_keys: &nostr::Keys, agent_pubkey: &str) -> Result<String, String> {
+    let compat_owner = nostr::Keys::parse(&owner_keys.secret_key().to_secret_hex())
+        .map_err(|e| format!("failed to bridge owner keys: {e}"))?;
+    let compat_agent = nostr::PublicKey::from_hex(agent_pubkey)
+        .map_err(|e| format!("failed to bridge agent pubkey: {e}"))?;
+    maju_sdk_pkg::nip_oa::compute_auth_tag(&compat_owner, &compat_agent, "")
+        .map_err(|e| format!("failed to compute NIP-OA auth tag: {e}"))
 }
 
 /// Merge an inbound kind:30176 team projection into the local set.

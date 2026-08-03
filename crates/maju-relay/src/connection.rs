@@ -61,6 +61,8 @@ pub struct ConnectionState {
     pub remote_addr: SocketAddr,
     /// Current NIP-42 authentication state.
     pub auth_state: RwLock<AuthState>,
+    /// Signed account-device session and optional active agent runner lease.
+    pub device_session: RwLock<Option<crate::device_sessions::AuthenticatedDevice>>,
     /// Active subscriptions keyed by subscription ID.
     pub subscriptions: ConnectionSubscriptions,
     /// Sender for outbound data messages (EVENT, NOTICE, OK, etc.).
@@ -171,6 +173,7 @@ async fn handle_active_connection(
         auth_state: RwLock::new(AuthState::Pending {
             challenge: challenge.clone(),
         }),
+        device_session: RwLock::new(None),
         subscriptions: Arc::clone(&subscriptions),
         send_tx: tx.clone(),
         ctrl_tx: ctrl_tx.clone(),
@@ -269,6 +272,9 @@ async fn handle_active_connection(
             .await;
     }
     state.conn_manager.deregister(conn.conn_id);
+    if let Some(device) = conn.device_session.read().await.clone() {
+        crate::device_sessions::release(&state, &conn.tenant, &device).await;
+    }
     if let AuthState::Authenticated(ref auth_ctx) = *conn.auth_state.read().await {
         let remaining = state.conn_manager.connection_ids_for_pubkey_in_community(
             conn.tenant.community(),
@@ -460,8 +466,10 @@ async fn recv_loop(
                     }
                     Some(Ok(WsMessage::Pong(_))) => {
                         missed_pongs.store(0, Ordering::Relaxed);
+                        refresh_device_session(&state, &conn).await;
                     }
                     Some(Ok(WsMessage::Ping(data))) => {
+                        refresh_device_session(&state, &conn).await;
                         // Send Pong through the control channel — priority
                         // delivery even when the data buffer is full (Bug 7 fix).
                         if conn.ctrl_tx.try_send(WsMessage::Pong(data)).is_err() {
@@ -483,6 +491,16 @@ async fn recv_loop(
             }
             _ = cancel.cancelled() => break,
         }
+    }
+}
+
+async fn refresh_device_session(state: &AppState, conn: &ConnectionState) {
+    let Some(device) = conn.device_session.read().await.clone() else {
+        return;
+    };
+    if !crate::device_sessions::refresh(state, &conn.tenant, &device).await {
+        tracing::warn!(conn_id = %conn.conn_id, "agent representative lease lost");
+        conn.cancel.cancel();
     }
 }
 

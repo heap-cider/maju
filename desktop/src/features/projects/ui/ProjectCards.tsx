@@ -3,6 +3,7 @@ import {
   FolderGit2,
   GitCommit,
   GitPullRequest,
+  Plus,
   TerminalSquare,
   Trash2,
 } from "lucide-react";
@@ -263,16 +264,28 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-export function EmptyState() {
+export function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center">
-      <FolderGit2 className="h-10 w-10 text-muted-foreground/40" />
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">No projects yet</p>
-        <p className="text-sm text-muted-foreground">
-          Projects published to this relay will appear here.
+    <div
+      className="flex min-h-[24rem] flex-1 flex-col items-center justify-center px-4 py-16 text-center"
+      data-testid="projects-empty-state"
+    >
+      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-border/70 bg-muted/35">
+        <FolderGit2 className="h-7 w-7 text-muted-foreground" />
+      </div>
+      <div className="max-w-sm space-y-1.5">
+        <h2 className="text-lg font-semibold text-foreground">
+          Create your first project
+        </h2>
+        <p className="text-sm leading-6 text-muted-foreground">
+          Projects keep repositories, discussions, and agent work together in
+          this community.
         </p>
       </div>
+      <Button className="mt-6 gap-2" onClick={onCreate}>
+        <Plus className="h-4 w-4" />
+        Create project
+      </Button>
     </div>
   );
 }

@@ -92,6 +92,138 @@ async fn connect_agent_with_owner(agent_keys: &Keys, owner_keys: &Keys) -> MajuT
     client
 }
 
+async fn seed_community_role(keys: &Keys, role: &str) {
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://maju:maju_dev@localhost:5432/maju".to_string());
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .expect("connect to e2e Postgres");
+    let community_id: uuid::Uuid =
+        sqlx::query_scalar("SELECT id FROM communities WHERE lower(host) = lower($1)")
+            .bind("localhost:3000")
+            .fetch_one(&pool)
+            .await
+            .expect("lookup localhost e2e community");
+    sqlx::query(
+        "INSERT INTO relay_members (community_id, pubkey, role, added_by) \
+         VALUES ($1, $2, $3, NULL) \
+         ON CONFLICT (community_id, pubkey) DO UPDATE \
+         SET role = $3, updated_at = now()",
+    )
+    .bind(community_id)
+    .bind(keys.public_key().to_hex())
+    .bind(role)
+    .execute(&pool)
+    .await
+    .expect("seed community role");
+}
+
+/// A community owner can edit and remove an unrelated agent's message without being
+/// the message author, the agent's NIP-OA owner, or a member of its channel.
+/// An ordinary community member cannot perform either moderation action.
+#[tokio::test]
+#[ignore]
+async fn test_community_owner_can_edit_and_delete_unrelated_agent_message() {
+    let community_owner = Keys::generate();
+    let ordinary_member = Keys::generate();
+    let unrelated_agent = Keys::generate();
+    let channel_id = create_agent_owned_channel(&unrelated_agent).await;
+
+    seed_community_role(&community_owner, "owner").await;
+    seed_community_role(&ordinary_member, "member").await;
+
+    let mut agent_client = MajuTestClient::connect(&relay_url(), &unrelated_agent)
+        .await
+        .expect("connect unrelated agent");
+    let message = agent_client
+        .send_text_message(
+            &unrelated_agent,
+            &channel_id,
+            &format!("community-owner-delete-{}", uuid::Uuid::new_v4()),
+            9,
+        )
+        .await
+        .expect("agent send message");
+    assert!(
+        message.accepted,
+        "agent message rejected: {}",
+        message.message
+    );
+
+    let tags = || {
+        vec![
+            Tag::parse(["e", &message.event_id]).unwrap(),
+            Tag::parse(["h", &channel_id]).unwrap(),
+        ]
+    };
+    let mut member_client = MajuTestClient::connect(&relay_url(), &ordinary_member)
+        .await
+        .expect("connect ordinary member");
+    let denied_edit = member_client
+        .send_event(
+            EventBuilder::new(Kind::Custom(40003), "member edit must fail")
+                .tags(tags())
+                .sign_with_keys(&ordinary_member)
+                .unwrap(),
+        )
+        .await
+        .expect("ordinary member edit attempt");
+    assert!(
+        !denied_edit.accepted,
+        "ordinary member edit must be rejected"
+    );
+
+    let mut owner_client = MajuTestClient::connect(&relay_url(), &community_owner)
+        .await
+        .expect("connect community owner");
+    let edited = owner_client
+        .send_event(
+            EventBuilder::new(Kind::Custom(40003), "community owner edit")
+                .tags(tags())
+                .sign_with_keys(&community_owner)
+                .unwrap(),
+        )
+        .await
+        .expect("community owner edit");
+    assert!(
+        edited.accepted,
+        "community owner edit rejected: {}",
+        edited.message
+    );
+
+    let denied = member_client
+        .send_event(
+            EventBuilder::new(Kind::Custom(9005), "")
+                .tags(tags())
+                .sign_with_keys(&ordinary_member)
+                .unwrap(),
+        )
+        .await
+        .expect("ordinary member delete attempt");
+    assert!(!denied.accepted, "ordinary member delete must be rejected");
+
+    let deleted = owner_client
+        .send_event(
+            EventBuilder::new(Kind::Custom(9005), "")
+                .tags(tags())
+                .sign_with_keys(&community_owner)
+                .unwrap(),
+        )
+        .await
+        .expect("community owner delete");
+    assert!(
+        deleted.accepted,
+        "community owner delete rejected: {}",
+        deleted.message
+    );
+
+    agent_client.disconnect().await.ok();
+    member_client.disconnect().await.ok();
+    owner_client.disconnect().await.ok();
+}
+
 // ─── kind:40003 message edit ───────────────────────────────────────────────
 
 /// Owner can edit a message authored by their agent via kind:40003.

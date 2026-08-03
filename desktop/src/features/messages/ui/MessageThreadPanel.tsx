@@ -16,9 +16,12 @@ import {
 } from "@/features/messages/lib/messageGrouping";
 import type { ImetaMedia } from "@/features/messages/lib/imetaMediaMarkdown";
 import { canManageMessageForCurrentUser } from "@/features/messages/lib/canManageMessage";
+import { useMyRelayMembershipQuery } from "@/features/community-members/hooks";
+import { canModerateCommunityContent } from "@/features/moderation/lib/contentModeration";
 import type { TimelineMessage } from "@/features/messages/types";
 import type { UserProfileLookup } from "@/features/profile/lib/identity";
 import type { Channel } from "@/shared/api/types";
+import { KIND_HUDDLE_STARTED } from "@/shared/constants/kinds";
 import type { ThreadPanelLayoutProps } from "@/features/channels/lib/threadPanelLayout";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useIsThreadPanelOverlay } from "@/shared/hooks/use-mobile";
@@ -234,6 +237,12 @@ export function MessageThreadPanel({
   autoSendDraftKey = null,
   onAutoSubmitComplete,
 }: MessageThreadPanelProps) {
+  const relayMembershipQuery = useMyRelayMembershipQuery();
+  // Community moderators may edit, while delete remains the separate signed
+  // kind:9005 action offered by MessageModerationMenuItems.
+  const canModerateContent = canModerateCommunityContent(
+    relayMembershipQuery.data?.role,
+  );
   const threadBodyRef = React.useRef<HTMLDivElement>(null);
   const threadContentRef = React.useRef<HTMLDivElement>(null);
   const threadComposerWrapperRef = React.useRef<HTMLDivElement>(null);
@@ -580,12 +589,14 @@ export function MessageThreadPanel({
                   : undefined
               }
               onEdit={
+                threadHead.kind !== KIND_HUDDLE_STARTED &&
                 onEdit &&
-                canManageMessageForCurrentUser(
+                (canManageMessageForCurrentUser(
                   threadHead,
                   currentPubkey,
                   profiles,
-                )
+                ) ||
+                  canModerateContent)
                   ? onEdit
                   : undefined
               }
@@ -743,12 +754,14 @@ export function MessageThreadPanel({
                             : undefined
                         }
                         onEdit={
+                          entry.message.kind !== KIND_HUDDLE_STARTED &&
                           onEdit &&
-                          canManageMessageForCurrentUser(
+                          (canManageMessageForCurrentUser(
                             entry.message,
                             currentPubkey,
                             profiles,
-                          )
+                          ) ||
+                            canModerateContent)
                             ? onEdit
                             : undefined
                         }

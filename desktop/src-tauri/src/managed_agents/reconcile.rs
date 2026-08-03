@@ -21,7 +21,7 @@
 use std::path::Path;
 
 use super::{
-    agent_events::build_agent_event,
+    agent_events::build_agent_event_for_owner,
     persona_events::monotonic_created_at,
     retention::{get_retained_event, open_retention_db, retain_event, RetainedEvent},
     ManagedAgentRecord,
@@ -37,11 +37,27 @@ pub(crate) fn reconcile_agents_to_events(
     keys: &nostr::Keys,
     db_path: &Path,
 ) {
-    let Ok(base_dir) = super::managed_agents_base_dir(app) else {
-        return;
-    };
+    // Unlike the test/disk seam below, the real boot path hydrates nsecs from
+    // the OS keyring. That lets pre-envelope agents publish their encrypted
+    // identity once after upgrade; reading raw JSON would see an empty key in
+    // the normal keyring-backed case and leave those agents device-bound.
+    let result = (|| -> Result<u32, String> {
+        let records = super::load_managed_agents(app)?;
+        if records.is_empty() {
+            return Ok(0);
+        }
+        let conn =
+            open_retention_db(db_path).map_err(|e| format!("failed to open retention db: {e}"))?;
+        let mut reconciled = 0u32;
+        for record in &records {
+            if retain_agent_record(&conn, keys, record)? {
+                reconciled += 1;
+            }
+        }
+        Ok(reconciled)
+    })();
 
-    match reconcile_agents_in_dir_at(&base_dir, keys, db_path) {
+    match result {
         Ok(0) => {}
         Ok(reconciled) => {
             eprintln!(
@@ -137,12 +153,16 @@ pub(crate) fn retain_agent_record(
     // it serializes — republishing every agent every boot. Content is
     // timestamp-independent, so the monotonic bump below never forces a
     // spurious republish; an unchanged agent is still a true no-op.
-    let event = build_agent_event(record)?
-        .custom_created_at(monotonic_created_at(
-            existing.as_ref().map(|row| row.created_at),
-        ))
-        .sign_with_keys(keys)
-        .map_err(|e| format!("failed to sign event for '{}': {e}", record.name))?;
+    let event = build_agent_event_for_owner(
+        record,
+        keys,
+        existing.as_ref().map(|row| row.content.as_str()),
+    )?
+    .custom_created_at(monotonic_created_at(
+        existing.as_ref().map(|row| row.created_at),
+    ))
+    .sign_with_keys(keys)
+    .map_err(|e| format!("failed to sign event for '{}': {e}", record.name))?;
 
     let content = event.content.clone();
     if existing.as_ref().is_some_and(|row| row.content == content) {

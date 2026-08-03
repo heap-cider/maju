@@ -7,7 +7,7 @@ import {
 } from "@/features/profile/lib/identity";
 import { UserProfilePopover } from "@/features/profile/ui/UserProfilePopover";
 import { UserAvatar } from "@/shared/ui/UserAvatar";
-import type { ForumPost } from "@/shared/api/types";
+import type { ForumPostWithEdits } from "@/features/forum/lib/applyForumStructuralEvents";
 import { cn } from "@/shared/lib/cn";
 import { resolveMentionProps } from "@/shared/lib/resolveMentionNames";
 import { Markdown } from "@/shared/ui/markdown";
@@ -17,14 +17,16 @@ import { formatRelativeTime } from "../lib/time";
 import { DeleteActionMenu } from "./DeleteActionMenu";
 
 type ForumPostCardProps = {
-  post: ForumPost;
+  post: ForumPostWithEdits;
   currentPubkey?: string;
   profiles?: UserProfileLookup;
   isActive?: boolean;
   canDelete?: boolean;
+  canEdit?: boolean;
   isDeleting?: boolean;
-  onClick: (post: ForumPost) => void;
+  onClick: (post: ForumPostWithEdits) => void;
   onDelete?: (eventId: string) => void;
+  onEdit?: (post: ForumPostWithEdits) => void;
 };
 
 export function ForumPostCard({
@@ -33,9 +35,11 @@ export function ForumPostCard({
   profiles,
   isActive,
   canDelete,
+  canEdit,
   isDeleting,
   onClick,
   onDelete,
+  onEdit,
 }: ForumPostCardProps) {
   const authorLabel = resolveUserLabel({
     pubkey: post.pubkey,
@@ -43,6 +47,14 @@ export function ForumPostCard({
     profiles,
     preferResolvedSelfLabel: true,
   });
+  const editedByLabel = post.editedByPubkey
+    ? resolveUserLabel({
+        pubkey: post.editedByPubkey,
+        currentPubkey,
+        profiles,
+        preferResolvedSelfLabel: true,
+      })
+    : null;
   const avatarUrl = profiles?.[post.pubkey.toLowerCase()]?.avatarUrl ?? null;
   const { mentionNames, mentionPubkeysByName } = resolveMentionProps(
     post.tags,
@@ -64,6 +76,7 @@ export function ForumPostCard({
   return (
     // biome-ignore lint/a11y/useSemanticElements: Cannot use <button> because DeleteActionMenu renders a nested <button> via DropdownMenuTrigger, which is invalid HTML
     <div
+      data-forum-event-id={post.eventId}
       role="button"
       tabIndex={0}
       className={cn(
@@ -101,8 +114,16 @@ export function ForumPostCard({
         <span className="text-xs text-muted-foreground">
           {formatRelativeTime(post.createdAt)}
         </span>
+        {editedByLabel ? (
+          <span
+            className="text-xs text-muted-foreground"
+            title={`Edited by ${editedByLabel}`}
+          >
+            Edited
+          </span>
+        ) : null}
 
-        {canDelete && onDelete ? (
+        {(canDelete && onDelete) || (canEdit && onEdit) ? (
           // biome-ignore lint/a11y/noStaticElementInteractions: presentation wrapper only stops click propagation to parent card link
           <div
             className="ml-auto"
@@ -111,7 +132,10 @@ export function ForumPostCard({
           >
             <DeleteActionMenu
               label="post"
-              onConfirm={() => onDelete(post.eventId)}
+              onConfirm={
+                canDelete && onDelete ? () => onDelete(post.eventId) : undefined
+              }
+              onEdit={canEdit && onEdit ? () => onEdit(post) : undefined}
             />
           </div>
         ) : null}

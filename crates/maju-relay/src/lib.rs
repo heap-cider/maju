@@ -17,6 +17,8 @@ pub mod config;
 pub mod conformance;
 /// WebSocket connection lifecycle and state.
 pub mod connection;
+/// Device sessions and single-active agent runner coordination.
+pub mod device_sessions;
 /// Relay error types.
 pub mod error;
 /// WebSocket message handlers for NIP-01 client commands.

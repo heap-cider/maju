@@ -14,8 +14,10 @@ import {
   Trash2,
 } from "lucide-react";
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { buildMessageLink } from "@/features/messages/lib/messageLink";
+import { removeMessageFromQueryCaches } from "@/features/messages/lib/projectChannelWindow";
 import { EmojiPicker } from "@/features/custom-emoji/ui/EmojiPicker";
 import { useCustomEmoji } from "@/features/custom-emoji/hooks";
 import { getThreadReference } from "@/features/messages/lib/threading";
@@ -34,6 +36,7 @@ import { cn } from "@/shared/lib/cn";
 import { copyTextToClipboard } from "@/shared/lib/clipboard";
 import { emojiDisplayName } from "@/shared/lib/emojiName";
 import { rewriteRelayUrl } from "@/shared/lib/mediaUrl";
+import { deleteMessage } from "@/shared/api/tauri";
 import { KIND_HUDDLE_STARTED } from "@/shared/constants/kinds";
 import { Button } from "@/shared/ui/button";
 import { DeleteMessageConfirmDialog } from "./DeleteMessageConfirmDialog";
@@ -47,6 +50,7 @@ import {
 import { isPositiveEmojiParticle } from "@/shared/ui/EmojiBurstProvider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
+import { toast } from "sonner";
 
 const ACTION_BUTTON_CLASS = "h-8 w-8 rounded-full p-0";
 const ACTION_ICON_CLASS = "!h-4 !w-4";
@@ -82,7 +86,10 @@ function MoreActionsMenu({
   isFollowingThread?: boolean;
   isUnread?: boolean;
 }) {
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const queryClient = useQueryClient();
+  const [deleteMode, setDeleteMode] = React.useState<
+    "author" | "moderator" | null
+  >(null);
   const [isReportDialogOpen, setIsReportDialogOpen] = React.useState(false);
   // Set true the moment the user picks "Edit message". The
   // `onCloseAutoFocus` handler on `DropdownMenuContent` reads it to
@@ -250,7 +257,7 @@ function MoreActionsMenu({
               className="text-destructive focus:text-destructive"
               data-testid={`delete-message-${message.id}`}
               onClick={() => {
-                setIsDeleteDialogOpen(true);
+                setDeleteMode("author");
               }}
             >
               <Trash2 className="h-4 w-4" />
@@ -260,18 +267,45 @@ function MoreActionsMenu({
 
           {canReport ? (
             <MessageModerationMenuItems
+              canOfferDelete={!onDelete}
               channelId={channelId}
               message={message}
+              onDeleteMessage={() => setDeleteMode("moderator")}
             />
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {onDelete ? (
+      {onDelete || canReport ? (
         <DeleteMessageConfirmDialog
-          onConfirm={() => onDelete(message)}
-          onOpenChange={setIsDeleteDialogOpen}
-          open={isDeleteDialogOpen}
+          onConfirm={() => {
+            if (deleteMode === "author") {
+              onDelete?.(message);
+              return;
+            }
+            if (deleteMode === "moderator" && channelId) {
+              void deleteMessage(channelId, message.id, true)
+                .then(() => {
+                  removeMessageFromQueryCaches(
+                    queryClient,
+                    channelId,
+                    message.id,
+                  );
+                  toast.success("Message deleted");
+                })
+                .catch((error: unknown) => {
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : "Failed to delete message",
+                  );
+                });
+            }
+          }}
+          onOpenChange={(open) => {
+            if (!open) setDeleteMode(null);
+          }}
+          open={deleteMode !== null}
         />
       ) : null}
 

@@ -695,7 +695,10 @@ pub async fn validate_admin_event(
             }
 
             // Not the author, or author who is no longer a member of a private channel —
-            // must be owner/admin or the owning human of the message's agent-author.
+            // must be a channel moderator, the owning human of the message's
+            // agent-author, or a community-wide moderator. Community authority
+            // is deliberately checked through the shared moderation seam so a
+            // community owner/admin can moderate channels they did not join.
             let members = state.db.get_members(tenant.community(), channel_id).await?;
             if actor_is_channel_owner_or_admin(&members, &actor_bytes) {
                 Ok(())
@@ -709,9 +712,21 @@ pub async fn validate_admin_event(
                 {
                     Ok(())
                 } else {
-                    Err(anyhow::anyhow!(
-                        "must be event author or channel owner/admin"
-                    ))
+                    crate::handlers::moderation_authz::authorize_moderation_action(
+                        tenant,
+                        state,
+                        &actor_bytes,
+                        Some(channel_id),
+                        crate::handlers::moderation_authz::ModerationTarget::Event(&target_id),
+                        crate::handlers::moderation_authz::ModerationAction::DeleteMessage,
+                    )
+                    .await
+                    .map(|_| ())
+                    .map_err(|error| {
+                        anyhow::anyhow!(
+                            "must be event author, agent owner, or channel/community moderator: {error}"
+                        )
+                    })
                 }
             }
         }

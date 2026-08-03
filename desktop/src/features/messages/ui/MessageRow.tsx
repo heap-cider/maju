@@ -30,7 +30,7 @@ import {
 } from "@/shared/constants/kinds";
 import { getConfigNudgeAuthorPubkey } from "@/features/messages/ui/configNudgeAuthPubkey";
 import { cn } from "@/shared/lib/cn";
-import { normalizePubkey } from "@/shared/lib/pubkey";
+import { normalizePubkey, truncatePubkey } from "@/shared/lib/pubkey";
 import { UserAvatar } from "@/shared/ui/UserAvatar";
 import { useChannelNavigation } from "@/shared/context/ChannelNavigationContext";
 import { parseImetaTags } from "@/shared/ui/markdown/parseImeta";
@@ -532,7 +532,17 @@ export const MessageRow = React.memo(
               <TooltipTrigger asChild>
                 <p className="text-muted-foreground/70">(edited)</p>
               </TooltipTrigger>
-              <TooltipContent>This message has been edited</TooltipContent>
+              <TooltipContent>
+                {message.editedByPubkey &&
+                message.pubkey &&
+                normalizePubkey(message.editedByPubkey) !==
+                  normalizePubkey(message.pubkey)
+                  ? `Edited by ${
+                      profiles?.[normalizePubkey(message.editedByPubkey)]
+                        ?.displayName ?? truncatePubkey(message.editedByPubkey)
+                    }`
+                  : "This message has been edited"}
+              </TooltipContent>
             </Tooltip>
           ) : null}
         </>
@@ -849,6 +859,7 @@ export const MessageRow = React.memo(
     prev.message.kind === next.message.kind &&
     prev.message.pending === next.message.pending &&
     prev.message.edited === next.message.edited &&
+    prev.message.editedByPubkey === next.message.editedByPubkey &&
     // Value comparisons, not identity: these arrays are rebuilt with fresh
     // identities on every ingest/refetch even when unchanged — identity
     // checks made every row re-render on every streamed event in an open

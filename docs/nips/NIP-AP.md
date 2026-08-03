@@ -177,13 +177,14 @@ Agents spawned from a persona MAY store a private snapshot at the reserved engra
 
 The `mem/persona` slug conforms to [NIP-AE](NIP-AE.md)'s slug grammar and requires no amendment to that spec.
 
-### Slimming: kind:30177 (instance state)
+### Slimming: kind:30177 (logical agent state)
 
-Kind:30177 is keyed by **agent pubkey** (one event per instance) while
+Kind:30177 is keyed by **agent pubkey** (one event per logical agent identity) while
 kind:30175 is keyed by **definition slug** — they occupy different key
-spaces and serve different roles. 30177 remains the per-instance
+spaces and serve different roles. 30177 remains the per-agent
 cross-device sync channel; with the unified agent model it is **slimmed**
-to carry only instance-level state:
+to carry only identity-level state. A device-local process is a runtime
+placement of that identity, not a separate agent:
 
 - Writers MUST NOT include definition-level fields
   (`system_prompt`, `model`, `provider`, `persona_source_version`) in new
@@ -202,6 +203,16 @@ to carry only instance-level state:
 - Readers SHOULD continue to accept legacy "fat" kind:30177 events
   during the transition. Where the linked 30175 head and a legacy 30177
   event both carry a field, the 30175 head is authoritative.
+- Writers SHOULD include `identity_key_envelope`, containing the agent nsec
+  encrypted with NIP-44 v2 from the owner key to that same owner key. This
+  makes the agent pubkey a logical identity that follows the owner's account,
+  while process location and runtime credentials stay local to each device.
+  Writers MUST reuse a valid retained envelope for unchanged agents because
+  NIP-44 ciphertext is randomized. Readers MUST accept an envelope only from
+  the active owner, decrypt it with that owner identity, and verify that the
+  recovered key derives the event's `d`-tag pubkey before persisting or using
+  it. A reader MAY update an already-local agent from a legacy event without
+  this field, but MUST NOT create a runnable agent from a keyless event.
 - Deletion/retention rules for kind:30177 are unchanged so historical
   tombstones keep working.
 

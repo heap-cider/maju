@@ -262,7 +262,8 @@ fn inbound_managed_agent_drops_injected_secrets_and_harness() {
     let content =
         crate::managed_agents::agent_events::managed_agent_content_from_event(&event).unwrap();
     let mut agents = vec![local_agent()];
-    apply_inbound_managed_agent(&mut agents, AGENT_PUBKEY, content);
+    apply_inbound_managed_agent(&mut agents, AGENT_PUBKEY, content, &nostr::Keys::generate())
+        .unwrap();
 
     let a = &agents[0];
     // Secrets / harness / runtime — every one preserved from the local record.
@@ -353,7 +354,8 @@ fn inbound_definition_less_agent_applies_quad() {
     let content =
         crate::managed_agents::agent_events::managed_agent_content_from_event(&event).unwrap();
     let mut agents = vec![local_agent()];
-    apply_inbound_managed_agent(&mut agents, AGENT_PUBKEY, content);
+    apply_inbound_managed_agent(&mut agents, AGENT_PUBKEY, content, &nostr::Keys::generate())
+        .unwrap();
 
     let a = &agents[0];
     assert_eq!(a.persona_id, None);
@@ -373,7 +375,13 @@ fn inbound_managed_agent_no_match_is_noop() {
     let content =
         crate::managed_agents::agent_events::managed_agent_content_from_event(&event).unwrap();
     let mut agents = vec![local_agent()];
-    apply_inbound_managed_agent(&mut agents, "someotheragentpubkey", content);
+    apply_inbound_managed_agent(
+        &mut agents,
+        "someotheragentpubkey",
+        content,
+        &nostr::Keys::generate(),
+    )
+    .unwrap();
 
     // No agent minted from a relay event — it would have no secret key.
     assert_eq!(agents.len(), 1);
@@ -381,6 +389,38 @@ fn inbound_managed_agent_no_match_is_noop() {
         agents[0].name, "Local Agent",
         "unmatched inbound must not touch the local record"
     );
+}
+
+#[test]
+fn inbound_managed_agent_envelope_materializes_same_identity_on_new_device() {
+    use nostr::{JsonUtil, ToBech32};
+
+    let owner = nostr::Keys::generate();
+    let agent_keys = nostr::Keys::generate();
+    let mut source = local_agent();
+    source.pubkey = agent_keys.public_key().to_hex();
+    source.private_key_nsec = agent_keys.secret_key().to_bech32().unwrap();
+    source.auth_tag = None;
+
+    let event =
+        crate::managed_agents::agent_events::build_agent_event_for_owner(&source, &owner, None)
+            .unwrap()
+            .sign_with_keys(&owner)
+            .unwrap();
+    let event = nostr::Event::from_json(event.as_json()).unwrap();
+    let content =
+        crate::managed_agents::agent_events::managed_agent_content_from_event(&event).unwrap();
+
+    let mut agents = Vec::new();
+    apply_inbound_managed_agent(&mut agents, &source.pubkey, content, &owner).unwrap();
+
+    assert_eq!(agents.len(), 1);
+    let restored = &agents[0];
+    assert_eq!(restored.pubkey, source.pubkey);
+    assert_eq!(restored.private_key_nsec, source.private_key_nsec);
+    assert!(restored.auth_tag.is_some());
+    assert!(!restored.start_on_app_launch);
+    assert_eq!(restored.backend, crate::managed_agents::BackendKind::Local);
 }
 
 // ── Team (30176) inbound ─────────────────────────────────────────────────

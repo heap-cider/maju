@@ -19,7 +19,6 @@ pub(in crate::managed_agents) use path::build_augmented_path;
 pub(crate) use path::compose_path_entries;
 pub(crate) use path::should_skip_claude_executable;
 pub(crate) use path::should_use_inherited;
-
 mod metadata;
 pub(crate) use metadata::{
     resolve_effective_prompt_model_provider, resolve_session_title, runtime_metadata_env_vars,
@@ -579,6 +578,7 @@ pub fn spawn_agent_child(
     command.env("RUST_LOG", child_rust_log_filter());
     command.env("MAJU_PRIVATE_KEY", &record.private_key_nsec);
     command.env("MAJU_RELAY_URL", &effective_relay_url);
+    crate::device_session::apply_agent_env(app, &mut command)?;
     command.env("MAJU_ACP_LAZY_POOL", if lazy { "true" } else { "false" });
     command.env("MAJU_ACP_AGENT_COMMAND", &resolved_agent_command);
     command.env("MAJU_ACP_AGENT_ARGS", agent_args.join(","));

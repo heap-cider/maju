@@ -76,6 +76,20 @@ pub async fn handle_auth(event: nostr::Event, conn: Arc<ConnectionState>, state:
     // The tag is integrity-protected by the event's Schnorr signature — if
     // tampered, NIP-42 verification will fail before we ever inspect it.
     let auth_tag_json = extract_auth_tag_json(&event);
+    let presented_device = match crate::device_sessions::parse_auth_device(&event) {
+        Ok(device) => device,
+        Err(error) => {
+            warn!(conn_id = %conn_id, %error, "invalid signed device AUTH tag");
+            *conn.auth_state.write().await = AuthState::Failed;
+            conn.send(RelayMessage::ok(
+                &event_id_hex,
+                false,
+                &format!("invalid: {error}"),
+            ));
+            conn.cancel.cancel();
+            return;
+        }
+    };
 
     let relay_url =
         crate::api::bridge::nip42_expected_relay_url(&state.config.relay_url, &conn.tenant);
@@ -274,11 +288,63 @@ pub async fn handle_auth(event: nostr::Event, conn: Arc<ConnectionState>, state:
                 }
             }
 
+            if auth_ctx.agent_owner_pubkey.is_some() && presented_device.is_none() {
+                let message =
+                    "invalid: managed agent authentication requires a Maju device session";
+                warn!(
+                    conn_id = %conn_id,
+                    pubkey = %pubkey.to_hex(),
+                    "managed agent omitted its signed device session"
+                );
+                *conn.auth_state.write().await = AuthState::Failed;
+                conn.send(RelayMessage::ok(&event_id_hex, false, message));
+                conn.cancel.cancel();
+                return;
+            }
+
+            let authenticated_device = if let Some(presented) = presented_device {
+                let owner = auth_ctx.agent_owner_pubkey.unwrap_or(pubkey);
+                match crate::device_sessions::admit(
+                    &state,
+                    &conn.tenant,
+                    &pubkey,
+                    &owner,
+                    presented,
+                )
+                .await
+                {
+                    Ok(device) => Some(device),
+                    Err(error) => {
+                        let message = if error.starts_with("blocked:")
+                            || error.starts_with("standby:")
+                            || error.starts_with("invalid:")
+                        {
+                            error
+                        } else {
+                            format!("error: {error}")
+                        };
+                        warn!(conn_id = %conn_id, pubkey = %pubkey.to_hex(), %message, "device session admission denied");
+                        *conn.auth_state.write().await = AuthState::Failed;
+                        conn.send(RelayMessage::ok(&event_id_hex, false, &message));
+                        conn.cancel.cancel();
+                        return;
+                    }
+                }
+            } else {
+                None
+            };
+
             info!(conn_id = %conn_id, pubkey = %pubkey.to_hex(), "NIP-42 auth successful");
             *conn.auth_state.write().await = AuthState::Authenticated(auth_ctx);
             state
                 .conn_manager
                 .set_authenticated_pubkey(conn_id, pubkey.to_bytes().to_vec());
+            if let Some(device) = authenticated_device {
+                state
+                    .conn_manager
+                    .set_authenticated_device(conn_id, device.clone());
+                *conn.device_session.write().await = Some(device);
+            }
             conn.send(RelayMessage::ok(&event_id_hex, true, ""));
         }
         Err(e) => {

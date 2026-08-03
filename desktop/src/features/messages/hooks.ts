@@ -17,6 +17,7 @@ import {
 import {
   projectChannelWindowMessages,
   refreshChannelWindowMessages,
+  removeMessageFromQueryCaches,
 } from "@/features/messages/lib/projectChannelWindow";
 import { reconcileChannelWindowMessages } from "@/features/messages/lib/channelWindowReconciliation";
 import {
@@ -675,10 +676,7 @@ export function useDeleteMessageMutation(channel: Channel | null) {
     },
     onSuccess: (_data, { eventId }) => {
       if (!channel) return;
-      queryClient.setQueryData<RelayEvent[]>(
-        channelMessagesKey(channel.id),
-        (current = []) => current.filter((message) => message.id !== eventId),
-      );
+      removeMessageFromQueryCaches(queryClient, channel.id, eventId);
     },
     onError: (error) => {
       toast.error(`Failed to delete message: ${error.message}`);

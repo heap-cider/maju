@@ -10,6 +10,7 @@ import {
   flattenChannelWindowEvents,
   mergeLiveChannelWindowEvent,
   mergeLiveThreadSummary,
+  removeChannelWindowEvent,
   replaceNewestChannelWindow,
 } from "./channelWindowStore.ts";
 
@@ -426,6 +427,31 @@ test("mapChannelWindowEvents rewrites live overlay events", () => {
     ).content,
     "edited-live",
   );
+});
+
+test("removeChannelWindowEvent removes page, live, aux, and summary entries", () => {
+  const pageTarget = event("page-target", 100);
+  const auxTarget = event("aux-target", 95, 40003);
+  const liveTarget = event("live-target", 110);
+  let store = replaceNewestChannelWindow(
+    emptyChannelWindowStore(),
+    page(null, [pageTarget, event("kept", 90)], {
+      aux: [auxTarget],
+      hasMore: false,
+    }),
+  );
+  store = mergeLiveChannelWindowEvent(store, liveTarget);
+  store = mergeLiveThreadSummary(store, pageTarget.id, live(1, 120));
+
+  store = removeChannelWindowEvent(store, pageTarget.id);
+  store = removeChannelWindowEvent(store, auxTarget.id);
+  store = removeChannelWindowEvent(store, liveTarget.id);
+
+  assert.deepEqual(
+    flattenChannelWindowEvents(store).map((candidate) => candidate.content),
+    ["kept"],
+  );
+  assert.equal(channelWindowThreadSummaries(store).has(pageTarget.id), false);
 });
 
 test("exhaustion is unresolved (false) on an empty store, unlike hasMore's default", () => {

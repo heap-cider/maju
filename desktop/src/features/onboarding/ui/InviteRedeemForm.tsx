@@ -19,22 +19,11 @@ import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
 import { Spinner } from "@/shared/ui/spinner";
 import { JoinPolicyNotice } from "./JoinPolicyNotice";
-import {
-  ONBOARDING_KEY_ROW_CLASS,
-  ONBOARDING_KEY_TEXT_CLASS,
-} from "./NsecMaskedDisplay";
 import { ONBOARDING_PRIMARY_CTA_CLASS } from "./OnboardingChrome";
 import { OnboardingFooter } from "./OnboardingFooter";
 
 const POLICY_DISCOVERY_DELAY_MS = 250;
 const POLICY_REVEAL_EASE = [0.23, 1, 0.32, 1] as const;
-const SPOTLIGHT_TEXTURE_CONTENT_CLASS = "mx-auto w-full max-w-[920px]";
-const SPOTLIGHT_OVERFLOW_FADE = {
-  WebkitMaskImage:
-    "linear-gradient(to right, transparent, black 2rem, black calc(100% - 2rem), transparent)",
-  maskImage:
-    "linear-gradient(to right, transparent, black 2rem, black calc(100% - 2rem), transparent)",
-};
 
 function hasInviteRelay(
   invite: ParsedInvite,
@@ -87,6 +76,7 @@ export function InviteRedeemForm({
   const [agreementConfirmed, setAgreementConfirmed] = React.useState(false);
   const [policyError, setPolicyError] = React.useState<string | null>(null);
   const [isLoadingPolicy, setIsLoadingPolicy] = React.useState(false);
+  const spotlightInputRef = React.useRef<HTMLInputElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
 
   const parsed = React.useMemo(
@@ -148,6 +138,12 @@ export function InviteRedeemForm({
   const isAddCommunity = variant === "add-community";
   const showInvalidInviteTip =
     isOnboardingSpotlight && inviteInput.trim().length > 0 && !canSubmit;
+
+  React.useLayoutEffect(() => {
+    if (isOnboardingSpotlight) {
+      spotlightInputRef.current?.focus({ preventScroll: true });
+    }
+  }, [isOnboardingSpotlight]);
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent) => {
@@ -315,7 +311,7 @@ export function InviteRedeemForm({
           className="h-4 w-4 border-2"
         />
       ) : isOnboardingSpotlight ? (
-        "Next"
+        "Connect"
       ) : isAddCommunity ? (
         joinPolicy ? (
           "Accept and join"
@@ -337,6 +333,7 @@ export function InviteRedeemForm({
           ? "h-9 rounded-full bg-foreground/10 px-6 hover:bg-foreground/15"
           : "h-10 w-full text-muted-foreground hover:text-accent-foreground"
       }
+      data-testid={isOnboardingSpotlight ? "welcome-setup-back" : undefined}
       disabled={isRedeeming}
       onClick={onCancel}
       type="button"
@@ -361,25 +358,19 @@ export function InviteRedeemForm({
     >
       {isOnboardingSpotlight ? (
         <Card
-          className="w-[min(calc(100%+12rem),calc(100vw-2rem))] max-w-[1120px] translate-y-8 px-8 py-6"
+          className="w-full max-w-[680px] px-6 py-5 [--maju-card-textured-min-height:112px]"
           data-testid="invite-redeem-input-frame"
           variant="textured"
         >
-          <div
-            className={SPOTLIGHT_TEXTURE_CONTENT_CLASS}
-            style={SPOTLIGHT_OVERFLOW_FADE}
-          >
+          <div className="mx-auto w-full">
             <label className="block w-full" htmlFor="invite-input">
               <span className="sr-only">Invite link or code</span>
-              <span className={ONBOARDING_KEY_ROW_CLASS}>
+              <span className="flex min-w-0 items-center">
                 <input
                   autoCapitalize="none"
                   autoComplete="off"
                   autoCorrect="off"
-                  className={cn(
-                    ONBOARDING_KEY_TEXT_CLASS,
-                    "block border-0 bg-transparent p-0 text-center shadow-none outline-none placeholder:text-[var(--maju-onboarding-backup-ink)] placeholder:opacity-40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
+                  className="block h-12 min-w-0 w-full border-0 bg-transparent p-0 text-center font-mono text-base text-[var(--maju-onboarding-backup-ink)] shadow-none outline-none placeholder:text-[var(--maju-onboarding-backup-ink)] placeholder:opacity-40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-lg"
                   data-testid="invite-redeem-input"
                   disabled={isRedeeming}
                   id="invite-input"
@@ -388,6 +379,7 @@ export function InviteRedeemForm({
                     placeholder ?? "https://relay.example.com/invite/abc123"
                   }
                   spellCheck={false}
+                  ref={spotlightInputRef}
                   type="text"
                   value={inviteInput}
                 />

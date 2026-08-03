@@ -2,8 +2,10 @@ use nostr::{Event, EventId, Keys, PublicKey};
 use tauri::{AppHandle, State};
 
 mod forum;
+mod moderation;
 
 use forum::{forum_message_from_event, forum_reply_from_event};
+pub use moderation::delete_message;
 
 use crate::{
     app_state::AppState,
@@ -952,20 +954,6 @@ pub async fn edit_message(
         &emoji,
         &mention_refs,
     )?;
-    submit_event(builder, &state).await?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn delete_message(
-    channel_id: String,
-    event_id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let channel_uuid = uuid::Uuid::parse_str(&channel_id)
-        .map_err(|_| format!("invalid channel UUID: {channel_id}"))?;
-    let target_eid = EventId::from_hex(&event_id).map_err(|e| format!("invalid event ID: {e}"))?;
-    let builder = events::build_delete_compat(channel_uuid, target_eid)?;
     submit_event(builder, &state).await?;
     Ok(())
 }

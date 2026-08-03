@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.0
+
+- Simplify self-hosted onboarding around a single relay connection.
+- Keep managed-agent identity stable across the owner's devices while allowing device-local execution.
+- Elect one active runner automatically when the same agent is enabled on multiple devices, with standby failover and write fencing.
+- Add a device settings screen for login visibility, device naming, runner placement, and remote session disconnect.
+- Let community owners moderate human and agent-authored channel, thread, and forum content.
+- Add clearer empty-state project creation with new-project and existing-folder paths.
+- Document the current Maju product contract and Buzz synchronization policy.
+
 ## v0.1.2
 
 - fix: update `nostr-relay-pool` to 0.44.2 so failed signatures cannot poison the verification cache

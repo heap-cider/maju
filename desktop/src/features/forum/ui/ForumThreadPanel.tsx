@@ -5,9 +5,12 @@ import {
   resolveUserLabel,
   type UserProfileLookup,
 } from "@/features/profile/lib/identity";
+import type {
+  ForumReplyWithEdits,
+  ForumThreadWithEditsResponse,
+} from "@/features/forum/lib/applyForumStructuralEvents";
 import { UserProfilePopover } from "@/features/profile/ui/UserProfilePopover";
 import { UserAvatar } from "@/shared/ui/UserAvatar";
-import type { ForumThreadResponse, ThreadReply } from "@/shared/api/types";
 import { channelChrome } from "@/shared/layout/chromeLayout";
 import { cn } from "@/shared/lib/cn";
 import { useChannelNavigation } from "@/shared/context/ChannelNavigationContext";
@@ -22,7 +25,7 @@ import { DeleteActionMenu } from "./DeleteActionMenu";
 import { ForumComposer } from "./ForumComposer";
 
 type ForumThreadPanelProps = {
-  thread: ForumThreadResponse | undefined;
+  thread: ForumThreadWithEditsResponse | undefined;
   isLoading: boolean;
   isSendingReply: boolean;
   channelId: string;
@@ -36,14 +39,17 @@ type ForumThreadPanelProps = {
   ) => undefined | Promise<unknown>;
   onDeletePost?: (eventId: string) => void;
   onDeleteReply?: (eventId: string) => void;
+  onEditPost?: (content: ForumThreadWithEditsResponse["post"]) => void;
+  onEditReply?: (reply: ForumReplyWithEdits) => void;
   onTargetReached?: (eventId: string) => void;
   canDeletePost?: boolean;
+  canModerateContent?: boolean;
   isDeletingPost?: boolean;
   targetEventId?: string | null;
 };
 
 function canDeleteReply(
-  reply: ThreadReply,
+  reply: ForumReplyWithEdits,
   currentPubkey: string | undefined,
 ): boolean {
   if (!currentPubkey) return false;
@@ -51,17 +57,21 @@ function canDeleteReply(
 }
 
 function ReplyRow({
+  canModerateContent,
   reply,
   currentPubkey,
   profiles,
   channelNames,
   onDelete,
+  onEdit,
 }: {
-  reply: ThreadReply;
+  canModerateContent?: boolean;
+  reply: ForumReplyWithEdits;
   currentPubkey?: string;
   profiles?: UserProfileLookup;
   channelNames?: string[];
   onDelete?: (eventId: string) => void;
+  onEdit?: (reply: ForumReplyWithEdits) => void;
 }) {
   const replyAuthorLabel = resolveUserLabel({
     pubkey: reply.pubkey,
@@ -71,7 +81,16 @@ function ReplyRow({
   });
   const replyAvatarUrl =
     profiles?.[reply.pubkey.toLowerCase()]?.avatarUrl ?? null;
-  const showDelete = onDelete && canDeleteReply(reply, currentPubkey);
+  const canManage =
+    canDeleteReply(reply, currentPubkey) || canModerateContent === true;
+  const editedByLabel = reply.editedByPubkey
+    ? resolveUserLabel({
+        pubkey: reply.editedByPubkey,
+        currentPubkey,
+        profiles,
+        preferResolvedSelfLabel: true,
+      })
+    : null;
   const {
     mentionNames: replyMentionNames,
     mentionPubkeysByName: replyMentionPubkeysByName,
@@ -101,12 +120,21 @@ function ReplyRow({
         <span className="text-xs text-muted-foreground">
           {formatRelativeTime(reply.createdAt)}
         </span>
+        {editedByLabel ? (
+          <span
+            className="text-xs text-muted-foreground"
+            title={`Edited by ${editedByLabel}`}
+          >
+            Edited
+          </span>
+        ) : null}
 
-        {showDelete ? (
+        {canManage && (onDelete || onEdit) ? (
           <DeleteActionMenu
             iconSize="sm"
             label="reply"
-            onConfirm={() => onDelete(reply.eventId)}
+            onConfirm={onDelete ? () => onDelete(reply.eventId) : undefined}
+            onEdit={onEdit ? () => onEdit(reply) : undefined}
           />
         ) : null}
       </div>
@@ -135,8 +163,11 @@ export function ForumThreadPanel({
   onReply,
   onDeletePost,
   onDeleteReply,
+  onEditPost,
+  onEditReply,
   onTargetReached,
   canDeletePost,
+  canModerateContent,
   isDeletingPost,
   targetEventId,
 }: ForumThreadPanelProps) {
@@ -200,6 +231,14 @@ export function ForumThreadPanel({
   });
   const postAvatarUrl =
     profiles?.[post.pubkey.toLowerCase()]?.avatarUrl ?? null;
+  const postEditedByLabel = post.editedByPubkey
+    ? resolveUserLabel({
+        pubkey: post.editedByPubkey,
+        currentPubkey,
+        profiles,
+        preferResolvedSelfLabel: true,
+      })
+    : null;
 
   return (
     <div className={cn("flex h-full flex-col", channelChrome.contentPadding)}>
@@ -245,11 +284,24 @@ export function ForumThreadPanel({
             <span className="text-xs text-muted-foreground">
               {formatRelativeTime(post.createdAt)}
             </span>
+            {postEditedByLabel ? (
+              <span
+                className="text-xs text-muted-foreground"
+                title={`Edited by ${postEditedByLabel}`}
+              >
+                Edited
+              </span>
+            ) : null}
 
-            {canDeletePost && onDeletePost ? (
+            {(canDeletePost && onDeletePost) || onEditPost ? (
               <DeleteActionMenu
                 label="post"
-                onConfirm={() => onDeletePost(post.eventId)}
+                onConfirm={
+                  canDeletePost && onDeletePost
+                    ? () => onDeletePost(post.eventId)
+                    : undefined
+                }
+                onEdit={onEditPost ? () => onEditPost(post) : undefined}
               />
             ) : null}
           </div>
@@ -273,10 +325,12 @@ export function ForumThreadPanel({
         <div className="divide-y divide-border/40">
           {replies.map((reply) => (
             <ReplyRow
+              canModerateContent={canModerateContent}
               channelNames={channelNames}
               currentPubkey={currentPubkey}
               key={reply.eventId}
               onDelete={onDeleteReply}
+              onEdit={onEditReply}
               profiles={profiles}
               reply={reply}
             />

@@ -949,6 +949,22 @@ async fn main() -> anyhow::Result<()> {
                                 &reason,
                             );
                         }
+                        maju_pubsub::conn_control::ConnControl::DisconnectDevice {
+                            owner_pubkey,
+                            device_id,
+                            session_id,
+                            event_id,
+                            reason,
+                        } => {
+                            state_for_conn_ctrl.conn_manager.disconnect_device(
+                                scoped.community_id,
+                                &owner_pubkey,
+                                &device_id,
+                                &session_id,
+                                &event_id,
+                                &reason,
+                            );
+                        }
                     },
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         metrics::counter!("maju_conn_control_lag_total").increment(n);

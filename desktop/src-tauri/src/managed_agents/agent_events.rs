@@ -21,9 +21,13 @@
 //! - `backend` — `Provider { config }` is an opaque blob that may hold secrets.
 //! - any runtime field (`runtime_pid`, `last_*`, `backend_agent_id`, …) — these
 //!   mutate on every start/stop and describe transient process state.
+//!
+//! The one identity-bearing wire field is `identity_key_envelope`: the nsec is
+//! NIP-44 encrypted to the owner identity before it enters this projection.
+//! It is never plaintext and inbound code must verify author + decrypt + d-tag.
 
 use maju_core_pkg::kind::KIND_MANAGED_AGENT;
-use nostr::{EventBuilder, Kind, Tag};
+use nostr::{nips::nip44, EventBuilder, Kind, Tag, ToBech32};
 use serde::{Deserialize, Serialize};
 
 use super::{ManagedAgentRecord, RespondTo};
@@ -57,6 +61,15 @@ pub struct ManagedAgentEventContent {
     /// public keys, not secrets.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub respond_to_allowlist: Vec<String>,
+    /// The agent nsec encrypted to the owning human identity with NIP-44.
+    ///
+    /// This is intentionally part of the owner-authored relay projection: a
+    /// second device signed in as the same owner can recover the *same* agent
+    /// identity instead of minting a device-local replacement. The plaintext
+    /// key never leaves the device, and the envelope is accepted only after
+    /// the event author, decryption result, and d-tag pubkey all agree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity_key_envelope: Option<String>,
 }
 
 /// Project a `ManagedAgentRecord` onto the content fields published in
@@ -68,6 +81,18 @@ pub struct ManagedAgentEventContent {
 /// operational start/stop produces an identical projection and never
 /// republishes.
 pub fn agent_event_content(record: &ManagedAgentRecord) -> ManagedAgentEventContent {
+    agent_event_content_with_envelope(record, None)
+}
+
+/// Project a managed agent while carrying its owner-encrypted identity key.
+///
+/// Keep this separate from [`agent_event_content`] so callers that only need
+/// the public/config projection (tests, diagnostics, content classification)
+/// cannot accidentally invent or re-encrypt an identity envelope.
+pub fn agent_event_content_with_envelope(
+    record: &ManagedAgentRecord,
+    identity_key_envelope: Option<String>,
+) -> ManagedAgentEventContent {
     // Slimmed projection (NIP-AP "Slimming: kind:30177"): definition-linked
     // instances resolve prompt/model/provider/source_version through their
     // kind:30175 definition, so those fields are omitted from the wire.
@@ -103,7 +128,81 @@ pub fn agent_event_content(record: &ManagedAgentRecord) -> ManagedAgentEventCont
         parallelism: record.parallelism,
         respond_to: record.respond_to,
         respond_to_allowlist: record.respond_to_allowlist.clone(),
+        identity_key_envelope,
     }
+}
+
+/// Recover an agent nsec from an owner-self-encrypted envelope and prove that
+/// it belongs to `expected_agent_pubkey`.
+///
+/// The pubkey check is the important boundary: a valid ciphertext from an old
+/// or tampered retained row must never be attached to a different agent
+/// coordinate.
+pub fn decrypt_agent_identity_key(
+    owner_keys: &nostr::Keys,
+    envelope: &str,
+    expected_agent_pubkey: &str,
+) -> Result<String, String> {
+    let plaintext = nip44::decrypt(owner_keys.secret_key(), &owner_keys.public_key(), envelope)
+        .map_err(|e| format!("failed to decrypt agent identity key: {e}"))?;
+    let agent_keys = nostr::Keys::parse(plaintext.trim())
+        .map_err(|e| format!("decrypted agent identity key is invalid: {e}"))?;
+    if !agent_keys
+        .public_key()
+        .to_hex()
+        .eq_ignore_ascii_case(expected_agent_pubkey)
+    {
+        return Err("decrypted agent identity key does not match the agent pubkey".to_string());
+    }
+    agent_keys
+        .secret_key()
+        .to_bech32()
+        .map_err(|e| format!("failed to encode decrypted agent identity key: {e}"))
+}
+
+/// Reuse the retained envelope when it is valid, otherwise create one from
+/// the local key. Reuse matters because NIP-44 encryption is randomized: a
+/// fresh ciphertext on every boot would make an unchanged agent look edited
+/// and republish forever.
+fn resolve_identity_key_envelope(
+    record: &ManagedAgentRecord,
+    owner_keys: &nostr::Keys,
+    retained_content: Option<&str>,
+) -> Result<Option<String>, String> {
+    if let Some(envelope) = retained_content
+        .and_then(|content| serde_json::from_str::<ManagedAgentEventContent>(content).ok())
+        .and_then(|content| content.identity_key_envelope)
+    {
+        if decrypt_agent_identity_key(owner_keys, &envelope, &record.pubkey).is_ok() {
+            return Ok(Some(envelope));
+        }
+    }
+
+    if record.private_key_nsec.is_empty() {
+        return Ok(None);
+    }
+
+    // Refuse to publish an envelope unless the local plaintext key actually
+    // owns the record coordinate. This catches corrupt local stores before a
+    // bad replacement can overwrite the recoverable relay head.
+    let agent_keys = nostr::Keys::parse(record.private_key_nsec.trim())
+        .map_err(|e| format!("agent identity key is invalid: {e}"))?;
+    if !agent_keys
+        .public_key()
+        .to_hex()
+        .eq_ignore_ascii_case(&record.pubkey)
+    {
+        return Err("agent identity key does not match the agent pubkey".to_string());
+    }
+
+    nip44::encrypt(
+        owner_keys.secret_key(),
+        &owner_keys.public_key(),
+        record.private_key_nsec.trim(),
+        nip44::Version::V2,
+    )
+    .map(Some)
+    .map_err(|e| format!("failed to encrypt agent identity key: {e}"))
 }
 
 /// Build a kind:30177 event from a `ManagedAgentRecord`.
@@ -112,6 +211,21 @@ pub fn agent_event_content(record: &ManagedAgentRecord) -> ManagedAgentEventCont
 /// `d_tag` is the agent's pubkey.
 pub fn build_agent_event(record: &ManagedAgentRecord) -> Result<EventBuilder, String> {
     let content = serde_json::to_string(&agent_event_content(record))
+        .map_err(|e| format!("failed to serialize managed-agent content: {e}"))?;
+    let tags =
+        vec![Tag::parse(["d", record.pubkey.as_str()]).map_err(|e| format!("invalid d-tag: {e}"))?];
+    Ok(EventBuilder::new(Kind::Custom(KIND_MANAGED_AGENT as u16), content).tags(tags))
+}
+
+/// Build the owner-authored wire event, reusing the retained NIP-44 envelope
+/// when possible so stable identity sync does not create content churn.
+pub fn build_agent_event_for_owner(
+    record: &ManagedAgentRecord,
+    owner_keys: &nostr::Keys,
+    retained_content: Option<&str>,
+) -> Result<EventBuilder, String> {
+    let envelope = resolve_identity_key_envelope(record, owner_keys, retained_content)?;
+    let content = serde_json::to_string(&agent_event_content_with_envelope(record, envelope))
         .map_err(|e| format!("failed to serialize managed-agent content: {e}"))?;
     let tags =
         vec![Tag::parse(["d", record.pubkey.as_str()]).map_err(|e| format!("invalid d-tag: {e}"))?];
@@ -336,6 +450,78 @@ mod tests {
         let a = serde_json::to_string(&agent_event_content(&agent)).unwrap();
         let b = serde_json::to_string(&agent_event_content(&agent)).unwrap();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn owner_envelope_round_trips_same_agent_key_without_plaintext_leak() {
+        use nostr::ToBech32;
+
+        let owner = nostr::Keys::generate();
+        let agent_keys = nostr::Keys::generate();
+        let mut agent = sample_agent();
+        agent.pubkey = agent_keys.public_key().to_hex();
+        agent.private_key_nsec = agent_keys.secret_key().to_bech32().unwrap();
+
+        let event = build_agent_event_for_owner(&agent, &owner, None)
+            .unwrap()
+            .sign_with_keys(&owner)
+            .unwrap();
+        assert!(!event.content.contains(&agent.private_key_nsec));
+
+        let content = managed_agent_content_from_event(&event).unwrap();
+        let envelope = content
+            .identity_key_envelope
+            .as_deref()
+            .expect("new managed-agent events carry an identity envelope");
+        assert_eq!(
+            decrypt_agent_identity_key(&owner, envelope, &agent.pubkey).unwrap(),
+            agent.private_key_nsec
+        );
+    }
+
+    #[test]
+    fn owner_event_reuses_retained_envelope_to_avoid_boot_churn() {
+        use nostr::ToBech32;
+
+        let owner = nostr::Keys::generate();
+        let agent_keys = nostr::Keys::generate();
+        let mut agent = sample_agent();
+        agent.pubkey = agent_keys.public_key().to_hex();
+        agent.private_key_nsec = agent_keys.secret_key().to_bech32().unwrap();
+
+        let first = build_agent_event_for_owner(&agent, &owner, None)
+            .unwrap()
+            .sign_with_keys(&owner)
+            .unwrap();
+        let second = build_agent_event_for_owner(&agent, &owner, Some(first.content.as_ref()))
+            .unwrap()
+            .sign_with_keys(&owner)
+            .unwrap();
+        assert_eq!(first.content, second.content);
+    }
+
+    #[test]
+    fn owner_envelope_rejects_a_different_agent_coordinate() {
+        use nostr::ToBech32;
+
+        let owner = nostr::Keys::generate();
+        let agent_keys = nostr::Keys::generate();
+        let other = nostr::Keys::generate();
+        let mut agent = sample_agent();
+        agent.pubkey = agent_keys.public_key().to_hex();
+        agent.private_key_nsec = agent_keys.secret_key().to_bech32().unwrap();
+        let event = build_agent_event_for_owner(&agent, &owner, None)
+            .unwrap()
+            .sign_with_keys(&owner)
+            .unwrap();
+        let envelope = managed_agent_content_from_event(&event)
+            .unwrap()
+            .identity_key_envelope
+            .unwrap();
+
+        assert!(
+            decrypt_agent_identity_key(&owner, &envelope, &other.public_key().to_hex()).is_err()
+        );
     }
 
     /// Mutating only runtime fields must NOT change the projection — the

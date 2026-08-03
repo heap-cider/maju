@@ -1,3 +1,23 @@
+# Maju Product Contract
+
+- Read [`MAJU_PRODUCT_CONTRACT.md`](MAJU_PRODUCT_CONTRACT.md) before work that
+  changes product behavior, information architecture, UI/UX, supported release
+  targets, deployment experience, or the way Maju follows Buzz.
+- That file is the single current source of truth for Maju-specific functional
+  decisions. It does not replace code or tests and must never be treated as
+  evidence that a decision is already implemented.
+- Update the contract in the same change whenever a user-visible Maju-specific
+  decision is added, removed, or redefined. A bug fix that merely restores an
+  existing decision does not need a duplicate entry.
+- Keep the contract current-only. Replace or delete stale decisions; do not add
+  development details, autobiographical history, changelogs, speculative ideas,
+  or undecided plans.
+- Buzz synchronization must preserve the contract. If an upstream change would
+  contradict it or make it stale, classify that change as a conflict and obtain
+  the user's agreement before changing either Maju or the contract.
+
+---
+
 # Maju Fork Policy
 
 - Maju is an unofficial fork of [`block/buzz`](https://github.com/block/buzz).

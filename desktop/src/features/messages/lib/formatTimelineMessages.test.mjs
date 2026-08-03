@@ -101,6 +101,7 @@ test("a far-future edit still rewrites the body of an old message", () => {
   const old = streamMessage({ created_at: 1_700_000_000 });
   const lateEdit = streamEdit(HEX64_A, "edited body", {
     created_at: 1_900_000_000,
+    pubkey: PUBKEY_B,
   });
   const out = formatTimelineMessages([old, lateEdit], null, undefined, null);
   assert.equal(out.length, 1, "the message should still render");
@@ -110,6 +111,11 @@ test("a far-future edit still rewrites the body of an old message", () => {
     "the far-future edit must overlay the old message's body regardless of the time gap",
   );
   assert.equal(out[0].edited, true, "the message must be marked edited");
+  assert.equal(
+    out[0].editedByPubkey,
+    PUBKEY_B,
+    "the signed editor remains visible as moderation provenance",
+  );
 });
 
 test("a far-future deletion still hides an old message", () => {

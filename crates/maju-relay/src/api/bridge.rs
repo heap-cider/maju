@@ -1026,6 +1026,12 @@ async fn query_events_authed(
         .await;
     }
 
+    if let Some(device_events) =
+        synthesize_devices(state, tenant, &filters, &authed_pubkey_hex).await
+    {
+        return Ok(Json(Value::Array(device_events)));
+    }
+
     if let Some(presence_events) = synthesize_presence(state, tenant, &filters).await {
         return Ok(Json(Value::Array(presence_events)));
     }
@@ -2039,6 +2045,60 @@ async fn synthesize_presence(
         }
     }
 
+    Some(events)
+}
+
+/// If every filter asks for the caller's kind:20003 device status, synthesize
+/// owner-private live state from Redis. Device status is never stored.
+async fn synthesize_devices(
+    state: &AppState,
+    tenant: &maju_core::tenant::TenantContext,
+    filters: &[nostr::Filter],
+    authed_pubkey_hex: &str,
+) -> Option<Vec<Value>> {
+    use maju_core::kind::KIND_DEVICE_STATUS;
+
+    for filter in filters {
+        let kinds = filter.kinds.as_ref()?;
+        if kinds.len() != 1 || kinds.iter().next()?.as_u16() as u32 != KIND_DEVICE_STATUS {
+            return None;
+        }
+        let authors = filter.authors.as_ref()?;
+        if authors.len() != 1
+            || !authors
+                .iter()
+                .next()?
+                .to_hex()
+                .eq_ignore_ascii_case(authed_pubkey_hex)
+        {
+            return Some(Vec::new());
+        }
+    }
+
+    let devices = state
+        .pubsub
+        .list_devices(tenant, authed_pubkey_hex)
+        .await
+        .unwrap_or_default();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let mut events = Vec::with_capacity(devices.len());
+    for device in devices {
+        let content = serde_json::to_string(&device).ok()?;
+        let tags = vec![
+            nostr::Tag::parse(["p", authed_pubkey_hex]).ok()?,
+            nostr::Tag::parse(["d", device.device_id.as_str()]).ok()?,
+        ];
+        let event =
+            nostr::EventBuilder::new(nostr::Kind::Custom(KIND_DEVICE_STATUS as u16), content)
+                .tags(tags)
+                .custom_created_at(nostr::Timestamp::from(now))
+                .sign_with_keys(&state.relay_keypair)
+                .ok()?;
+        events.push(serde_json::to_value(event).ok()?);
+    }
     Some(events)
 }
 

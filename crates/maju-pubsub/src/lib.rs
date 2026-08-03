@@ -25,6 +25,8 @@
 pub mod cache_invalidation;
 /// Cross-pod connection-control commands over Redis pub/sub.
 pub mod conn_control;
+/// Account device sessions and single-active agent runner leases.
+pub mod device_sessions;
 /// Error types for pub/sub operations.
 pub mod error;
 /// Redis-backed NIP-98 replay seen-set.
@@ -55,6 +57,7 @@ use crate::cache_invalidation::{
     cache_invalidation_channel, CacheInvalidation, ScopedCacheInvalidation,
 };
 use crate::conn_control::{conn_control_channel, ConnControl, ScopedConnControl};
+use crate::device_sessions::{AgentRunner, DeviceDescriptor, DeviceStatus, RunnerAdmission};
 pub use crate::topic::{channel_key, global_key, EventTopic, EventTopicKey};
 
 /// A Nostr event received on a scoped Redis event topic, broadcast to local subscribers.
@@ -363,6 +366,77 @@ impl PubSubManager {
         pubkeys: &[PublicKey],
     ) -> Result<HashMap<String, String>, PubSubError> {
         presence::get_presence_bulk(&self.pool, ctx, pubkeys).await
+    }
+
+    /// Register or refresh one authenticated account device.
+    pub async fn touch_device(
+        &self,
+        ctx: &TenantContext,
+        owner_hex: &str,
+        descriptor: &DeviceDescriptor,
+    ) -> Result<(), PubSubError> {
+        device_sessions::touch_device(&self.pool, ctx, owner_hex, descriptor).await
+    }
+
+    /// Whether an exact official-client login session was disconnected.
+    pub async fn is_device_session_revoked(
+        &self,
+        ctx: &TenantContext,
+        owner_hex: &str,
+        device_id: &str,
+        session_id: &str,
+    ) -> Result<bool, PubSubError> {
+        device_sessions::is_session_revoked(&self.pool, ctx, owner_hex, device_id, session_id).await
+    }
+
+    /// Mark one official-client login session disconnected.
+    pub async fn revoke_device_session(
+        &self,
+        ctx: &TenantContext,
+        owner_hex: &str,
+        device_id: &str,
+        session_id: &str,
+    ) -> Result<(), PubSubError> {
+        device_sessions::revoke_session(&self.pool, ctx, owner_hex, device_id, session_id).await
+    }
+
+    /// Attempt to become the one representative runner for an agent.
+    pub async fn acquire_agent_runner(
+        &self,
+        ctx: &TenantContext,
+        runner: &AgentRunner,
+    ) -> Result<RunnerAdmission, PubSubError> {
+        device_sessions::acquire_runner(&self.pool, ctx, runner).await
+    }
+
+    /// Renew an agent runner lease only for its current fencing token.
+    pub async fn renew_agent_runner(
+        &self,
+        ctx: &TenantContext,
+        agent_hex: &str,
+        token: &str,
+        runner: &AgentRunner,
+    ) -> Result<bool, PubSubError> {
+        device_sessions::renew_runner(&self.pool, ctx, agent_hex, token, runner).await
+    }
+
+    /// Release an agent runner lease only for its current fencing token.
+    pub async fn release_agent_runner(
+        &self,
+        ctx: &TenantContext,
+        agent_hex: &str,
+        token: &str,
+    ) -> Result<bool, PubSubError> {
+        device_sessions::release_runner(&self.pool, ctx, agent_hex, token).await
+    }
+
+    /// List an account's devices with their live runner state.
+    pub async fn list_devices(
+        &self,
+        ctx: &TenantContext,
+        owner_hex: &str,
+    ) -> Result<Vec<DeviceStatus>, PubSubError> {
+        device_sessions::list_devices(&self.pool, ctx, owner_hex).await
     }
 }
 

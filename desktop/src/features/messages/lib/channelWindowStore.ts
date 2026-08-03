@@ -262,6 +262,34 @@ export function mapChannelWindowEvents(
   return changed ? { ...store, pages, liveOverlay, liveAux } : store;
 }
 
+/** Remove one event from every retained channel-window collection. */
+export function removeChannelWindowEvent(
+  store: ChannelWindowStore,
+  eventId: string,
+): ChannelWindowStore {
+  let changed = false;
+  const withoutTarget = (events: RelayEvent[]) => {
+    const next = events.filter((event) => event.id !== eventId);
+    if (next.length === events.length) return events;
+    changed = true;
+    return next;
+  };
+  const pages = store.pages.map((page) => {
+    const rows = page.rows.filter((row) => row.event.id !== eventId);
+    const aux = withoutTarget(page.aux);
+    if (rows.length === page.rows.length && aux === page.aux) return page;
+    if (rows.length !== page.rows.length) changed = true;
+    return { ...page, rows, aux };
+  });
+  const liveOverlay = withoutTarget(store.liveOverlay);
+  const liveAux = withoutTarget(store.liveAux);
+  const { [eventId]: removedSummary, ...liveSummaries } = store.liveSummaries;
+  if (removedSummary) changed = true;
+  return changed
+    ? { ...store, pages, liveOverlay, liveAux, liveSummaries }
+    : store;
+}
+
 /** Raw events in the chronological order expected by the existing renderer. */
 export function flattenChannelWindowEvents(store: ChannelWindowStore) {
   const byId = new Map<string, RelayEvent>();

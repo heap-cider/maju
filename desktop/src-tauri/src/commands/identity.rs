@@ -412,6 +412,9 @@ fn commit_imported_identity(
     // Capture the previous pubkey up front for post-commit cleanup.
     let previous_pubkey = state.keys.lock().map_err(|e| e.to_string())?.public_key();
 
+    // Importing an account key is an explicit new login. Rotate only the
+    // session id so a remotely disconnected installation may sign in again.
+    crate::device_session::rotate_session(data_dir)?;
     let storage = persist(&keys)?;
 
     // Update in-memory keys BEFORE clearing recovery flags. The Release
@@ -641,9 +644,12 @@ pub async fn sign_nostr_identity_binding(
 pub async fn create_auth_event(
     challenge: String,
     relay_url: String,
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let keys = state.signing_keys()?;
+    let device = crate::device_session::load_or_create(&app)?;
+    let device_tag = crate::device_session::auth_tag(&device, None)?;
 
     tauri::async_runtime::spawn_blocking(move || {
         let tags = vec![
@@ -651,6 +657,7 @@ pub async fn create_auth_event(
                 .map_err(|error| format!("relay tag failed: {error}"))?,
             Tag::parse(vec!["challenge", &challenge])
                 .map_err(|error| format!("challenge tag failed: {error}"))?,
+            device_tag,
         ];
 
         let event = EventBuilder::new(Kind::Custom(22242), "")

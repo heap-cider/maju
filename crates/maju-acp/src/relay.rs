@@ -95,6 +95,8 @@ const STARTUP_CONNECT_BACKOFFS: [Duration; 5] = [
 /// reconnecting agent should keep trying across extended outages rather than
 /// give up.
 const DNS_RETRY_INTERVAL: Duration = Duration::from_secs(2);
+/// Standby harnesses stay alive and retry until the representative disappears.
+const STANDBY_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 /// Minimum inter-REQ spacing during resubscribe bursts.
 /// 125 ms ≈ 8 frames/s — safely below the relay's 50-frames-per-5s admission
 /// window (10 frames/s at the limit). A 48-channel reconnect spreads over ≈6 s
@@ -617,8 +619,18 @@ impl HarnessRelay {
         // jittered backoff. A terminal error (bad URL, bad auth tag,
         // rejected/invalid signing key) fails immediately — see
         // `is_terminal_connect_error`.
-        let (ws, handshake_buffer) =
-            retry_initial_connect(|| do_connect(relay_url, keys, auth_tag.as_ref())).await?;
+        let (ws, handshake_buffer) = loop {
+            match retry_initial_connect(|| do_connect(relay_url, keys, auth_tag.as_ref())).await {
+                Err(error) if is_standby_connect_error(&error) => {
+                    info!(
+                        "agent is waiting behind the representative runner; retrying in {}s",
+                        STANDBY_RETRY_INTERVAL.as_secs()
+                    );
+                    tokio::time::sleep(STANDBY_RETRY_INTERVAL).await;
+                }
+                result => break result?,
+            }
+        };
 
         let (event_tx, event_rx) = mpsc::channel::<Option<MajuEvent>>(event_channel_capacity());
         let (observer_control_tx, observer_control_rx) =
@@ -3453,15 +3465,21 @@ async fn send_auth_response(
     let relay_nostr_url = RelayUrl::parse(relay_url)
         .map_err(|e| RelayError::Http(format!("invalid relay URL: {e}")))?;
 
-    let auth_event = if let Some(tag) = auth_tag {
+    let device_tag = device_auth_tag()?;
+    let auth_event = if auth_tag.is_some() || device_tag.is_some() {
         // Cannot use EventBuilder::auth() shortcut — it doesn't accept extra tags.
-        let tags = vec![
+        let mut tags = vec![
             nostr::Tag::parse(["relay", relay_url])
                 .map_err(|e| RelayError::Http(format!("tag parse error: {e}")))?,
             nostr::Tag::parse(["challenge", challenge])
                 .map_err(|e| RelayError::Http(format!("tag parse error: {e}")))?,
-            tag.clone(),
         ];
+        if let Some(tag) = auth_tag {
+            tags.push(tag.clone());
+        }
+        if let Some(tag) = device_tag {
+            tags.push(tag);
+        }
         EventBuilder::new(nostr::Kind::Authentication, "")
             .tags(tags)
             .sign_with_keys(keys)?
@@ -3473,6 +3491,47 @@ async fn send_auth_response(
     ws_send_timeout(ws, Message::Text(auth_msg.into()), WS_SEND_TIMEOUT_SECS).await?;
     debug!("sent AUTH response for challenge");
     Ok(())
+}
+
+fn device_auth_tag() -> Result<Option<nostr::Tag>, RelayError> {
+    let device_id = std::env::var("MAJU_DEVICE_ID").ok();
+    let session_id = std::env::var("MAJU_DEVICE_SESSION_ID").ok();
+    if device_id.is_none() && session_id.is_none() {
+        return Ok(None);
+    }
+    let required = |name: &str, value: Option<String>| {
+        value
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| RelayError::AuthFailed(format!("invalid: missing {name}")))
+    };
+    let device_id = required("MAJU_DEVICE_ID", device_id)?;
+    let session_id = required("MAJU_DEVICE_SESSION_ID", session_id)?;
+    let runner_id = required(
+        "MAJU_AGENT_RUNNER_ID",
+        std::env::var("MAJU_AGENT_RUNNER_ID").ok(),
+    )?;
+    let name = required("MAJU_DEVICE_NAME", std::env::var("MAJU_DEVICE_NAME").ok())?;
+    let platform = required(
+        "MAJU_DEVICE_PLATFORM",
+        std::env::var("MAJU_DEVICE_PLATFORM").ok(),
+    )?;
+    let version = required(
+        "MAJU_DEVICE_VERSION",
+        std::env::var("MAJU_DEVICE_VERSION").ok(),
+    )?;
+    nostr::Tag::parse([
+        "maju-device",
+        "1",
+        device_id.as_str(),
+        session_id.as_str(),
+        runner_id.as_str(),
+        name.as_str(),
+        platform.as_str(),
+        version.as_str(),
+        "agent",
+    ])
+    .map(Some)
+    .map_err(|error| RelayError::AuthFailed(format!("invalid: device auth tag: {error}")))
 }
 
 /// Convert a WebSocket URL to its HTTP equivalent.
@@ -3785,6 +3844,10 @@ fn is_terminal_rustls_io_error(err: &std::io::Error) -> bool {
 /// that might be a real rejection.
 fn is_terminal_auth_failure(message: &str) -> bool {
     !message.trim_start().starts_with("error:")
+}
+
+fn is_standby_connect_error(error: &RelayError) -> bool {
+    matches!(error, RelayError::AuthFailed(message) if message.trim_start().starts_with("standby:"))
 }
 
 /// Retry `op` with bounded jittered backoff, stopping immediately on a
@@ -5617,6 +5680,16 @@ mod tests {
             1,
             "a terminal error must fail on the first attempt with no retries"
         );
+    }
+
+    #[test]
+    fn representative_standby_is_distinct_from_terminal_auth_failure() {
+        assert!(is_standby_connect_error(&RelayError::AuthFailed(
+            "standby: agent is active on Office PC".into(),
+        )));
+        assert!(!is_standby_connect_error(&RelayError::AuthFailed(
+            "blocked: device session disconnected".into(),
+        )));
     }
 
     /// A relay-side dependency fault (NIP-01 `error:` prefix) is transient —

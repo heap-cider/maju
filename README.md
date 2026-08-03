@@ -1,271 +1,156 @@
 <h1 align="center">Maju 🐝</h1>
 
 <p align="center">
-  <strong>A workspace where humans and agents build together, on a relay you own.</strong>
+  <strong>Windows와 셀프호스팅을 중심으로 다듬는 사람·AI 에이전트 협업 공간</strong>
 </p>
 
 <p align="center">
-  <a href="VISION.md">Vision</a> ·
-  <a href="VISION_SOVEREIGN.md">Sovereign</a> ·
-  <a href="VISION_PROJECTS.md">Forge</a> ·
-  <a href="VISION_AGENT.md">Agents</a> ·
-  <a href="ARCHITECTURE.md">Architecture</a> ·
-  <a href="RELEASING.md">Releasing</a> ·
+  <a href="MAJU_PRODUCT_CONTRACT.md">Maju 제품 원칙</a> ·
+  <a href="https://github.com/block/buzz">Buzz 업스트림</a> ·
+  <a href="ARCHITECTURE.md">아키텍처</a> ·
+  <a href="RELEASING.md">릴리스</a> ·
   <a href="LICENSE">Apache 2.0</a>
 </p>
 
 <p align="center">
-  <img src="docs/assets/screenshots/channel-thread.png" alt="A Maju project channel where people and an agent coordinate on a release plan" width="100%">
+  <img src="docs/assets/screenshots/channel-thread.png" alt="사람과 AI 에이전트가 함께 대화하는 Maju 채널" width="100%">
 </p>
 
-<p align="center">
-  <sub><em>People and agents building together in the same room.</em></sub>
-</p>
+## Maju는 무엇인가요?
 
----
+Maju는 사람과 AI 에이전트가 같은 채널에 참여해 대화하고 작업하는
+셀프호스팅 협업 앱입니다. 메시지, 스레드, 파일, 검색, 프로젝트와 에이전트
+활동을 하나의 커뮤니티 안에서 연결합니다.
 
-## What is this, really?
+이 프로젝트는 [Block의 Buzz](https://github.com/block/buzz)를 기반으로 한
+비공식 개인용 포크입니다. 별도의 Maju 호스팅 서비스는 제공하지 않으며,
+사용자가 직접 운영하는 릴레이에 Windows 데스크톱 앱과 Android 앱을
+연결하는 구성을 전제로 합니다.
 
-Maju is a self-hostable workspace where humans and AI agents share the same rooms.
+## 왜 만들고 있나요?
 
-A Maju **community** is the workspace a user reaches by URL. In the single-relay
-setup that ships today, the relay URL selects exactly one community. A hosted
-operator can serve many communities behind many domains or subdomains, but the
-client-facing rule stays the same: the URL is authoritative for the workspace,
-and all tenant-observable state under that URL is community-local.
+Maju는 Windows를 주 환경으로 쓰고, 서비스와 데이터를 직접 운영하며 여러
+기기에서 이어 쓰는 구성을 좋아하는 개인의 필요에서 시작했습니다. Buzz는
+매력적인 프로젝트지만 아직 활발히 개발 중이고, 현재 Windows에서의 안정성과
+일부 커스터마이징 경험은 개인적으로 원하는 수준에 이르지 않았습니다.
 
-It's a Nostr relay: every message, reaction, workflow step, review approval, and git event is a signed event in one log. Same shape, same identity model, same audit trail, whether the author is a person or a process.
+그래서 Maju는 Buzz의 제품 경험을 바탕으로 다음에 집중합니다.
 
-In practice it feels like a team workspace. Under the hood it's an event log with taste and a suspicious number of Rust crates.
+- Windows를 우선 지원하는 안정적인 데스크톱 경험
+- 직접 운영하는 릴레이만 사용하는 셀프호스팅 구성
+- 여러 기기에서 자연스럽게 이어지는 계정과 에이전트 경험
+- 프로젝트 관리자가 실제로 쓰고 싶은 기능과 커스터마이징
 
-Yes, it's another AI-adjacent developer tool. We're sorry. The difference is what agents can actually *do* once they're inside: open repos, send patches, review code, run workflows, edit canvases, orchestrate other agents, drop into voice huddles, create channels, and pull in whoever needs to see it. The same affordances as a human teammate, the same audit trail, a different keypair.
+Maju만의 최신 기능적 결정과 지원 범위는
+[`MAJU_PRODUCT_CONTRACT.md`](MAJU_PRODUCT_CONTRACT.md)에 간결하게
+정리합니다.
 
----
+## Buzz와의 관계
 
-## Stuff you do in Maju
+Buzz는 Maju의 업스트림입니다. Buzz가 앞으로 더 완성도 높은 프로젝트로
+발전할 것이라 기대하며, 새 릴리스의 변경점을 Maju에도 계속 반영합니다.
 
-- **Ask the project a question and get an answer with receipts.** Agents search six months of history and post the threads, not vibes.
-- **Let an agent triage a bug without giving it the keys to the kingdom.** Agents have their own keys, their own channel memberships, and their own audit trail. Scoped by identity, not by permission flags — the same way you'd scope a teammate.
-- **Turn a feature branch into a room** where patches, CI, review, and the merge decision live together — so the channel becomes the record of why the code exists.
-- **Search the conversation, the patch, the workflow run, and the approval in one place** — because they're all the same kind of event.
-- **Let an agent run the workspace, not just talk in it.** Channels, canvases, workflows, huddles — agents have the same surface area as humans, with their own keys and their own audit trail.
+다만 릴리스를 Git으로 그대로 병합하지는 않습니다. 프로젝트에 포함된
+[`sync-buzz-upstream`](.agents/skills/sync-buzz-upstream/SKILL.md) 에이전트
+스킬이 Buzz의 변경점을 Maju 이름과 구조에 맞춰 대조하고, Maju의 제품
+결정과 충돌하는 부분을 구분한 뒤 선택적으로 동기화합니다.
 
----
+Maju를 별도로 개발하는 이유는 Buzz가 부족해서가 아닙니다. 버그 수정과
+안정화뿐 아니라 제품 방향과 개인적으로 원하는 기능까지 빠르고 유연하게
+바꾸기 위해서입니다. 이미 많은 사람이 함께하는 오픈소스 프로젝트의 방향을
+개인의 필요에 맞춰 움직이게 할 수는 없으므로, Maju에서 자유롭게 실험하고
+운영합니다.
 
-## A look inside
+## 주요 기능
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="docs/assets/screenshots/channel-agents.png" alt="People and agents collaborating in a Maju engineering channel and reacting with emoji" width="100%"><br>
-      <sub><strong>Agents are members, not bots.</strong> Add an agent to a channel the same way you add a person.</sub>
-    </td>
-    <td width="50%" valign="top">
-      <img src="docs/assets/screenshots/create-channel.png" alt="The Add a channel dialog with search, filters, and channels to join or create" width="100%"><br>
-      <sub><strong>Spin up a room in seconds.</strong> Name it, describe it, make it private.</sub>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" valign="top">
-      <img src="docs/assets/screenshots/media-comments.png" alt="A video playing in Maju with frame-anchored comments in a side panel" width="100%"><br>
-      <sub><strong>Media you can talk about.</strong> Leave comments pinned to specific frames.</sub>
-    </td>
-  </tr>
-</table>
+- 채널, 스레드, 다이렉트 메시지와 전체 검색
+- 사람과 같은 공간에 참여하고 대화하는 AI 에이전트
+- 파일과 미디어 공유, 캔버스, 워크플로
+- 프로젝트와 Git 이벤트 연동
+- 서명된 Nostr 이벤트 기반의 신원과 활동 기록
+- Postgres, Redis, S3 호환 스토리지를 포함한 자체 호스팅 릴레이
 
----
+> Maju와 Buzz 모두 개발 중인 소프트웨어입니다. 문서에 적힌 방향과 실제
+> 구현 상태가 다를 수 있으며, 현재 지원을 보장하는 결정은
+> `MAJU_PRODUCT_CONTRACT.md`를 기준으로 합니다.
 
-## Why Maju is better
+## 지원 대상
 
-One community. One identity model. One event log. Humans, agents, workflows, and repos all speak the same protocol, sign with the same kind of key, and end up in the same search index. In the default self-hosted deployment, one relay hosts one community; in a hosted multi-tenant deployment, each community keeps that same semantic boundary even when the backend shares Postgres, Redis, and object storage.
+| 구성 요소 | 지원 대상 |
+|---|---|
+| 데스크톱 앱 | Windows |
+| 모바일 앱 | Android |
+| 릴레이 | Linux 서버, Docker Compose 또는 단독 실행 파일 |
 
-The bet is that one community can do what teams currently fake with chat, forges, bots, CI dashboards, release tools, search indexes, and a pile of glue code. Not all at once, not magically, but with one substrate instead of seven tabs pretending they know about each other.
+macOS와 iOS는 Maju의 릴리스 대상이 아닙니다.
 
-Agents are part of the room, not haunted cron jobs.
+## 설치
 
----
+### 앱 설치
 
-## Three little stories
+[최신 GitHub 릴리스](https://github.com/heap-cider/maju/releases/latest)에서
+Windows 설치 파일 또는 Android APK를 내려받습니다. 앱에서 직접 운영하는
+Maju 릴레이 주소를 지정해 연결합니다.
 
-**Incident memory.** It's 2am. You type *"have we seen this error before?"* An agent watching the channel pulls six months of history, posts the threads, the root causes, the fixes, and offers to page whoever shipped the last one. The whole exchange — question, answer, evidence — stays in the channel.
+### 릴레이 설치
 
-**Branch as room.** You open a feature branch. A channel appears. Patches land as NIP-34 events, CI posts results, an agent runs a first-pass review, teammates react to the parts they care about, and the merge decision lands in the same room as the evidence.
+단일 서버나 VPS에는 [`deploy/compose`](deploy/compose/README.md)의 운영용
+Docker Compose 구성을 권장합니다. 릴레이 이미지는
+[`ghcr.io/heap-cider/maju`](https://github.com/heap-cider/maju/pkgs/container/maju)에서
+배포합니다.
 
-**A release that writes itself.** A workflow fires on a tag. An agent reads the merged PRs from the project channels, drafts the release notes, posts them for human review, gets a 👍 reaction, and ships. Every step signed. Every step searchable.
-
----
-
-## Works today · Being wired up · Strong opinions, pending code
-
-| ✅ Works today | 🚧 Being wired up | 💭 Strong opinions, pending code |
-|---|---|---|
-| Relay, channels, threads, DMs, canvases, media, search, audit log | Mobile clients (iOS + Android, Flutter) | Web-of-trust reputation across relays |
-| Desktop app (Tauri + React) | Workflow approval gates (infra exists, glue still drying) | Push notifications |
-| `maju-cli` (agent-first, JSON in / JSON out) + ACP harness (Goose, Codex, Claude Code) | Huddle lifecycle events | Culture features |
-| YAML workflows: message / reaction / schedule / webhook triggers | | |
-| Git events (NIP-34: patches, repo announcements, status) | | |
-| Git hosting backend | | |
-
-<sub>Please do not plan your compliance program around the 💭 column yet. The <a href="VISION.md">VISION docs</a> are the long version of what we think this becomes.</sub>
-
----
-
-## Getting started
-
-New to Maju? Pick the path that matches you.
-
-### I just want to try the app
-
-Grab the Windows installer or Android APK from the
-[latest release](https://github.com/heap-cider/maju/releases/latest). The same
-release also publishes a standalone Linux relay archive and a multi-architecture
-Docker image for self-hosting.
-
-By default the app connects to `ws://localhost:3000`. To point it at a relay you're running or one someone shared with you, set `MAJU_RELAY_URL` before launching, or switch the relay from inside the app. If you don't have a relay yet, follow **Build & run from source** below to stand one up locally.
-
-### I work at Block
-
-Don't build from source, and don't use the OSS release — use the internal build. It comes pre-wired to the Block relay and agent provider, so it works out of the box with nothing to configure.
-
-Download the latest build from [`squareup/maju-releases` releases](https://github.com/squareup/maju-releases/releases/latest) and install it.
-
-### I want to build & run from source
-
-See **Quick start** below — this is the developer / self-host path.
-
----
-
-## Quick start
-
-You'll need [Docker](https://docs.docker.com/get-docker/) and [Hermit](https://cashapp.github.io/hermit/) (or Rust 1.88+, Node 24+, pnpm 10+, `just`).
-
-**Once:**
 ```bash
-git clone https://github.com/heap-cider/maju.git && cd maju
-. ./bin/activate-hermit   # pinned toolchain (tools auto-download on first use)
-just setup && just build
+cd deploy/compose
+cp .env.example .env
+$EDITOR .env
+./run.sh start
 ```
 
-`just setup` runs `just bootstrap` automatically — it copies `.env.example` to `.env` if needed, downloads all required tools via Hermit, and starts Docker services + migrations.
+공개 도메인에서 Caddy의 자동 TLS를 함께 사용하려면 다음과 같이 시작합니다.
 
-**Every day:**
 ```bash
+MAJU_COMPOSE_TLS=true ./run.sh start
+```
+
+필수 비밀값, 데이터 보존과 업그레이드 방법은
+[`deploy/compose/README.md`](deploy/compose/README.md)를 먼저 확인하세요.
+
+## 소스에서 개발하기
+
+[Docker](https://docs.docker.com/get-docker/)와
+[Hermit](https://cashapp.github.io/hermit/)을 권장합니다. Hermit을 사용하지
+않는 경우 Rust 1.88+, Node.js 24+, pnpm 10+, `just`가 필요합니다.
+
+```bash
+git clone https://github.com/heap-cider/maju.git
+cd maju
 . ./bin/activate-hermit
-just dev   # starts the relay + desktop app together
+just setup
+just build
+just dev
 ```
 
-Relay on `ws://localhost:3000`. Desktop app pops up. You're in.
+개발용 릴레이는 기본적으로 `ws://localhost:3000`에서 실행됩니다. Windows에서
+에이전트의 셸 도구를 사용하려면 Bash를 포함한
+[Git for Windows](https://git-scm.com/download/win)가 필요합니다.
 
-For a split-terminal workflow (relay logs separate from Vite output), use `just relay` in one terminal and `just desktop-dev` in another.
-
-Want a single-node / VPS relay instead of the local-dev stack? Use the production Compose bundle in [`deploy/compose/`](deploy/compose/README.md) (`docker compose` + Postgres, Redis, MinIO, optional Caddy/TLS). The root [`docker-compose.yml`](docker-compose.yml) is for day-to-day development only.
-
-For agents, set `MAJU_PRIVATE_KEY` and use [`maju-cli`](crates/maju-cli) — JSON in, JSON out, designed for LLM tool calls.
-
----
-
-## Windows prerequisites
-
-The agent shell tool runs commands under bash. On macOS and Linux that's already there; on Windows you need to bring it.
-
-Install [Git for Windows](https://git-scm.com/download/win) — it ships Git Bash, which is what maju resolves at runtime. Once it's installed, everything works the same as on other platforms.
-
-If you'd rather point maju at a different bash-compatible shell, set `MAJU_SHELL` to its path (e.g. `MAJU_SHELL=C:\path\to\bash.exe`). The agent's tool description updates automatically to reflect whichever shell is active.
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                             Clients                                     │
-│  Human client         AI agent              CLI / scripts               │
-│  (Maju desktop)       (Goose, Codex, ...)   (maju-cli, agents)          │
-│       │               ┌──────────────┐               │                  │
-│       │               │  maju-acp  │                 │                  │
-│       │               │  (ACP ↔ MCP) │               │                  │
-│       │               └──────┬───────┘               │                  │
-│       │                      │                       │                  │
-└───────┼──────────────────────┼───────────────────────┼──────────────────┘
-        │ WebSocket            │ WS + REST             │ WS + REST
-        ▼                      ▼                       ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          maju-relay                                     │
-│  NIP-01 · NIP-42 auth · channel/DM/media/workflow/git REST · audit log  │
-└───┬──────────────────────────┬──────────────────────────┬───────────────┘
-    │                          │                          │
- ┌──▼───────────┐       ┌──────▼──────┐           ┌───────▼─────┐
- │   Postgres   │       │    Redis    │           │   S3/MinIO  │
- │ (events +    │       │  (pub/sub)  │           │  (Blossom)  │
- │  FTS search) │       └─────────────┘           └─────────────┘
- └──────────────┘
-```
-
-A Rust workspace of focused crates. Single source of truth: the relay. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full breakdown.
-
-<details>
-<summary><strong>Crate map</strong></summary>
-
-**Core protocol** — `maju-core` (zero-I/O types, NIP-01 filters, Schnorr verify) · `maju-relay` (Axum WS + REST)
-
-**Services** — `maju-db` (Postgres) · `maju-auth` (NIP-42/98 Schnorr auth, rate limiting) · `maju-pubsub` (Redis, presence, typing) · `maju-search` (Postgres FTS) · `maju-audit` (hash-chain log). Multi-community mode scopes tenant-observable rows, cache keys, search documents, workflow state, media metadata, git repo pointers, and audit chains by the host-derived community; shared infrastructure is an implementation detail, not a user-visible global workspace.
-
-**Agent surface** — `maju-cli` (agent-first CLI, JSON in / JSON out) · `maju-acp` (ACP harness for Goose/Codex/Claude Code) · `maju-agent` (ACP agent — see [VISION_AGENT.md](VISION_AGENT.md)) · `maju-dev-mcp` (shell + file-edit tools) · `maju-workflow` (YAML automation) · `maju-persona` (agent persona packs)
-
-**Git & pairing** — `git-sign-nostr` / `git-credential-nostr` (nostr-signed git) · `maju-pair-relay` / `maju-pairing-cli` (relay pairing)
-
-**Shared** — `maju-sdk` (typed event builders) · `maju-media` (Blossom/S3)
-
-**Tooling** — `maju-admin` (admin CLI) · `maju-test-client` (E2E)
-
-</details>
-
----
-
-## Going further
-
-- **[VISION.md](VISION.md)** · **[VISION_SOVEREIGN.md](VISION_SOVEREIGN.md)** · **[VISION_PROJECTS.md](VISION_PROJECTS.md)** · **[VISION_AGENT.md](VISION_AGENT.md)** — the four vision docs
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** — system design, kind ranges, subsystem boundaries
-- **[TESTING.md](TESTING.md)** — multi-agent E2E test suite
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** · **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** · **[SECURITY.md](SECURITY.md)** · **[GOVERNANCE.md](GOVERNANCE.md)**
-
-<details>
-<summary><strong>Configuration</strong> (env vars, defaults work for local dev)</summary>
-
-All defaults work out of the box. Override via `.env`. Full reference in [`.env.example`](.env.example).
-
-</details>
-
-<details>
-<summary><strong>Common dev commands</strong></summary>
+자주 사용하는 명령은 다음과 같습니다.
 
 ```bash
-just setup          # Docker, migrations, desktop deps
-just relay          # Run the relay
-just dev            # Run the desktop app
-just build          # Build the Rust workspace
-just check          # fmt + clippy + desktop check
-just test-unit      # Unit tests (no infra required)
-just test           # Full suite (starts services if needed)
-just ci             # Everything CI runs
-just reset          # ⚠️  Wipe data + recreate
+just dev        # 릴레이와 데스크톱 앱 실행
+just check      # 포맷과 정적 검사
+just test-unit  # 인프라가 필요 없는 단위 테스트
+just test       # 통합 테스트
+just ci         # CI 전체 검사
 ```
 
-</details>
+자세한 내용은 [`CONTRIBUTING.md`](CONTRIBUTING.md),
+[`TESTING.md`](TESTING.md), [`ARCHITECTURE.md`](ARCHITECTURE.md)를 참고하세요.
 
----
+## 라이선스와 출처
 
-## What it is not
+Maju는 [Buzz](https://github.com/block/buzz)를 기반으로 하며 Apache License
+2.0에 따라 배포됩니다. 원본 저작권과 라이선스 고지는
+[`LICENSE`](LICENSE)에 있습니다.
 
-- Not blockchain. Signed events are useful without making everyone buy a commemorative coin.
-- Not an AI replacement plan. Maju works best when humans stay in the loop and agents stay in the room.
-- Not finished. We will tell you what works and what doesn't.
-
-**What it is:** one relay where humans, agents, workflows, git events, and project memory cooperate — the beginning of a workspace that can grow past the tabs it replaces.
-
----
-
-<p align="center">
-  <sub>Maju 🐝</sub><br>
-  <sub>Apache 2.0 · Built by <a href="https://block.xyz">Block, Inc.</a></sub>
-</p>
+Maju는 Block, Inc.가 공식적으로 지원하거나 배포하는 제품이 아닙니다.

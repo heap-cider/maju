@@ -80,6 +80,14 @@ rather than in plaintext files: macOS Keychain, Windows Credential Manager, or
 the Linux Secret Service (`gnome-keyring` / `kwallet` via D-Bus). This covers
 both the human identity key and every managed-agent key.
 
+Managed-agent identity also has an account-portable recovery copy in its
+owner-authored `kind:30177` event. The agent nsec is encrypted to the owner's
+own key with NIP-44 v2; plaintext never enters the relay event. A receiving
+device must verify the event author is its active owner, decrypt the envelope,
+and prove the recovered key derives the agent pubkey named by the event before
+writing it to the local keyring. Runtime placement and provider credentials are
+not part of this envelope and remain device-local.
+
 On first launch after upgrading, existing plaintext keys are migrated into the
 keyring: the key is imported, read back to verify the round-trip, and only then
 is the plaintext deleted. Migration runs only when the keyring is reachable —

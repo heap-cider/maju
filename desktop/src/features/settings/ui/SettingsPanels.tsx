@@ -13,6 +13,7 @@ import {
   LayoutTemplate,
   MessagesSquare,
   MonitorCog,
+  Laptop,
   Moon,
   ShieldAlert,
   Smartphone,
@@ -70,6 +71,7 @@ import {
   withAccentPreviewVars,
 } from "@/shared/theme/useThemePreviewVars";
 import { ChannelTemplatesSettingsCard } from "./ChannelTemplatesSettingsCard";
+import { DevicesSettingsCard } from "./DevicesSettingsCard";
 import { HarnessesSettingsPanel } from "./HarnessesSettingsPanel";
 import { ExperimentalFeaturesCard } from "./ExperimentalFeaturesCard";
 import { KeyboardShortcutsCard } from "./KeyboardShortcutsCard";
@@ -88,6 +90,7 @@ import { VoiceSettingsCard } from "./VoiceSettingsCard";
 
 export type SettingsSection =
   | "profile"
+  | "devices"
   | "notifications"
   | "voice"
   | "experimental"
@@ -108,6 +111,7 @@ export const DEFAULT_SETTINGS_SECTION: SettingsSection = "profile";
 
 const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "profile",
+  "devices",
   "notifications",
   "voice",
   "experimental",
@@ -165,6 +169,11 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     value: "profile",
     label: "Profile",
     icon: UserRound,
+  },
+  {
+    value: "devices",
+    label: "내 기기",
+    icon: Laptop,
   },
   {
     value: "notifications",
@@ -799,6 +808,8 @@ export function renderSettingsSection(
           fallbackDisplayName={props.fallbackDisplayName}
         />
       );
+    case "devices":
+      return <DevicesSettingsCard />;
     case "notifications":
       return (
         <NotificationSettingsCard

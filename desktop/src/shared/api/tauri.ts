@@ -43,6 +43,8 @@ import type {
 } from "@/shared/api/types";
 
 export * from "@/shared/api/tauriChannels";
+export * from "@/shared/api/tauriMessages";
+export * from "@/shared/api/tauriDevices";
 
 type RawPresenceLookup = Record<string, PresenceStatus>;
 
@@ -630,13 +632,6 @@ export async function editMessage(
     emojiTags: emojiTags ?? [],
     mentionPubkeys: mentionPubkeys ?? null,
   });
-}
-
-export async function deleteMessage(
-  channelId: string,
-  eventId: string,
-): Promise<void> {
-  await invokeTauri("delete_message", { channelId, eventId });
 }
 
 export async function addReaction(

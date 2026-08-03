@@ -410,6 +410,11 @@ async fn dispatch_persistent_event_inner(
     // (read seam in req.rs, emitted by the held-back read-seam diff).
     let event_id_hex = stored_event.event.id.to_hex();
 
+    if kind_u32 == maju_core::kind::KIND_DEVICE_SESSION {
+        crate::device_sessions::apply_device_session_event(state, tenant, &stored_event.event)
+            .await;
+    }
+
     let topic = match stored_event.channel_id {
         Some(channel_id) => EventTopic::Channel(channel_id),
         None => EventTopic::Global,
@@ -652,6 +657,22 @@ pub async fn handle_event(event: Event, conn: Arc<ConnectionState>, state: Arc<A
             }
         }
     };
+
+    // A representative agent must still own its relay lease at every write
+    // boundary. This fences a stale PC that wakes after another device took over.
+    if let Some(device) = conn.device_session.read().await.clone() {
+        if !crate::device_sessions::refresh(&state, &conn.tenant, &device).await {
+            reject("auth");
+            let message = if device.runner_lease.is_some() {
+                "standby: agent representative lease lost"
+            } else {
+                "blocked: device session disconnected"
+            };
+            conn.send(RelayMessage::ok(&event_id_hex, false, message));
+            conn.cancel.cancel();
+            return;
+        }
+    }
 
     // Must run before both ephemeral and persistent branches. Persistent
     // events get a second check inside ingest_event() (step 3), but
@@ -1395,6 +1416,7 @@ mod tests {
                     agent_owner_pubkey: None,
                 },
             )),
+            device_session: RwLock::new(None),
             subscriptions: Arc::new(Mutex::new(HashMap::new())),
             send_tx,
             ctrl_tx,

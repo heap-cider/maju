@@ -4,6 +4,7 @@ import { nsecEncode } from "nostr-tools/nip19";
 
 import { installMockBridge, TEST_IDENTITIES } from "../helpers/bridge";
 import { installFakeCamera } from "../helpers/fakeCamera";
+import { waitForAnimations } from "../helpers/animations";
 import {
   E2E_IDENTITY_OVERRIDE_STORAGE_KEY,
   seedActiveIdentity,
@@ -746,7 +747,7 @@ test("first-launch import accepts an .ncryptsec backup file", async ({
   await expect(page.getByTestId("machine-onboarding-gate")).toBeVisible();
 });
 
-test("non-local runtime override keeps community selection without release flag", async ({
+test("non-local runtime override waits for an explicit self-hosted connection", async ({
   page,
 }) => {
   await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
@@ -764,8 +765,9 @@ test("non-local runtime override keeps community selection without release flag"
   await page.goto("/");
 
   await expect(
-    page.getByRole("button", { name: /Join a community/ }),
+    page.getByRole("heading", { name: "Connect your Maju server" }),
   ).toBeVisible();
+  await expect(page.getByTestId("invite-redeem-input")).toBeFocused();
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("maju-communities")))
     .toBeNull();
@@ -812,486 +814,12 @@ test("non-local default auto-connects when the release flag is enabled", async (
     });
 });
 
-test("first-community choices route join, create, owner, and member intents", async ({
+// The first run connects only to a relay the user self-hosts.
+
+test("first-community shows one self-hosted connection form", async ({
   page,
 }) => {
-  await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await page.addInitScript((pubkey) => {
-    window.localStorage.setItem(
-      `maju-machine-onboarding-complete.v2:${pubkey}`,
-      "true",
-    );
-  }, BLANK_TYLER_IDENTITY.pubkey);
-  await installMockBridge(page, undefined, {
-    relayWsUrl: "ws://localhost:3000",
-    skipOnboardingSeed: true,
-    skipCommunitySeed: true,
-  });
-  await page.goto("/");
-
-  await expect(
-    page.getByRole("button", { name: /Join a community/ }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /Create a community/ }),
-  ).toBeVisible();
-  const existing = page.getByRole("button", {
-    name: /I already have a community/,
-  });
-  await expect(existing).toBeVisible();
-  await existing.click();
-  // Owner/member split lives on its own page, mirroring the hub layout.
-  await expect(
-    page.getByRole("heading", { name: "Reconnect to your community" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "I own the community" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "I’m a member or admin" }),
-  ).toBeVisible();
-
-  await page.getByRole("button", { name: "I’m a member or admin" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Reconnect to your community" }),
-  ).toBeVisible();
-  const accessInput = page.getByTestId("invite-redeem-input");
-  await expect(accessInput).toHaveAttribute(
-    "placeholder",
-    "Invite link or community URL",
-  );
-  await accessInput.fill("https://default.example.com");
-  await expect(page.getByTestId("invite-redeem-submit")).toBeEnabled();
-  // Back from the member form returns to the role choice, then to the hub.
-  await page.getByRole("button", { name: "Back" }).click();
-  await expect(
-    page.getByRole("button", { name: "I own the community" }),
-  ).toBeVisible();
-  await page.getByTestId("existing-back").click();
-
-  await page.getByRole("button", { name: /Join a community/ }).click();
-  await expect(
-    page.getByRole("heading", { name: "Join a community" }),
-  ).toBeVisible();
-  await expect(page.getByText("Joining a private community?")).toBeVisible();
-  await expect(page.getByTestId("welcome-join-npub")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Copy public ID" }),
-  ).toBeVisible();
-  await accessInput.fill("https://default.example.com/invite/abc123");
-  await expect(page.getByTestId("invite-redeem-submit")).toBeEnabled();
-});
-
-test("first-community owner can connect an existing hosted community", async ({
-  page,
-}) => {
-  await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await page.addInitScript((pubkey) => {
-    window.localStorage.setItem(
-      `maju-machine-onboarding-complete.v2:${pubkey}`,
-      "true",
-    );
-  }, BLANK_TYLER_IDENTITY.pubkey);
-  await installMockBridge(
-    page,
-    {
-      builderlabAuth: {
-        email: "owner@example.com",
-        expiresAt: "2099-01-01T00:00:00Z",
-      },
-      builderlabIdentity: { pubkey_hex: BLANK_TYLER_IDENTITY.pubkey },
-      builderlabCommunities: [
-        {
-          id: "owned-community",
-          name: "North Star",
-          normalized_host: "north-star.communities.maju.xyz",
-        },
-      ],
-    },
-    {
-      relayWsUrl: "ws://localhost:3000",
-      skipOnboardingSeed: true,
-      skipCommunitySeed: true,
-    },
-  );
-  await page.goto("/");
-
-  await page.getByTestId("community-choice-create").click();
-  await expect(page.getByText("North Star")).toBeVisible();
-  await page.getByRole("button", { name: "Connect", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Build your profile" }),
-  ).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        window.localStorage.getItem("maju-community-onboarding-transaction.v1"),
-      ),
-    )
-    .toContain('"source":"first-community"');
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        window.localStorage.getItem("maju-community-onboarding-transaction.v1"),
-      ),
-    )
-    .toContain("wss://north-star.communities.maju.xyz");
-  await page.getByTestId("community-profile-back").click();
-  await expect(
-    page.getByRole("heading", { name: "Choose a community" }),
-  ).toBeVisible();
-  await expect(page.getByText("North Star")).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Join a community" }),
-  ).toHaveCount(0);
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        window.localStorage.getItem("maju-community-onboarding-transaction.v1"),
-      ),
-    )
-    .toBeNull();
-});
-
-test("first-community owner can create and connect a hosted community", async ({
-  page,
-}) => {
-  await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await page.addInitScript((pubkey) => {
-    window.localStorage.setItem(
-      `maju-machine-onboarding-complete.v2:${pubkey}`,
-      "true",
-    );
-  }, BLANK_TYLER_IDENTITY.pubkey);
-  await installMockBridge(
-    page,
-    {},
-    {
-      relayWsUrl: "ws://localhost:3000",
-      skipOnboardingSeed: true,
-      skipCommunitySeed: true,
-    },
-  );
-  await page.goto("/");
-
-  await page.getByTestId("community-choice-create").click();
-  await page.getByRole("button", { name: "Sign in to continue" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Finish connecting Maju" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Connect and continue" }).click();
-  const createSurface = page.getByTestId("hosted-community-create-surface");
-  const surfaceBoxBeforeFeedback = await createSurface.boundingBox();
-  const communityNameInput = page.getByTestId("hosted-community-address-input");
-  await communityNameInput.fill("bee-lab");
-  await expect(communityNameInput).toHaveAttribute("style", /width: 7ch;/);
-  const availabilityFeedback = page.getByText("That address is available.");
-  await expect(availabilityFeedback).toBeVisible();
-  const [feedbackBox, surfaceBox, inputBox, suffixBox] = await Promise.all([
-    availabilityFeedback.boundingBox(),
-    createSurface.boundingBox(),
-    page.getByTestId("hosted-community-address-input").boundingBox(),
-    page.locator("#hosted-community-suffix").boundingBox(),
-  ]);
-  if (
-    !surfaceBoxBeforeFeedback ||
-    !feedbackBox ||
-    !surfaceBox ||
-    !inputBox ||
-    !suffixBox
-  ) {
-    throw new Error("Could not measure hosted community creation layout");
-  }
-  expect(surfaceBox.y).toBe(surfaceBoxBeforeFeedback.y);
-  expect(surfaceBox.height).toBe(surfaceBoxBeforeFeedback.height);
-  const addressLeft = inputBox.x;
-  const addressRight = suffixBox.x + suffixBox.width;
-  expect(
-    Math.abs(
-      (addressLeft + addressRight) / 2 - (surfaceBox.x + surfaceBox.width / 2),
-    ),
-  ).toBeLessThanOrEqual(1);
-  expect(feedbackBox.y).toBeGreaterThanOrEqual(
-    surfaceBox.y + surfaceBox.height,
-  );
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Build your profile" }),
-  ).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        window.localStorage.getItem("maju-community-onboarding-transaction.v1"),
-      ),
-    )
-    .toContain("wss://bee-lab.communities.maju.xyz");
-});
-
-test("hosted community address line stays within the card for a long name", async ({
-  page,
-}) => {
-  await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await page.addInitScript((pubkey) => {
-    window.localStorage.setItem(
-      `maju-machine-onboarding-complete.v2:${pubkey}`,
-      "true",
-    );
-  }, BLANK_TYLER_IDENTITY.pubkey);
-  await installMockBridge(
-    page,
-    {},
-    {
-      relayWsUrl: "ws://localhost:3000",
-      skipOnboardingSeed: true,
-      skipCommunitySeed: true,
-    },
-  );
-  // The 800px app minimum is the worst case for the full-width address line.
-  await page.setViewportSize({ width: 800, height: 720 });
-  await page.goto("/");
-
-  await page.getByTestId("community-choice-create").click();
-  await page.getByRole("button", { name: "Sign in to continue" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Finish connecting Maju" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Connect and continue" }).click();
-
-  const createSurface = page.getByTestId("hosted-community-create-surface");
-  const communityNameInput = page.getByTestId("hosted-community-address-input");
-  // A maximum-length (63 char) valid name — the overflow case Wes flagged; the
-  // 7-char check above cannot catch it.
-  const longName = "a".repeat(63);
-  await communityNameInput.fill(longName);
-  await expect(communityNameInput).toHaveValue(longName);
-
-  const [surfaceBox, inputBox, suffixBox] = await Promise.all([
-    createSurface.boundingBox(),
-    communityNameInput.boundingBox(),
-    page.locator("#hosted-community-suffix").boundingBox(),
-  ]);
-  if (!surfaceBox || !inputBox || !suffixBox) {
-    throw new Error("Could not measure hosted community creation layout");
-  }
-  const addressLeft = inputBox.x;
-  const addressRight = suffixBox.x + suffixBox.width;
-  // The composed `<name>.<suffix>` line must stay within the card — no
-  // horizontal overflow past the surface or the 800px window.
-  expect(addressLeft).toBeGreaterThanOrEqual(surfaceBox.x);
-  expect(addressRight).toBeLessThanOrEqual(surfaceBox.x + surfaceBox.width);
-  expect(addressRight).toBeLessThanOrEqual(800);
-  // …and it stays centered within the card.
-  expect(
-    Math.abs(
-      (addressLeft + addressRight) / 2 - (surfaceBox.x + surfaceBox.width / 2),
-    ),
-  ).toBeLessThanOrEqual(2);
-});
-
-test("first-community reports a created community without a relay address", async ({
-  page,
-}) => {
-  await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await page.addInitScript((pubkey) => {
-    window.localStorage.setItem(
-      `maju-machine-onboarding-complete.v2:${pubkey}`,
-      "true",
-    );
-  }, BLANK_TYLER_IDENTITY.pubkey);
-  await installMockBridge(
-    page,
-    {
-      builderlabAuth: {
-        email: "owner@example.com",
-        expiresAt: "2099-01-01T00:00:00Z",
-      },
-      builderlabIdentity: { pubkey_hex: BLANK_TYLER_IDENTITY.pubkey },
-      builderlabCreatedCommunity: {
-        id: "hosted-bee-lab",
-        name: "bee-lab",
-      },
-    },
-    {
-      relayWsUrl: "ws://localhost:3000",
-      skipOnboardingSeed: true,
-      skipCommunitySeed: true,
-    },
-  );
-  await page.goto("/");
-
-  await page.getByTestId("community-choice-create").click();
-  await page.getByRole("textbox", { name: "Community name" }).fill("bee-lab");
-  await expect(page.getByText("That address is available.")).toBeVisible();
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByRole("alert")).toContainText(
-    "The community was created, but Builderlab did not return its relay address.",
-  );
-  await expect(
-    page.getByRole("heading", { name: "Build your profile" }),
-  ).toHaveCount(0);
-});
-
-test("first-community X cancels a pending sign-in", async ({ page }) => {
-  await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await page.addInitScript((pubkey) => {
-    window.localStorage.setItem(
-      `maju-machine-onboarding-complete.v2:${pubkey}`,
-      "true",
-    );
-  }, BLANK_TYLER_IDENTITY.pubkey);
-  await installMockBridge(
-    page,
-    { builderlabLoginDelayMs: 5_000 },
-    {
-      relayWsUrl: "ws://localhost:3000",
-      skipOnboardingSeed: true,
-      skipCommunitySeed: true,
-    },
-  );
-  await page.goto("/");
-
-  await page.getByTestId("community-choice-create").click();
-  await page.getByRole("button", { name: "Sign in to continue" }).click();
-  await expect(page.getByText("Waiting for your browser…")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Cancel sign-in" }),
-  ).toHaveCount(0);
-  await page.getByRole("button", { name: "Close" }).click();
-  await expect(
-    page.getByRole("button", { name: /Create a community/ }),
-  ).toBeVisible();
-  await expect
-    .poll(() => page.evaluate(() => window.__MAJU_E2E_COMMANDS__ ?? []))
-    .toEqual(expect.arrayContaining(["cancel_builderlab_login"]));
-});
-
-test("first-community owner can replace a mismatched account identity", async ({
-  page,
-}) => {
-  await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await page.addInitScript((pubkey) => {
-    window.localStorage.setItem(
-      `maju-machine-onboarding-complete.v2:${pubkey}`,
-      "true",
-    );
-  }, BLANK_TYLER_IDENTITY.pubkey);
-  await installMockBridge(
-    page,
-    {
-      builderlabAuth: {
-        email: "old-owner@example.com",
-        expiresAt: "2099-01-01T00:00:00Z",
-      },
-      builderlabIdentity: { pubkey_hex: "f".repeat(64) },
-    },
-    {
-      relayWsUrl: "ws://localhost:3000",
-      skipOnboardingSeed: true,
-      skipCommunitySeed: true,
-    },
-  );
-  await page.goto("/");
-
-  await page.getByTestId("community-choice-create").click();
-  await expect(
-    page.getByRole("heading", {
-      name: "This account uses a different Maju identity",
-    }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Use this device's identity" })
-    .click();
-  await expect(
-    page.getByRole("textbox", { name: "Community name" }),
-  ).toBeVisible();
-  await expect
-    .poll(() => page.evaluate(() => window.__MAJU_E2E_COMMANDS__ ?? []))
-    .toEqual(
-      expect.arrayContaining([
-        "delete_builderlab_nostr_identity",
-        "bind_builderlab_nostr_identity",
-      ]),
-    );
-});
-
-test("first-community explains when the local identity belongs to another account", async ({
-  page,
-}) => {
-  await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await page.addInitScript((pubkey) => {
-    window.localStorage.setItem(
-      `maju-machine-onboarding-complete.v2:${pubkey}`,
-      "true",
-    );
-  }, BLANK_TYLER_IDENTITY.pubkey);
-  await installMockBridge(
-    page,
-    {
-      builderlabAuth: {
-        email: "wrong-owner@example.com",
-        expiresAt: "2099-01-01T00:00:00Z",
-      },
-      builderlabIdentity: { pubkey_hex: "e".repeat(64) },
-      builderlabBindError: { code: "pubkey_already_bound" },
-    },
-    {
-      relayWsUrl: "ws://localhost:3000",
-      skipOnboardingSeed: true,
-      skipCommunitySeed: true,
-    },
-  );
-  await page.goto("/");
-
-  await page.getByTestId("community-choice-create").click();
-  await page
-    .getByRole("button", { name: "Use this device's identity" })
-    .click();
-  await expect(
-    page.getByText(
-      "This device's Maju identity belongs to a different Builderlab account and can't be moved from here. Sign out, then sign in with the account that already owns this identity.",
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Finish connecting Maju" }),
-  ).toBeVisible();
-});
-
-test("back clears Builderlab auth before returning to first-community choices", async ({
-  page,
-}) => {
-  await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await page.addInitScript((pubkey) => {
-    window.localStorage.setItem(
-      `maju-machine-onboarding-complete.v2:${pubkey}`,
-      "true",
-    );
-  }, BLANK_TYLER_IDENTITY.pubkey);
-  await installMockBridge(
-    page,
-    {
-      builderlabAuth: {
-        email: "owner@example.com",
-        expiresAt: "2099-01-01T00:00:00Z",
-      },
-      builderlabIdentity: { pubkey_hex: BLANK_TYLER_IDENTITY.pubkey },
-    },
-    {
-      relayWsUrl: "ws://localhost:3000",
-      skipOnboardingSeed: true,
-      skipCommunitySeed: true,
-    },
-  );
-  await page.goto("/");
-
-  await page.getByTestId("community-choice-create").click();
-  await page.getByRole("button", { name: "Back" }).click();
-  await page.getByTestId("community-choice-create").click();
-  await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
-});
-
-test("first-community shows the scenario cards for localhost", async ({
-  page,
-}) => {
+  await page.setViewportSize({ width: 800, height: 600 });
   await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
   await page.addInitScript((pubkey) => {
     window.localStorage.setItem(
@@ -1331,16 +859,48 @@ test("first-community shows the scenario cards for localhost", async ({
   await page.goto("/");
 
   await expect(
-    page.getByRole("button", { name: "Join default community" }),
-  ).toHaveCount(0);
+    page.getByRole("heading", { name: "Connect your Maju server" }),
+  ).toBeVisible();
+  await expect(page.getByText("relay you self-host")).toBeVisible();
+  await expect(page.getByTestId("invite-redeem-input")).toBeFocused();
+  await expect(page.getByTestId("invite-redeem-input")).toHaveAttribute(
+    "placeholder",
+    "https://maju.example.com or paste an invite link",
+  );
+  await expect(page.getByTestId("welcome-join-npub")).toHaveCount(0);
+
+  await waitForAnimations(page);
+  await page.screenshot({
+    path: "test-results/onboarding/self-hosted-connection.png",
+  });
+
+  await page.getByTestId("welcome-allowlist-reveal").click();
+  await expect(page.getByTestId("welcome-allowlist-details")).toBeVisible();
+  await expect(page.getByTestId("welcome-join-npub")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Copy public ID" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: /Join a community/ }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
-    page.getByRole("button", {
-      name: /Create a community/,
-    }),
-  ).toBeVisible();
+    page.getByRole("button", { name: /Create a community/ }),
+  ).toHaveCount(0);
+  await expect(page.getByText(/Builderlab/i)).toHaveCount(0);
+
+  const relayInput = page.getByTestId("invite-redeem-input");
+  await relayInput.fill("not a relay address/path");
+  await expect(page.getByTestId("invite-redeem-submit")).toBeDisabled();
+  await expect(page.getByTestId("invalid-invite-tip")).toBeVisible();
+  await relayInput.fill("https://self-hosted.example.com");
+  await expect(page.getByTestId("invite-redeem-submit")).toBeEnabled();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    )
+    .toBe(true);
 
   await page.getByTestId("welcome-setup-back").click();
   await expect(page.getByTestId("onboarding-page-config")).toBeVisible();
@@ -1370,11 +930,10 @@ test("first-community direct join reaches profile", async ({ page }) => {
   });
   await page.goto("/");
 
-  await page.getByRole("button", { name: /Join a community/ }).click();
   await page
     .getByTestId("invite-redeem-input")
     .fill("wss://onboarding.communities.maju.xyz");
-  await page.getByTestId("invite-redeem-submit").click();
+  await page.getByTestId("invite-redeem-input").press("Enter");
 
   await expect(
     page.getByRole("heading", { name: "Build your profile" }),
@@ -1383,26 +942,41 @@ test("first-community direct join reaches profile", async ({ page }) => {
   await expect(page.getByText("Create an identity key")).toHaveCount(0);
   await expect
     .poll(() =>
-      page.evaluate((transactionStorageKey) => {
-        const communitiesRaw = window.localStorage.getItem("maju-communities");
-        const transactionRaw = window.localStorage.getItem(
-          transactionStorageKey,
-        );
-        const communities = communitiesRaw
-          ? (JSON.parse(communitiesRaw) as Array<{ id: string }>)
-          : [];
-        const transaction = transactionRaw
-          ? (JSON.parse(transactionRaw) as { communityId?: string })
-          : null;
-        return {
-          communityCount: communities.length,
-          transactionMatchesOnlyCommunity:
-            communities.length === 1 &&
-            transaction?.communityId === communities[0]?.id,
-        };
-      }, COMMUNITY_ONBOARDING_TRANSACTION_STORAGE_KEY),
+      page.evaluate(
+        ({ expectedPubkey, transactionStorageKey }) => {
+          const communitiesRaw =
+            window.localStorage.getItem("maju-communities");
+          const transactionRaw = window.localStorage.getItem(
+            transactionStorageKey,
+          );
+          const communities = communitiesRaw
+            ? (JSON.parse(communitiesRaw) as Array<{
+                id: string;
+                pubkey?: string;
+              }>)
+            : [];
+          const transaction = transactionRaw
+            ? (JSON.parse(transactionRaw) as { communityId?: string })
+            : null;
+          return {
+            communityCount: communities.length,
+            transactionMatchesOnlyCommunity:
+              communities.length === 1 &&
+              transaction?.communityId === communities[0]?.id,
+            identityMatchesCommunity: communities[0]?.pubkey === expectedPubkey,
+          };
+        },
+        {
+          expectedPubkey: BLANK_TYLER_IDENTITY.pubkey,
+          transactionStorageKey: COMMUNITY_ONBOARDING_TRANSACTION_STORAGE_KEY,
+        },
+      ),
     )
-    .toEqual({ communityCount: 1, transactionMatchesOnlyCommunity: true });
+    .toEqual({
+      communityCount: 1,
+      identityMatchesCommunity: true,
+      transactionMatchesOnlyCommunity: true,
+    });
 });
 
 test("community onboarding reuses an existing relay profile", async ({
@@ -1486,7 +1060,6 @@ test("first-community direct join cancel returns to request access", async ({
   );
   await page.goto("/");
 
-  await page.getByRole("button", { name: /Join a community/ }).click();
   await page
     .getByTestId("invite-redeem-input")
     .fill("wss://onboarding.communities.maju.xyz");
@@ -1495,7 +1068,7 @@ test("first-community direct join cancel returns to request access", async ({
   await page.getByRole("button", { name: "Cancel" }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Join a community" }),
+    page.getByRole("heading", { name: "Connect your Maju server" }),
   ).toBeVisible();
   await expect(page.getByTestId("community-change-overlay")).toHaveCount(0);
   await expect(page.getByText("Create an identity key")).toHaveCount(0);
@@ -1936,7 +1509,7 @@ test("connected first-community profile step offers equal-width Next and Back co
 
   await backButton.click();
   await expect(
-    page.getByRole("heading", { name: "Join a community" }),
+    page.getByRole("heading", { name: "Connect your Maju server" }),
   ).toBeVisible();
   await expect
     .poll(() =>
