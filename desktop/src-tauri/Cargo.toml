@@ -2,7 +2,7 @@
 
 [package]
 name = "maju-desktop"
-version = "0.2.3"
+version = "0.2.4"
 description = "Maju desktop app"
 authors = ["you"]
 edition = "2021"
