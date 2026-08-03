@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.2
+
+- Update Nostr event and relay handling to patched releases that reject unsafe relay input, verify relay events before use, and bound authentication challenges.
+- Keep the multi-device representative runner and standby behavior introduced in v0.2.1.
+
 ## v0.2.1
 
 - Keep non-representative agent runners alive in standby instead of recording a false relay connection failure.
