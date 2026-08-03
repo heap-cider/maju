@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.5
+
+- fix: clean up synced welcome agent duplicates ([`d2aca6344`](https://github.com/heap-cider/maju/commit/d2aca6344ff818397b9c08180ec63a9ee2d0e41a))
+
+
 ## v0.2.4
 
 - test: wait for complete thread rendering ([`32ff93c23`](https://github.com/heap-cider/maju/commit/32ff93c234941487d05f6c2a7b268e05a03e423f))
