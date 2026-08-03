@@ -339,7 +339,13 @@ test("copy a rendered code block and paste it back as code", async ({
   await expect(copyButton).toHaveCSS("opacity", "1");
   await copyButton.click();
   await expect
-    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .poll(() =>
+      page.evaluate(() =>
+        navigator.clipboard
+          .readText()
+          .then((text) => text.replace(/\r\n/g, "\n")),
+      ),
+    )
     .toBe(code);
 
   await input.click();
@@ -646,14 +652,42 @@ test("shows your avatar on your own message when profile avatar is set", async (
   page,
 }) => {
   const message = `Avatar message ${Date.now()}`;
-  const avatarUrl =
-    'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"%3E%3Crect width="16" height="16" rx="4" fill="%2300a36c"/%3E%3C/svg%3E';
+  const avatarUrl = "http://127.0.0.1:4173/app-icon@2x.png";
 
   await page.goto("/");
   await openSettings(page, "profile");
-  await page.getByTestId("profile-avatar-edit").click();
-  await page.getByTestId("profile-avatar-url").fill(avatarUrl);
+  const avatarEdit = page.getByTestId("profile-avatar-edit");
+  await avatarEdit.click();
+  const avatarEditor = page.getByTestId("profile-avatar-editor-shell");
+  await expect(avatarEditor).not.toHaveAttribute("inert", "");
+  const avatarUrlInput = page.getByTestId("profile-avatar-url");
+  await expect(avatarUrlInput).toBeEditable();
+  await avatarUrlInput.fill(avatarUrl);
+  await expect(avatarUrlInput).toHaveValue(avatarUrl);
   await page.getByTestId("profile-avatar-done").click();
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const profile = await (
+          window as Window & {
+            __TAURI_INTERNALS__: {
+              invoke: (
+                command: string,
+              ) => Promise<{ avatar_url: string | null }>;
+            };
+          }
+        ).__TAURI_INTERNALS__.invoke("get_profile");
+        return profile.avatar_url;
+      }),
+    )
+    .toBe(avatarUrl);
+  await expect(page.getByTestId("profile-avatar-edit")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await expect(
+    page.getByTestId("profile-avatar-preview-image"),
+  ).toHaveAttribute("src", avatarUrl);
   await page.getByTestId("settings-back-to-app").click();
 
   await page.getByTestId("channel-general").click();

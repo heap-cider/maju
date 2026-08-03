@@ -80,7 +80,8 @@ pub struct ManagedAgentEventContent {
 /// re-publish when only excluded runtime/local fields changed, so an
 /// operational start/stop produces an identical projection and never
 /// republishes.
-pub fn agent_event_content(record: &ManagedAgentRecord) -> ManagedAgentEventContent {
+#[cfg(test)]
+fn agent_event_content(record: &ManagedAgentRecord) -> ManagedAgentEventContent {
     agent_event_content_with_envelope(record, None)
 }
 
@@ -209,7 +210,8 @@ fn resolve_identity_key_envelope(
 ///
 /// Returns an unsigned `EventBuilder` — the caller signs and submits. The
 /// `d_tag` is the agent's pubkey.
-pub fn build_agent_event(record: &ManagedAgentRecord) -> Result<EventBuilder, String> {
+#[cfg(test)]
+fn build_agent_event(record: &ManagedAgentRecord) -> Result<EventBuilder, String> {
     let content = serde_json::to_string(&agent_event_content(record))
         .map_err(|e| format!("failed to serialize managed-agent content: {e}"))?;
     let tags =

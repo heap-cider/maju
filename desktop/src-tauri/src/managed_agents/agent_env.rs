@@ -107,10 +107,19 @@ pub(crate) fn parse_agent_env_lines(raw: &str) -> Vec<(&str, &str)> {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsStr;
+
     use super::{
         baked_build_env, build_env_map, build_maju_agent_provider_defaults,
         discovery_env_with_baked_floor, parse_agent_env_lines,
     };
+
+    fn command_env_value(cmd: &std::process::Command, key: &str) -> Option<String> {
+        cmd.get_envs()
+            .find(|(name, _)| *name == OsStr::new(key))
+            .and_then(|(_, value)| value)
+            .map(|value| value.to_string_lossy().into_owned())
+    }
 
     #[test]
     fn maju_agent_provider_defaults_empty_in_oss_build() {
@@ -119,18 +128,16 @@ mod tests {
         let mut cmd = std::process::Command::new("env");
         cmd.env_clear();
         build_maju_agent_provider_defaults(&mut cmd);
-        let output = cmd.output().expect("env should run");
-        let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-            !stdout.contains("MAJU_AGENT_PROVIDER="),
+            command_env_value(&cmd, "MAJU_AGENT_PROVIDER").is_none(),
             "MAJU_AGENT_PROVIDER should not be injected in OSS builds"
         );
         assert!(
-            !stdout.contains("MAJU_AGENT_MODEL="),
+            command_env_value(&cmd, "MAJU_AGENT_MODEL").is_none(),
             "MAJU_AGENT_MODEL should not be injected in OSS builds"
         );
         assert!(
-            !stdout.contains("DATABRICKS_HOST="),
+            command_env_value(&cmd, "DATABRICKS_HOST").is_none(),
             "DATABRICKS_HOST should not be injected in OSS builds"
         );
     }
@@ -229,15 +236,10 @@ mod tests {
         cmd.env("MAJU_AGENT_PROVIDER", "databricks");
         // Simulate what runtime_metadata_env_vars writes from the record (comes after).
         cmd.env("MAJU_AGENT_PROVIDER", "anthropic");
-        let output = cmd.output().expect("env should run");
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            stdout.contains("MAJU_AGENT_PROVIDER=anthropic"),
+        assert_eq!(
+            command_env_value(&cmd, "MAJU_AGENT_PROVIDER").as_deref(),
+            Some("anthropic"),
             "record provider must win over baked default (last-write-wins)"
-        );
-        assert!(
-            !stdout.contains("MAJU_AGENT_PROVIDER=databricks"),
-            "baked default must not survive when record provider is written after"
         );
     }
 

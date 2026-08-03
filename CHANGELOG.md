@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.3
+
+- Keep test-only managed-agent helpers out of production desktop builds so strict Rust linting stays clean.
+- Remove Unix-only command assumptions from managed-agent tests so the full Tauri suite also runs cleanly on Windows.
+- Make desktop smoke tests reliable across Windows line endings and animated avatar-editor transitions.
+- Update onboarding assertions for Maju's self-hosted relay flow and remove timing races from concurrent runtime installation checks.
+- Make observer archive policy tests wait for the real pending state instead of relying on a fixed startup delay.
+
 ## v0.2.2
 
 - Update Nostr event and relay handling to patched releases that reject unsafe relay input, verify relay events before use, and bound authentication challenges.

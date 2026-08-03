@@ -1377,8 +1377,13 @@ mod tests {
         // Since Phase B-7 (readiness exec-check), unknown/custom commands that are
         // not resolvable in PATH produce a MissingBinary requirement rather than
         // being unconditionally Ready.  A command that IS resolvable should be Ready.
-        // Use a known-present binary so the test is not environment-sensitive.
-        let env = make_env("sh", BTreeMap::new());
+        // Use this test binary's absolute path so the assertion works on every
+        // supported OS without relying on a shell executable in PATH.
+        let command = std::env::current_exe()
+            .expect("current test executable")
+            .to_string_lossy()
+            .into_owned();
+        let env = make_env(&command, BTreeMap::new());
         assert!(
             agent_readiness(&env).is_ready(),
             "unknown/custom command present in PATH should be Ready"

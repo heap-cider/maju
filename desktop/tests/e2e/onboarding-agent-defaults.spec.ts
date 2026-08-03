@@ -611,7 +611,9 @@ test("Finish waits for the latest rapid harness choice to persist", async ({
   await expect(finish).toBeDisabled();
   await expect(finish).toBeEnabled({ timeout: 2_000 });
   await finish.click();
-  await expect(page.getByText("Join or create a community")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Connect your Maju server" }),
+  ).toBeVisible();
   expect(await readSavedRuntime(page)).toBe("codex");
 });
 
@@ -718,7 +720,7 @@ test("concurrent installs each keep their own state — one fails, one succeeds"
       // Per-runtime config lets both be in flight simultaneously.
       installAcpRuntimeByRuntime: {
         claude: {
-          delayMs: 600,
+          delayMs: 6_000,
           result: {
             success: false,
             steps: [
@@ -734,7 +736,7 @@ test("concurrent installs each keep their own state — one fails, one succeeds"
           },
         },
         codex: {
-          delayMs: 200,
+          delayMs: 1_000,
           result: {
             success: true,
             steps: [
@@ -765,7 +767,13 @@ test("concurrent installs each keep their own state — one fails, one succeeds"
 
   // Start both installs before either settles.
   await claudeInstall.click();
+  await expect(
+    page.getByRole("status", { name: "Installing Claude Code" }),
+  ).toBeVisible();
   await codexInstall.click();
+  await expect(
+    page.getByRole("status", { name: "Installing Codex" }),
+  ).toBeVisible();
 
   // While in flight: both install buttons must be absent (no duplicate clicks).
   await expect(claudeInstall).toHaveCount(0);
@@ -784,7 +792,7 @@ test("concurrent installs each keep their own state — one fails, one succeeds"
 
   // Claude settles: failure error visible; codex still shows ready (not reset).
   const claudeError = page.getByTestId("onboarding-runtime-error-claude");
-  await expect(claudeError).toBeVisible({ timeout: 3_000 });
+  await expect(claudeError).toBeVisible({ timeout: 8_000 });
   await expect(
     page.getByTestId("onboarding-runtime-ready-codex"),
   ).toBeVisible();
@@ -872,7 +880,9 @@ test("Finish stays disabled until a provider-required harness is fully configure
 
   await expect(finish).toBeEnabled();
   await finish.click();
-  await expect(page.getByText("Join or create a community")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Connect your Maju server" }),
+  ).toBeVisible();
   expect(await readSavedRuntime(page)).toBe("maju-agent");
 });
 

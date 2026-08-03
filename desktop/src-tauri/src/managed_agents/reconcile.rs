@@ -86,6 +86,7 @@ pub(crate) fn reconcile_agents_in_dir(base_dir: &Path, keys: &nostr::Keys) -> Re
     reconcile_agents_in_dir_at(base_dir, keys, &base_dir.join("retention.db"))
 }
 
+#[cfg(test)]
 fn reconcile_agents_in_dir_at(
     base_dir: &Path,
     keys: &nostr::Keys,

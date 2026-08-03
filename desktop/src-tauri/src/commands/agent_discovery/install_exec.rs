@@ -794,9 +794,17 @@ mod tests {
     /// Exit status of a trivially successful command, for driving `Settle`
     /// without a real install.
     fn exit_status_zero() -> std::process::ExitStatus {
-        std::process::Command::new("true")
-            .status()
-            .expect("run `true`")
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            std::process::ExitStatus::from_raw(0)
+        }
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::ExitStatusExt;
+            std::process::ExitStatus::from_raw(0)
+        }
     }
 
     /// A shell can exit while a descendant it left behind still holds the

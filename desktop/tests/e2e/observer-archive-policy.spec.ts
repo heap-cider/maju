@@ -226,7 +226,7 @@ test.describe("observer archive policy — reconciliation gate", () => {
   }) => {
     await installMockBridge(page, {
       observerArchiveDefaultEnabled: true,
-      observerArchiveDefaultEnabledDelayMs: 500,
+      observerArchiveDefaultEnabledDelayMs: 5_000,
       saveSubscriptions: [
         {
           scope_type: "owner_p",
@@ -237,9 +237,15 @@ test.describe("observer archive policy — reconciliation gate", () => {
     });
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.getByTestId("channel-general")).toBeVisible({
-      timeout: 10_000,
-    });
+    await page.waitForFunction(
+      () =>
+        (
+          (window as Window & { __MAJU_E2E_COMMANDS__?: string[] })
+            .__MAJU_E2E_COMMANDS__ ?? []
+        ).includes("observer_archive_default_enabled"),
+      null,
+      { timeout: 10_000 },
+    );
 
     // While the policy check is pending, useArchiveSync must not have
     // started — no list_save_subscriptions call, no owner/24200 live
