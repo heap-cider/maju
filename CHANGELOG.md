@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.4
+
+- test: wait for complete thread rendering ([`32ff93c23`](https://github.com/heap-cider/maju/commit/32ff93c234941487d05f6c2a7b268e05a03e423f))
+- fix: stabilize multi-device agents and inbox context ([`f7df63c22`](https://github.com/heap-cider/maju/commit/f7df63c2293754528e6e070bb24070729dc9325b))
+
+
 ## v0.2.3
 
 - Keep test-only managed-agent helpers out of production desktop builds so strict Rust linting stays clean.
