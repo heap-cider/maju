@@ -54,7 +54,8 @@ export type WelcomeTeamAgents = [ManagedAgent, ManagedAgent, ManagedAgent];
 const welcomeTeamPromises = new Map<string, Promise<WelcomeTeamAgents>>();
 
 function normalizeRelayUrl(relayUrl: string | null | undefined) {
-  return relayUrl?.trim().replace(/\/+$/, "") ?? null;
+  const normalized = relayUrl?.trim().replace(/\/+$/, "");
+  return normalized || null;
 }
 
 function isAgentScopedToRelay(agent: ManagedAgent, relayUrl?: string | null) {
@@ -62,7 +63,12 @@ function isAgentScopedToRelay(agent: ManagedAgent, relayUrl?: string | null) {
   if (!targetRelayUrl) {
     return true;
   }
-  return normalizeRelayUrl(agent.relayUrl) === targetRelayUrl;
+  const agentRelayUrl = normalizeRelayUrl(agent.relayUrl);
+  // Synced logical identities deliberately restore with an empty relay URL:
+  // runtime placement is device-local, so empty means "this device's active
+  // community". Treating it as a different relay made Welcome provisioning
+  // mint a second identity and hid the original from duplicate cleanup.
+  return agentRelayUrl === null || agentRelayUrl === targetRelayUrl;
 }
 
 function isBuiltInWelcomeGuideAgent(agent: ManagedAgent) {
