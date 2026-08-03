@@ -46,15 +46,9 @@ export function startPersonaSync(
 
   // One-shot backfill of existing heads + tombstones (closes the fresh-start
   // gap that live-only subscription + reconnect-replay cannot recover).
-  void relayClient
-    .fetchEvents({ kinds: PERSONA_SYNC_KINDS, authors: [pubkey], limit: 500 })
-    .then((events) => {
-      if (onCancelled()) return;
-      for (const event of events) reconcile(event);
-    })
-    .catch((error) => {
-      console.warn("[usePersonaSync] backfill failed:", error);
-    });
+  void backfillPersonaSync(pubkey, relayUrl, onCancelled).catch((error) => {
+    console.warn("[usePersonaSync] backfill failed:", error);
+  });
 
   let unsub: (() => Promise<void>) | null = null;
   void relayClient
@@ -73,6 +67,37 @@ export function startPersonaSync(
   return async () => {
     if (unsub) await unsub();
   };
+}
+
+/**
+ * Fetch and fully apply the current owner's definition/agent history.
+ *
+ * Callers that may create a built-in agent can await this boundary first. A
+ * fire-and-forget backfill is sufficient for ordinary UI refreshes, but it is
+ * not sufficient for provisioning: a new device could otherwise decide that
+ * an existing agent is missing while its identity event is still being
+ * written to the local store.
+ */
+export async function backfillPersonaSync(
+  pubkey: string,
+  relayUrl: string,
+  onCancelled: () => boolean = () => false,
+): Promise<void> {
+  const events = await relayClient.fetchEvents({
+    kinds: PERSONA_SYNC_KINDS,
+    authors: [pubkey],
+    limit: 500,
+  });
+  if (onCancelled()) return;
+
+  // Reconciliation writes shared persona/team/agent stores. Keep the writes
+  // ordered so provisioning can trust that the whole snapshot is visible when
+  // this promise resolves.
+  for (const event of events) {
+    if (onCancelled()) return;
+    if (event.pubkey !== pubkey) continue;
+    await reconcileInboundPersonaEvent(JSON.stringify(event), relayUrl);
+  }
 }
 
 // Subscribes to this device's own persona/team/agent projection + deletion

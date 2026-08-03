@@ -2,6 +2,10 @@ import * as React from "react";
 
 import { isInboxThreadContextEvent } from "@/features/home/lib/inboxViewHelpers";
 import { relayEventFromFeedItem } from "@/features/home/lib/inbox";
+import {
+  retryInboxContextRequest,
+  shouldReportInboxContextLoadError,
+} from "@/features/home/lib/inboxContextLoad";
 import { getThreadReference } from "@/features/messages/lib/threading";
 import { relayClient } from "@/shared/api/relayClient";
 import { buildChannelReactionAuxFilter } from "@/shared/api/relayChannelFilters";
@@ -107,7 +111,9 @@ export function useInboxThreadContext(
             }
 
             try {
-              const event = await getEventById(eventId);
+              const event = await retryInboxContextRequest(() =>
+                getEventById(eventId),
+              );
               eventsById.set(event.id, event);
               return event;
             } catch {
@@ -142,13 +148,14 @@ export function useInboxThreadContext(
 
         const descendantEventsPromise =
           selectedChannelId && threadRootId
-            ? relayClient
-                .fetchEvents({
+            ? retryInboxContextRequest(() =>
+                relayClient.fetchEvents({
                   "#e": [threadRootId],
                   "#h": [selectedChannelId],
                   kinds: [...HOME_MENTION_EVENT_KINDS],
                   limit: THREAD_CONTEXT_LIMIT,
-                })
+                }),
+              )
                 .then((events) => ({ events, failed: false }))
                 .catch((error) => {
                   console.error(
@@ -169,15 +176,20 @@ export function useInboxThreadContext(
           return;
         }
 
-        setHasLoadError(ancestorResult.failed || descendantResult.failed);
-        setFetchedEvents(
-          dedupeEvents(
-            [...ancestorResult.events, ...descendantResult.events].filter(
-              (event): event is RelayEvent =>
-                event !== null && isInboxThreadContextEvent(event, selection),
-            ),
+        const loadedContext = dedupeEvents(
+          [...ancestorResult.events, ...descendantResult.events].filter(
+            (event): event is RelayEvent =>
+              event !== null && isInboxThreadContextEvent(event, selection),
           ),
         );
+        setHasLoadError(
+          shouldReportInboxContextLoadError({
+            ancestorFailed: ancestorResult.failed,
+            descendantFailed: descendantResult.failed,
+            loadedContextCount: loadedContext.length,
+          }),
+        );
+        setFetchedEvents(loadedContext);
       } catch (error) {
         if (!isCancelled) {
           console.error("Failed to load Inbox message context", error);

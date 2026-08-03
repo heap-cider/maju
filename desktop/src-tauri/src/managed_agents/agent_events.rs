@@ -43,6 +43,12 @@ pub struct ManagedAgentEventContent {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub persona_id: Option<String>,
+    /// Logical team assignment. Unlike runtime placement, this belongs to the
+    /// agent identity and must follow it to another device. In particular, a
+    /// restored Welcome Team agent must still be recognized as that starter
+    /// instead of causing the new device to mint a lookalike identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system_prompt: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -106,6 +112,7 @@ pub fn agent_event_content_with_envelope(
     ManagedAgentEventContent {
         name: record.name.clone(),
         persona_id: record.persona_id.clone(),
+        team_id: record.team_id.clone(),
         system_prompt: if definition_linked {
             None
         } else {
@@ -365,7 +372,9 @@ mod tests {
     /// carry secrets, the provider backend blob, env vars, or runtime fields.
     #[test]
     fn content_excludes_secrets_and_runtime_fields() {
-        let json = serde_json::to_string(&agent_event_content(&sample_agent())).unwrap();
+        let mut agent = sample_agent();
+        agent.team_id = Some("builtin-team:welcome".to_string());
+        let json = serde_json::to_string(&agent_event_content(&agent)).unwrap();
 
         // Secrets — must never appear.
         assert!(
@@ -410,6 +419,7 @@ mod tests {
         assert!(json.contains("\"name\""));
         assert!(json.contains("Test Agent"));
         assert!(json.contains("persona_id"));
+        assert!(json.contains("builtin-team:welcome"));
         // Slimmed projection: a definition-linked record resolves its prompt
         // through the definition, so the wire must NOT carry it.
         assert!(

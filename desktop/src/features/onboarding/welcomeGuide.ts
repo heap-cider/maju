@@ -2,15 +2,19 @@ import {
   buildInstanceInputForDefinition,
   resolveStartRuntimeForDefinition,
 } from "@/features/agents/lib/instanceInputForDefinition";
+import { backfillPersonaSync } from "@/features/agents/lib/usePersonaSync";
 import {
   addChannelMembers,
   createManagedAgent,
+  deleteManagedAgent,
   discoverAcpRuntimes,
   getChannelMembers,
   listManagedAgents,
+  removeChannelMember,
   updateManagedAgent,
 } from "@/shared/api/tauri";
 import { getGlobalAgentConfig } from "@/shared/api/tauriGlobalAgentConfig";
+import { getIdentity } from "@/shared/api/tauriIdentity";
 import { listPersonas, setPersonaActive } from "@/shared/api/tauriPersonas";
 import type {
   AcpRuntime,
@@ -88,6 +92,72 @@ function pickAgentByStatus(agents: ManagedAgent[]) {
   );
 }
 
+function hasStarterName(
+  agent: ManagedAgent,
+  starter: WelcomeTeamStarterDefinition,
+) {
+  return agent.name.trim().toLowerCase() === starter.name.toLowerCase();
+}
+
+function compareAgentIdentityAge(left: ManagedAgent, right: ManagedAgent) {
+  const leftCreatedAt = Date.parse(left.createdAt);
+  const rightCreatedAt = Date.parse(right.createdAt);
+  const leftTime = Number.isFinite(leftCreatedAt)
+    ? leftCreatedAt
+    : Number.POSITIVE_INFINITY;
+  const rightTime = Number.isFinite(rightCreatedAt)
+    ? rightCreatedAt
+    : Number.POSITIVE_INFINITY;
+  if (leftTime !== rightTime) return leftTime - rightTime;
+  return left.pubkey.localeCompare(right.pubkey);
+}
+
+export function resolveWelcomeTeamStarterForRelay(
+  agents: ManagedAgent[],
+  starter: WelcomeTeamStarterDefinition,
+  relayUrl?: string | null,
+): { canonical: ManagedAgent | null; duplicates: ManagedAgent[] } {
+  const candidates = agents.filter(
+    (agent) =>
+      agent.personaId === starter.personaId &&
+      isAgentScopedToRelay(agent, relayUrl) &&
+      (agent.teamId === WELCOME_TEAM_ID || hasStarterName(agent, starter)),
+  );
+
+  // The multi-device bug produced two exact-name starter identities: the
+  // restored legacy event had no team_id, then onboarding minted a second
+  // team-tagged identity. Every device must make the same choice, so keep the
+  // oldest logical identity instead of preferring whichever copy runs locally.
+  // Requiring both a legacy untagged record and a tagged record avoids treating
+  // two intentionally-created instances with the same name as this migration.
+  const hasLegacyUntaggedCandidate = candidates.some(
+    (agent) => agent.teamId !== WELCOME_TEAM_ID,
+  );
+  const hasWelcomeTeamCandidate = candidates.some(
+    (agent) => agent.teamId === WELCOME_TEAM_ID,
+  );
+  if (
+    candidates.length > 1 &&
+    candidates.every((agent) => hasStarterName(agent, starter)) &&
+    hasLegacyUntaggedCandidate &&
+    hasWelcomeTeamCandidate
+  ) {
+    const [canonical, ...duplicates] = [...candidates].sort(
+      compareAgentIdentityAge,
+    );
+    return { canonical: canonical ?? null, duplicates };
+  }
+
+  const teamCandidates = candidates.filter(
+    (agent) => agent.teamId === WELCOME_TEAM_ID,
+  );
+  return {
+    canonical:
+      pickAgentByStatus(teamCandidates) ?? pickAgentByStatus(candidates),
+    duplicates: [],
+  };
+}
+
 export function pickWelcomeGuideAgent(agents: ManagedAgent[]) {
   return pickAgentByStatus(agents.filter(isWelcomeGuideAgent));
 }
@@ -110,14 +180,7 @@ export function pickWelcomeTeamStarterAgentForRelay(
   starter: WelcomeTeamStarterDefinition,
   relayUrl?: string | null,
 ) {
-  return pickAgentByStatus(
-    agents.filter(
-      (agent) =>
-        agent.teamId === WELCOME_TEAM_ID &&
-        agent.personaId === starter.personaId &&
-        isAgentScopedToRelay(agent, relayUrl),
-    ),
-  );
+  return resolveWelcomeTeamStarterForRelay(agents, starter, relayUrl).canonical;
 }
 
 /** Pubkeys belonging to any managed Welcome Team persona on this relay. */
@@ -206,6 +269,43 @@ async function ensureWelcomeTeamMembership(
   }
 }
 
+async function removeDuplicateWelcomeTeamAgents(
+  channelId: string,
+  agents: ManagedAgent[],
+  relayUrl?: string | null,
+) {
+  const duplicatePubkeys = new Set<string>();
+  for (const starter of WELCOME_TEAM_STARTERS) {
+    const resolution = resolveWelcomeTeamStarterForRelay(
+      agents,
+      starter,
+      relayUrl,
+    );
+    for (const duplicate of resolution.duplicates) {
+      duplicatePubkeys.add(normalizePubkey(duplicate.pubkey));
+    }
+  }
+  if (duplicatePubkeys.size === 0) return agents;
+
+  // Remove channel membership before archiving the duplicate identity. If the
+  // membership query or removal fails, abort cleanup and retry on the next
+  // seed rather than leaving an archived identity counted in the roster.
+  const members = await getChannelMembers(channelId);
+  const memberPubkeys = new Set(
+    members.map((member) => normalizePubkey(member.pubkey)),
+  );
+  for (const duplicatePubkey of duplicatePubkeys) {
+    if (memberPubkeys.has(duplicatePubkey)) {
+      await removeChannelMember(channelId, duplicatePubkey);
+    }
+    await deleteManagedAgent(duplicatePubkey);
+  }
+
+  return agents.filter(
+    (agent) => !duplicatePubkeys.has(normalizePubkey(agent.pubkey)),
+  );
+}
+
 export async function buildWelcomeStarterCreateInput(
   starter: WelcomeTeamStarterDefinition,
   persona: AgentPersona,
@@ -269,7 +369,18 @@ async function provisionWelcomeTeam(
   channelId: string,
   relayUrl?: string | null,
 ): Promise<WelcomeTeamAgents> {
-  const existingAgents = await listManagedAgents();
+  const targetRelayUrl = normalizeRelayUrl(relayUrl);
+  if (targetRelayUrl) {
+    const identity = await getIdentity();
+    // This must finish before the missing-agent check below. Otherwise a new
+    // device can mint a lookalike while the real identity is still arriving.
+    await backfillPersonaSync(identity.pubkey, targetRelayUrl);
+  }
+  const existingAgents = await removeDuplicateWelcomeTeamAgents(
+    channelId,
+    await listManagedAgents(),
+    relayUrl,
+  );
   await ensureWelcomeTeamPersonasActive();
   const [personas, runtimeCatalog, globalConfig] = await Promise.all([
     listPersonas(),

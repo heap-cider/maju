@@ -226,6 +226,7 @@ fn foreign_agent_event_with_secrets(d_tag: &str) -> nostr::Event {
     let content = serde_json::json!({
         "name": "Remote Agent",
         "persona_id": "persona-remote",
+        "team_id": "builtin-team:welcome",
         "system_prompt": "remote prompt",
         "model": "remote-model",
         "provider": "remote-provider",
@@ -314,6 +315,7 @@ fn inbound_managed_agent_drops_injected_secrets_and_harness() {
     }
     // Instance-level projected fields ARE updated from the inbound event.
     assert_eq!(a.name, "Remote Agent");
+    assert_eq!(a.team_id.as_deref(), Some("builtin-team:welcome"));
     assert_eq!(a.parallelism, 99);
     assert_eq!(a.respond_to, crate::managed_agents::RespondTo::Anyone);
     assert_eq!(a.respond_to_allowlist, vec!["deadbeef".to_string()]);
@@ -401,6 +403,7 @@ fn inbound_managed_agent_envelope_materializes_same_identity_on_new_device() {
     source.pubkey = agent_keys.public_key().to_hex();
     source.private_key_nsec = agent_keys.secret_key().to_bech32().unwrap();
     source.auth_tag = None;
+    source.team_id = Some("builtin-team:welcome".to_string());
 
     let event =
         crate::managed_agents::agent_events::build_agent_event_for_owner(&source, &owner, None)
@@ -418,9 +421,26 @@ fn inbound_managed_agent_envelope_materializes_same_identity_on_new_device() {
     let restored = &agents[0];
     assert_eq!(restored.pubkey, source.pubkey);
     assert_eq!(restored.private_key_nsec, source.private_key_nsec);
+    assert_eq!(restored.team_id, source.team_id);
     assert!(restored.auth_tag.is_some());
     assert!(!restored.start_on_app_launch);
     assert_eq!(restored.backend, crate::managed_agents::BackendKind::Local);
+}
+
+#[test]
+fn legacy_agent_event_does_not_clear_local_team_assignment() {
+    let event = foreign_agent_event_with_secrets(AGENT_PUBKEY);
+    let mut content =
+        crate::managed_agents::agent_events::managed_agent_content_from_event(&event).unwrap();
+    content.team_id = None;
+    let mut local = local_agent();
+    local.team_id = Some("builtin-team:welcome".to_string());
+    let mut agents = vec![local];
+
+    apply_inbound_managed_agent(&mut agents, AGENT_PUBKEY, content, &nostr::Keys::generate())
+        .unwrap();
+
+    assert_eq!(agents[0].team_id.as_deref(), Some("builtin-team:welcome"));
 }
 
 // ── Team (30176) inbound ─────────────────────────────────────────────────

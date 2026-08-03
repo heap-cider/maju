@@ -424,6 +424,12 @@ fn apply_inbound_managed_agent(
         // the quad and apply it unconditionally (including clears).
         let definition_linked = inbound.persona_id.is_some();
         local.persona_id = inbound.persona_id;
+        // Old 30177 events predate team_id. Absence means "not carried", not
+        // "clear the local assignment"; new events make the logical team
+        // portable across devices.
+        if inbound.team_id.is_some() {
+            local.team_id = inbound.team_id;
+        }
         if !definition_linked {
             local.system_prompt = inbound.system_prompt;
             local.model = inbound.model;
@@ -450,7 +456,7 @@ fn apply_inbound_managed_agent(
         pubkey: d_tag.to_ascii_lowercase(),
         name: inbound.name,
         persona_id: inbound.persona_id,
-        team_id: None,
+        team_id: inbound.team_id,
         private_key_nsec,
         auth_tag: Some(agent_owner_auth_tag(owner_keys, d_tag)?),
         // Empty means "use this device's active community". Runtime placement

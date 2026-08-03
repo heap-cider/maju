@@ -8,7 +8,7 @@ import {
   KIND_PERSONA,
   KIND_TEAM,
 } from "@/shared/constants/kinds";
-import { startPersonaSync } from "./usePersonaSync.ts";
+import { backfillPersonaSync, startPersonaSync } from "./usePersonaSync.ts";
 
 const EXPECTED_KINDS = [
   KIND_PERSONA,
@@ -104,6 +104,49 @@ test("startPersonaSync forwards its own relay as the event arrival relay", async
     "reconcile must carry the subscription's relay as the arrival relay",
   );
   assert.equal(JSON.parse(reconciles[0].args.eventJson).id, "e1");
+
+  mock.reset();
+  delete globalThis.window;
+});
+
+test("provisioning can await every backfilled identity write", async () => {
+  const invokes = [];
+  let releaseFirstWrite;
+  const firstWrite = new Promise((resolve) => {
+    releaseFirstWrite = resolve;
+  });
+  globalThis.window = {
+    __TAURI_INTERNALS__: {
+      invoke: async (cmd, args) => {
+        invokes.push({ cmd, args });
+        if (invokes.length === 1) await firstWrite;
+      },
+    },
+  };
+
+  mock.method(relayClient, "fetchEvents", () =>
+    Promise.resolve([
+      { id: "old", pubkey: "owner-pubkey", kind: KIND_MANAGED_AGENT },
+      { id: "new", pubkey: "owner-pubkey", kind: KIND_MANAGED_AGENT },
+    ]),
+  );
+
+  let settled = false;
+  const backfill = backfillPersonaSync(
+    "owner-pubkey",
+    "wss://community-a.example",
+  ).then(() => {
+    settled = true;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(invokes.length, 1, "writes must be applied in relay order");
+  assert.equal(settled, false, "backfill must wait for the local store write");
+
+  releaseFirstWrite();
+  await backfill;
+  assert.equal(invokes.length, 2);
+  assert.equal(settled, true);
 
   mock.reset();
   delete globalThis.window;

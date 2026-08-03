@@ -8,6 +8,7 @@ import {
   pickWelcomeGuideAgent,
   pickWelcomeGuideAgentForRelay,
   pickWelcomeTeamStarterAgentForRelay,
+  resolveWelcomeTeamStarterForRelay,
   welcomeStarterRuntimeUpdate,
   WELCOME_GUIDE_AGENT_NAME,
   WELCOME_GUIDE_PERSONA_ID,
@@ -352,30 +353,65 @@ test("starter matching is relay scoped and normalizes trailing slashes", () => {
   );
 });
 
-test("starter matching prefers running, then deployed instances", () => {
+test("duplicate starter matching keeps the oldest identity on every device", () => {
   const fizz = WELCOME_TEAM_STARTERS[0];
-  const stopped = makeAgent({ personaId: fizz.personaId });
-  const deployed = makeAgent({
+  const original = makeAgent({
+    personaId: fizz.personaId,
+    teamId: null,
+    createdAt: "2026-06-11T00:00:00.000Z",
+  });
+  const duplicate = makeAgent({
     personaId: fizz.personaId,
     pubkey: PUB_B,
-    status: "deployed",
-  });
-  const running = makeAgent({
-    personaId: fizz.personaId,
-    pubkey: PUB_C,
     status: "running",
+    createdAt: "2026-06-11T00:01:00.000Z",
+  });
+
+  const resolution = resolveWelcomeTeamStarterForRelay(
+    [duplicate, original],
+    fizz,
+    RELAY_A,
+  );
+  assert.equal(resolution.canonical, original);
+  assert.deepEqual(resolution.duplicates, [duplicate]);
+  assert.equal(
+    pickWelcomeTeamStarterAgentForRelay([duplicate, original], fizz, RELAY_A),
+    original,
+  );
+});
+
+test("a legacy synced starter is reused before its team tag is republished", () => {
+  const honey = WELCOME_TEAM_STARTERS[1];
+  const restored = makeAgent({
+    name: honey.name,
+    personaId: honey.personaId,
+    teamId: null,
   });
 
   assert.equal(
-    pickWelcomeTeamStarterAgentForRelay(
-      [stopped, deployed, running],
-      fizz,
-      RELAY_A,
-    ),
-    running,
+    pickWelcomeTeamStarterAgentForRelay([restored], honey, RELAY_A),
+    restored,
   );
-  assert.equal(
-    pickWelcomeTeamStarterAgentForRelay([stopped, deployed], fizz, RELAY_A),
-    deployed,
+});
+
+test("same-name instances that are both team tagged are not auto-deleted", () => {
+  const bumble = WELCOME_TEAM_STARTERS[2];
+  const stopped = makeAgent({
+    name: bumble.name,
+    personaId: bumble.personaId,
+  });
+  const running = makeAgent({
+    name: bumble.name,
+    personaId: bumble.personaId,
+    pubkey: PUB_B,
+    status: "running",
+  });
+
+  const resolution = resolveWelcomeTeamStarterForRelay(
+    [stopped, running],
+    bumble,
+    RELAY_A,
   );
+  assert.equal(resolution.canonical, running);
+  assert.deepEqual(resolution.duplicates, []);
 });
