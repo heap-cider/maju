@@ -168,6 +168,12 @@ test("focus and split preserve reading context and interaction ownership", async
   const drawer = page.getByTestId("focus-thread-drawer");
   const body = page.getByTestId("message-thread-body");
   await expect(drawer).toBeVisible();
+  // The thread list uses a deferred render so opening the drawer can become
+  // visible one commit before the seeded replies arrive. Capture the reading
+  // anchor only after the complete thread is present; otherwise the test can
+  // anchor the root row and then mistake the deferred reply commit for a
+  // presentation-switch regression.
+  await expect(body.locator("[data-message-id]")).toHaveCount(49);
   await expect
     .poll(() =>
       page.evaluate(() =>
