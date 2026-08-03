@@ -1251,23 +1251,14 @@ fn minimal_record(pubkey: &str) -> crate::managed_agents::ManagedAgentRecord {
 
 fn make_pair_runtime_placeholder() -> crate::managed_agents::ManagedAgentPairRuntime {
     use std::process::{Command, Stdio};
-    // Spawn a real child so ManagedAgentProcess's Child field is satisfied.
-    // It exits immediately with 0 — just a handle we need for type purposes.
-    //
-    // Absolute `/usr/bin/true` on unix (present on both macOS and Linux):
-    // parallel tests holding `lock_path_mutex` swap PATH to a tempdir, and a
-    // bare `true` lookup during that window fails with NotFound (observed
-    // flake). Windows similarly uses the absolute COMSPEC path.
+    // Spawn a child that exits immediately; only its `Child` handle is needed.
     #[cfg(unix)]
-    let mut command = Command::new("/usr/bin/true");
+    let program = std::ffi::OsString::from("/usr/bin/true");
     #[cfg(windows)]
-    let mut command = {
-        let program =
-            std::env::var_os("COMSPEC").unwrap_or_else(|| std::ffi::OsString::from("cmd.exe"));
-        let mut command = Command::new(program);
-        command.args(["/D", "/C", "exit 0"]);
-        command
-    };
+    let program = std::env::var_os("COMSPEC").expect("COMSPEC must name cmd.exe");
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    command.args(["/D", "/C", "exit 0"]);
     let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
