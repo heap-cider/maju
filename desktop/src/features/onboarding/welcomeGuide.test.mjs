@@ -353,11 +353,31 @@ test("starter matching is relay scoped and normalizes trailing slashes", () => {
   );
 });
 
+test("a synced starter without a pinned relay belongs to the active community", () => {
+  const fizz = WELCOME_TEAM_STARTERS[0];
+  const restored = makeAgent({
+    personaId: fizz.personaId,
+    relayUrl: "",
+  });
+  const otherRelay = makeAgent({
+    personaId: fizz.personaId,
+    relayUrl: RELAY_B,
+    pubkey: PUB_B,
+    status: "running",
+  });
+
+  assert.equal(
+    pickWelcomeTeamStarterAgentForRelay([otherRelay, restored], fizz, RELAY_A),
+    restored,
+  );
+});
+
 test("duplicate starter matching keeps the oldest identity on every device", () => {
   const fizz = WELCOME_TEAM_STARTERS[0];
   const original = makeAgent({
     personaId: fizz.personaId,
     teamId: null,
+    relayUrl: "",
     createdAt: "2026-06-11T00:00:00.000Z",
   });
   const duplicate = makeAgent({
@@ -386,6 +406,7 @@ test("a legacy synced starter is reused before its team tag is republished", () 
     name: honey.name,
     personaId: honey.personaId,
     teamId: null,
+    relayUrl: "",
   });
 
   assert.equal(
