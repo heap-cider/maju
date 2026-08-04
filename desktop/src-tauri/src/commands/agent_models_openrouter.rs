@@ -108,5 +108,6 @@ pub(super) fn filter_openrouter_models(
         agent_default_model: None,
         selected_model,
         supports_switching: true,
+        config_options: Vec::new(),
     }))
 }

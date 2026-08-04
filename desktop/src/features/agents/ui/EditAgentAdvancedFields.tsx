@@ -11,8 +11,11 @@ import {
 import type { AgentPersona } from "@/shared/api/types";
 import { MajuAgentModelTuningFields } from "./majuAgentModelTuningFields";
 import { isMajuAgentRuntime } from "./majuAgentConfig";
+import { AcpAdvancedOptionFields } from "./AcpNativeConfigFields";
+import type { AcpConfigOptionEntry } from "@/shared/api/types";
 
 export function EditAgentAdvancedFields({
+  acpConfigOptions = [],
   acpCommand,
   agentArgs,
   autoRestartOnConfigChange,
@@ -38,6 +41,7 @@ export function EditAgentAdvancedFields({
   onAutoRestartChange,
   onSystemPromptChange,
 }: {
+  acpConfigOptions?: readonly AcpConfigOptionEntry[];
   acpCommand: string;
   agentArgs: string;
   autoRestartOnConfigChange: boolean;
@@ -73,6 +77,14 @@ export function EditAgentAdvancedFields({
 }) {
   return (
     <div className="space-y-5 pt-2">
+      <AcpAdvancedOptionFields
+        configOptions={acpConfigOptions}
+        disabled={disabled}
+        envVars={envVars}
+        inheritedEnvVars={inheritedEnvVars}
+        onEnvVarsChange={onEnvVarsChange}
+        useCustomSelect
+      />
       {/* Inherit runtime from template */}
       {linkedPersona ? (
         <div className="space-y-1.5">

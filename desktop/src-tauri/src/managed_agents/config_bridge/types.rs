@@ -225,7 +225,11 @@ pub struct AcpConfigOptionEntry {
     pub config_id: String,
     pub category: Option<String>,
     pub display_name: Option<String>,
-    pub current_value: Option<String>,
+    pub description: Option<String>,
+    pub option_type: Option<String>,
+    /// ACP v1 adapters commonly return strings, while newer adapters may
+    /// expose boolean or numeric scalar values.
+    pub current_value: Option<serde_json::Value>,
     pub options: Vec<AcpConfigOptionValue>,
 }
 

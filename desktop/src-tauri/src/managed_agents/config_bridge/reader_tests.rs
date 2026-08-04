@@ -273,7 +273,9 @@ fn post_spawn_with_model_config_option_uses_acp() {
             config_id: "model".to_string(),
             category: Some("model".to_string()),
             display_name: Some("Model".to_string()),
-            current_value: Some("claude-opus-4".to_string()),
+            description: None,
+            option_type: Some("select".to_string()),
+            current_value: Some(serde_json::json!("claude-opus-4")),
             options: vec![],
         }],
         available_modes: vec![],
@@ -554,6 +556,10 @@ fn extra_env_vars_appear_in_advanced_as_maju_explicit() {
     record
         .env_vars
         .insert("MAJU_ACP_SYSTEM_PROMPT".to_string(), "hello".to_string());
+    record.env_vars.insert(
+        crate::managed_agents::env_vars::ACP_CONFIG_OPTIONS_ENV.to_string(),
+        r#"{"fast-mode":true}"#.to_string(),
+    );
     // Non-normalized key — MUST appear in advanced.
     record
         .env_vars
@@ -574,6 +580,10 @@ fn extra_env_vars_appear_in_advanced_as_maju_explicit() {
     assert!(
         !advanced_keys.contains(&"MAJU_ACP_SYSTEM_PROMPT"),
         "normalized system prompt key must not appear in advanced"
+    );
+    assert!(
+        !advanced_keys.contains(&crate::managed_agents::env_vars::ACP_CONFIG_OPTIONS_ENV),
+        "structured ACP options must not leak into the raw env-var editor"
     );
 
     let field = surface
@@ -900,10 +910,12 @@ fn acp_effort_wins_over_inherited_global_effort_as_secondary() {
     let runtime = maju_agent_rt();
     let cache = SessionConfigCache {
         config_options: vec![AcpConfigOptionEntry {
-            config_id: "effort".to_string(),
-            category: Some("effort".to_string()),
+            config_id: "reasoningEffort".to_string(),
+            category: Some("thought_level".to_string()),
             display_name: Some("Effort".to_string()),
-            current_value: Some("low".to_string()),
+            description: None,
+            option_type: Some("select".to_string()),
+            current_value: Some(serde_json::json!("low")),
             options: vec![],
         }],
         available_modes: vec![],

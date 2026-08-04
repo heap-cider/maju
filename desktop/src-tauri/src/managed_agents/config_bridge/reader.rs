@@ -49,7 +49,10 @@ pub(crate) fn read_config_surface(
             .or_else(|| find_config_option_value(c, "model"))
     });
     let acp_mode = session_cache.and_then(|c| find_config_option_value(c, "mode"));
-    let acp_effort = session_cache.and_then(|c| find_config_option_value(c, "effort"));
+    let acp_effort = session_cache.and_then(|c| {
+        find_config_option_value(c, "thought_level")
+            .or_else(|| find_config_option_value(c, "effort"))
+    });
 
     let model_overridden = session_cache.is_some_and(|c| c.model_overridden);
 
@@ -121,6 +124,7 @@ pub(crate) fn read_config_surface(
         max_tokens_env_var,
         context_limit_env_var,
         Some("MAJU_ACP_SYSTEM_PROMPT"),
+        Some(crate::managed_agents::env_vars::ACP_CONFIG_OPTIONS_ENV),
     ]
     .into_iter()
     .flatten()
@@ -514,10 +518,18 @@ fn build_thinking_field(
     ];
     let (value, origin, overridden_value, overridden_origin) = resolve_with_override(tiers_list)?;
 
-    let write_via = if !is_pre_spawn && has_config_option(session_cache, "effort") {
-        ConfigWriteMechanism::AcpSetConfigOption {
-            config_id: "effort".to_string(),
-        }
+    let native_effort_config_id = find_config_id_by_category(session_cache, "thought_level")
+        .or_else(|| find_config_id_by_category(session_cache, "effort"));
+    let write_via = if !is_pre_spawn {
+        native_effort_config_id
+            .map(|config_id| ConfigWriteMechanism::AcpSetConfigOption { config_id })
+            .unwrap_or_else(|| {
+                thinking_env_var.map_or(ConfigWriteMechanism::ReadOnly, |env_key| {
+                    ConfigWriteMechanism::RespawnWithEnvVar {
+                        env_key: env_key.to_string(),
+                    }
+                })
+            })
     } else if let Some(env_key) = thinking_env_var {
         ConfigWriteMechanism::RespawnWithEnvVar {
             env_key: env_key.to_string(),
@@ -674,7 +686,17 @@ fn find_config_option_value(cache: &SessionConfigCache, category: &str) -> Optio
         .config_options
         .iter()
         .find(|o| o.category.as_deref() == Some(category))
-        .and_then(|o| o.current_value.clone())
+        .and_then(|o| o.current_value.as_ref())
+        .and_then(config_scalar_display_value)
+}
+
+fn config_scalar_display_value(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(value) => Some(value.clone()),
+        serde_json::Value::Bool(value) => Some(value.to_string()),
+        serde_json::Value::Number(value) => Some(value.to_string()),
+        _ => None,
+    }
 }
 
 fn has_config_option(cache: Option<&SessionConfigCache>, category: &str) -> bool {
@@ -686,10 +708,17 @@ fn has_config_option(cache: Option<&SessionConfigCache>, category: &str) -> bool
 }
 
 fn find_model_config_id(cache: Option<&SessionConfigCache>) -> Option<String> {
+    find_config_id_by_category(cache, "model")
+}
+
+fn find_config_id_by_category(
+    cache: Option<&SessionConfigCache>,
+    category: &str,
+) -> Option<String> {
     cache.and_then(|c| {
         c.config_options
             .iter()
-            .find(|o| o.category.as_deref() == Some("model"))
+            .find(|o| o.category.as_deref() == Some(category))
             .map(|o| o.config_id.clone())
     })
 }

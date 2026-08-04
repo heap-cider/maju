@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use super::{
     display_invalid_key, is_derived_provider_model_key, is_reserved_env_key,
-    is_well_formed_env_key, merged_user_env, validate_user_env_keys,
+    is_well_formed_env_key, merged_user_env, validate_user_env_keys, ACP_CONFIG_OPTIONS_ENV,
     DERIVED_PROVIDER_MODEL_ENV_KEYS, MAX_ENV_TOTAL_BYTES, MAX_ENV_VALUE_BYTES, RESERVED_ENV_KEYS,
 };
 
@@ -53,6 +53,25 @@ fn merged_env_agent_overrides_persona_on_collision() {
     );
     assert_eq!(merged.get("MODEL").map(String::as_str), Some("claude"));
     assert_eq!(merged.len(), 2);
+}
+
+#[test]
+fn merged_env_acp_options_override_by_config_id() {
+    let persona = map(&[(
+        ACP_CONFIG_OPTIONS_ENV,
+        r#"{"reasoningEffort":"high","fast-mode":false}"#,
+    )]);
+    let agent = map(&[(ACP_CONFIG_OPTIONS_ENV, r#"{"fast-mode":true}"#)]);
+
+    let merged = merged_user_env(&persona, &agent);
+    let options: serde_json::Value = serde_json::from_str(
+        merged
+            .get(ACP_CONFIG_OPTIONS_ENV)
+            .expect("merged ACP options"),
+    )
+    .expect("valid JSON");
+    assert_eq!(options["reasoningEffort"], "high");
+    assert_eq!(options["fast-mode"], true);
 }
 
 #[test]

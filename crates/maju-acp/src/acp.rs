@@ -465,6 +465,7 @@ impl AcpClient {
             // Ensure the child is killed when the AcpClient is dropped (best-effort).
             // Callers MUST still call shutdown().await for guaranteed cleanup.
             .kill_on_drop(true);
+        cmd.env_remove(crate::config::ACP_CONFIG_OPTIONS_ENV);
 
         // Per-persona env vars (e.g., GOOSE_PROVIDER, MAJU_AGENT_PROVIDER).
         // For most keys, operator precedence wins: skip injection if already set
@@ -501,6 +502,9 @@ impl AcpClient {
         }
 
         for (key, value) in extra_env {
+            if key == crate::config::ACP_CONFIG_OPTIONS_ENV {
+                continue;
+            }
             if key == "CODEX_CONFIG" && codex_merge_active {
                 // Handled by build_codex_config_env; skip here to avoid double-setting.
                 continue;
@@ -714,6 +718,23 @@ impl AcpClient {
         session_id: &str,
         config_id: &str,
         value: &str,
+    ) -> Result<serde_json::Value, AcpError> {
+        self.session_set_config_option_value(
+            session_id,
+            config_id,
+            serde_json::Value::String(value.to_string()),
+        )
+        .await
+    }
+
+    /// Send `session/set_config_option` while preserving the ACP option's
+    /// scalar JSON type. ACP adapters may expose boolean options in addition
+    /// to the older string/select shape.
+    pub async fn session_set_config_option_value(
+        &mut self,
+        session_id: &str,
+        config_id: &str,
+        value: serde_json::Value,
     ) -> Result<serde_json::Value, AcpError> {
         let params = serde_json::json!({
             "sessionId": session_id,
@@ -2085,21 +2106,27 @@ pub enum ModelSwitchMethod {
     SetModel { model_id: String },
 }
 
+/// Extract every `configOptions` entry from a session result.
+///
+/// Model discovery used to discard every category except `model`, which made
+/// dependent ACP-native settings such as `thought_level` impossible to render.
+pub fn extract_session_config_options(result: &serde_json::Value) -> Vec<serde_json::Value> {
+    result["configOptions"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
 /// Extract `configOptions` entries with `category == "model"` from a `session/new` result.
 ///
 /// Returns the raw JSON array entries. Each entry has `configId` (spelled `id`
 /// by some adapters, e.g. claude-agent-acp), `displayName`,
 /// `options: [{ value, displayName }]`, etc.
 pub fn extract_model_config_options(result: &serde_json::Value) -> Vec<serde_json::Value> {
-    result["configOptions"]
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter(|opt| opt.get("category").and_then(|c| c.as_str()) == Some("model"))
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default()
+    extract_session_config_options(result)
+        .into_iter()
+        .filter(|opt| opt.get("category").and_then(|c| c.as_str()) == Some("model"))
+        .collect()
 }
 
 /// Extract `SessionModelState` (unstable path) from a `session/new` result.
@@ -2634,6 +2661,20 @@ mod tests {
         let opts = super::extract_model_config_options(&result);
         assert_eq!(opts.len(), 1);
         assert_eq!(opts[0]["configId"].as_str(), Some("model"));
+    }
+
+    #[test]
+    fn extract_session_config_options_preserves_all_categories_and_scalars() {
+        let result = serde_json::json!({
+            "configOptions": [
+                { "id": "model", "category": "model", "currentValue": "base" },
+                { "id": "fast-mode", "type": "boolean", "currentValue": true },
+                { "id": "effort", "category": "thought_level", "currentValue": "high" }
+            ]
+        });
+        let options = super::extract_session_config_options(&result);
+        assert_eq!(options.len(), 3);
+        assert_eq!(options[1]["currentValue"], true);
     }
 
     #[test]

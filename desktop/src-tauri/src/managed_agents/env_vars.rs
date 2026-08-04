@@ -13,6 +13,8 @@
 
 use std::collections::BTreeMap;
 
+pub(crate) const ACP_CONFIG_OPTIONS_ENV: &str = "MAJU_ACP_CONFIG_OPTIONS";
+
 /// Env var keys that are *derived* from the structured `AgentDefinition.provider`
 /// and `AgentDefinition.model` fields at spawn/deploy time. These must NOT be
 /// persisted in `AgentDefinition.env_vars` because they would shadow the
@@ -254,7 +256,15 @@ pub(crate) fn merged_user_env(
 ) -> BTreeMap<String, String> {
     let mut merged = persona_env.clone();
     for (k, v) in agent_env {
-        merged.insert(k.clone(), v.clone());
+        if k == ACP_CONFIG_OPTIONS_ENV {
+            let value = merged
+                .get(k)
+                .and_then(|base| merge_acp_config_option_values(base, v))
+                .unwrap_or_else(|| v.clone());
+            merged.insert(k.clone(), value);
+        } else {
+            merged.insert(k.clone(), v.clone());
+        }
     }
     merged.retain(|k, v| {
         if is_reserved_env_key(k) {
@@ -293,6 +303,13 @@ pub(crate) fn merged_user_env(
         true
     });
     merged
+}
+
+fn merge_acp_config_option_values(base: &str, overlay: &str) -> Option<String> {
+    let mut base = serde_json::from_str::<BTreeMap<String, serde_json::Value>>(base).ok()?;
+    let overlay = serde_json::from_str::<BTreeMap<String, serde_json::Value>>(overlay).ok()?;
+    base.extend(overlay);
+    serde_json::to_string(&base).ok()
 }
 
 /// Look up the live env map of `persona_id` within an already-loaded persona

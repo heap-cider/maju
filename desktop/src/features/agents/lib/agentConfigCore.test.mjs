@@ -85,7 +85,7 @@ test("Goose exposes provider, model, and its real effort application key", () =>
   });
 });
 
-test("Claude models effort as a deferred native ACP option", () => {
+test("ACP-native effort is deferred to category discovery without runtime IDs", () => {
   const model = deriveAgentConfigFieldModel({
     config,
     runtime: runtime("claude"),
@@ -105,12 +105,12 @@ test("Claude models effort as a deferred native ACP option", () => {
   });
   assert.deepEqual(field(model, "effort").targetApplication, {
     kind: "acpConfigOption",
-    id: "effort",
+    id: null,
     category: "thought_level",
   });
 });
 
-test("Codex omits separate effort because model IDs own it", () => {
+test("Codex also defers generically and renders nothing when discovery has no thought level", () => {
   const model = deriveAgentConfigFieldModel({
     config,
     runtime: runtime("codex"),
@@ -119,11 +119,13 @@ test("Codex omits separate effort because model IDs own it", () => {
 
   assert.deepEqual(
     model.fields.map((item) => item.kind),
-    ["model"],
+    ["model", "effort"],
   );
-  assert.deepEqual(model.omissions, [
-    { kind: "effort", reason: "ownedByModelId" },
-  ]);
+  assert.equal(
+    field(model, "effort").render,
+    "deferredUntilNativeOptionsAvailable",
+  );
+  assert.deepEqual(model.omissions, []);
 });
 
 test("catalog mismatch cleanup is named and restricted to onboarding", () => {

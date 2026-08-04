@@ -10,37 +10,33 @@ Plan of record: `Maju/Harness-Provider-Model.md` in Morgan's Obsidian vault
 
 ## The one rule
 
-**Harness capability facts have exactly one source: the Rust runtime catalog.**
-`KnownAcpRuntime` (`desktop/src-tauri/src/managed_agents/discovery/runtime_metadata.rs`)
-declares each harness's model/provider/effort env keys and capabilities. Spawn
-applies them; `AcpRuntimeCatalogEntry` exposes them over IPC; and
-`lib/agentConfigCore.ts` projects them into field descriptors. The frontend
-never maintains a rival copy of this table. Setup guidance follows the same
-rule: `requires_external_cli` is derived from `KnownAcpRuntime` and projected
-to the UI rather than inferred from a runtime ID in a component.
+**Static harness facts come from the Rust runtime catalog; session-native
+controls come from live ACP `configOptions`.** `KnownAcpRuntime`
+(`desktop/src-tauri/src/managed_agents/discovery/runtime_metadata.rs`) declares
+install/setup facts and env-backed capabilities. Spawn applies them,
+`AcpRuntimeCatalogEntry` exposes them over IPC, and `lib/agentConfigCore.ts`
+projects them into field descriptors. Model-dependent controls are different:
+the short discovery session is their only source of truth. The frontend maps
+ACP categories and scalar types generically and never keeps an adapter-name or
+model-suffix lookup table.
 
-If you need a new capability fact (a new env key, a native option, a "supports
-X" flag): add it to `KnownAcpRuntime` first, expose it on
-`AcpRuntimeCatalogEntry`, then project it through the core. Do not shortcut
-with a TypeScript lookup table or an id comparison in a component.
+If you need a new static capability fact, add it to `KnownAcpRuntime` first.
+If an adapter advertises a native option, preserve and render that advertised
+shape instead of adding a runtime-ID exception.
 
 ## Rules
 
-1. **No hardcoded harness-ID checks in render code.** `runtime.id === "claude"`
-   belongs in `deriveAgentConfigFieldModel` (once, with a named reason), never
-   in a component. Components ask the field model what exists
-   (`hasRenderableAgentConfigField`, `getRenderableEffortField`).
-2. **Effort reads/writes go through the descriptor.** Use the effort
-   descriptor's `currentPersistence` key — never a raw
-   `MAJU_AGENT_THINKING_EFFORT` literal in UI code. `currentPersistence` is
-   where the value lives *today*; `targetApplication` is how the harness
-   *should* receive it. They intentionally differ until PR 2.7 migrates
-   Goose/Claude — do not "fix" one to match the other without doing the
-   migration work.
-3. **Field absence has a named reason, not a boolean.** Codex effort is
-   `ownedByModelId`; Claude effort is `deferredUntilNativeOptionsAvailable`.
-   New absences get new named reasons in `AgentConfigOmission` /
-   `render` — never a `showX` prop.
+1. **No hardcoded harness-ID or model-name checks in render code.** Components
+   ask the field model what static fields exist, then use the live ACP option's
+   `category`, `type`, and choices for native controls.
+2. **Effort reads/writes go through its declared source.** Env-backed effort
+   uses the descriptor's `currentPersistence` key. ACP-native reasoning uses
+   the exact discovered `configId` whose category is `thought_level`; never
+   assume the id is `effort`, parse a model suffix, or invent choices.
+3. **Native field absence follows discovery, not an adapter omission table.**
+   A runtime without static effort defers to live ACP options. If no
+   `thought_level` option is advertised, the UI hides the field and leaves the
+   engine default alone.
 4. **The clearing policy is the named types.** `onContextChange:
    "resetDependentValues"` (user changed harness/provider → dependent values
    reset everywhere) vs `onCatalogMismatch: "explainOnly" | "onboardingCleanup"`
@@ -152,6 +148,9 @@ with a TypeScript lookup table or an id comparison in a component.
 
 - `lib/agentConfigCore.test.mjs` — field model per harness × scope, clearing
   policy. Update when the capability model changes.
+- `lib/acpNativeOptions.test.mjs` and `ui/AcpNativeConfigFields.test.mjs` —
+  typed ACP value persistence, category-driven placement, inheritance, and the
+  no-duplicate-reasoning contract.
 - `ui/agentConfigFieldsContract.test.mjs` — canonical behaviors + disclosure
   presets + `shouldShowModelStatusMessage` status-bypass +
   `shouldRenderModelControl` (successful-empty omit vs failure keep). If this

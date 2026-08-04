@@ -748,8 +748,8 @@ pub struct AgentModelsResponse {
     pub selected_model: Option<String>,
     /// Whether this agent supports model switching.
     pub supports_switching: bool,
+    pub config_options: Vec<crate::managed_agents::config_bridge::AcpConfigOptionEntry>,
 }
-
 /// A single model available from an agent.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -20,7 +20,7 @@
 //! `AcpClient` is NOT Clone — ownership moves out on claim and back on return.
 
 use std::cmp::Reverse;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -34,7 +34,7 @@ use crate::acp::{
     resolve_model_switch_method, AcpClient, AcpError, McpServer, ModelSwitchMethod, StopReason,
     SystemPromptTransport,
 };
-use crate::config::{compose_session_title, DedupMode, PermissionMode};
+use crate::config::{compose_session_title, DedupMode, PermissionMode, ACP_CONFIG_OPTIONS_ENV};
 use crate::observer;
 use crate::queue::{
     CancelReason, ContextMessage, ConversationContext, FlushBatch, PromptChannelInfo,
@@ -958,11 +958,18 @@ async fn create_session_and_apply_model(
     // Apply desired_model if set, matching against the fresh session/new response.
     // Track whether the switch succeeded so session_config_captured reflects
     // the post-switch state (not the pre-switch desired state).
+    let mut session_config_raw = resp.raw.clone();
     let switch_succeeded = if let Some(ref desired) = agent.desired_model {
         match resolve_model_switch_method(&resp.raw, desired) {
             Some(method) => {
-                apply_model_switch(&mut agent.acp, &resp.session_id, desired, &method).await?;
-                true
+                match apply_model_switch(&mut agent.acp, &resp.session_id, desired, &method).await?
+                {
+                    Some(update) => {
+                        merge_session_config_update(&mut session_config_raw, &update);
+                        true
+                    }
+                    None => false,
+                }
             }
             None => {
                 tracing::warn!(
@@ -988,6 +995,9 @@ async fn create_session_and_apply_model(
         false
     };
 
+    apply_configured_session_options(&mut agent.acp, &resp.session_id, &mut session_config_raw)
+        .await?;
+
     // Emit session config for desktop consumption (config bridge tier 1b).
     // Emitted AFTER desired_model resolution so the desktop caches the
     // post-switch state. modelOverridden reflects whether the switch actually
@@ -996,9 +1006,9 @@ async fn create_session_and_apply_model(
     agent.acp.observe(
         "session_config_captured",
         serde_json::json!({
-            "configOptions": resp.raw.get("configOptions").cloned().unwrap_or(serde_json::Value::Null),
-            "modes": resp.raw.get("modes").cloned().unwrap_or(serde_json::Value::Null),
-            "models": resp.raw.get("models").cloned().unwrap_or(serde_json::Value::Null),
+            "configOptions": session_config_raw.get("configOptions").cloned().unwrap_or(serde_json::Value::Null),
+            "modes": session_config_raw.get("modes").cloned().unwrap_or(serde_json::Value::Null),
+            "models": session_config_raw.get("models").cloned().unwrap_or(serde_json::Value::Null),
             "modelOverridden": agent.model_overridden && switch_succeeded,
             // Pair identity for the desktop session-config cache, which is
             // keyed by (agent, relay) like the lifecycle frames.
@@ -1030,7 +1040,7 @@ async fn apply_model_switch(
     session_id: &str,
     desired: &str,
     method: &ModelSwitchMethod,
-) -> Result<(), AcpError> {
+) -> Result<Option<serde_json::Value>, AcpError> {
     let method_label = match method {
         ModelSwitchMethod::ConfigOption { config_id, .. } => {
             format!("configOption (configId={config_id})")
@@ -1055,11 +1065,12 @@ async fn apply_model_switch(
     .await;
 
     match result {
-        Ok(Ok(_)) => {
+        Ok(Ok(update)) => {
             tracing::info!(
                 target: "pool::model",
                 "applied model {desired} via {method_label} on session {session_id}"
             );
+            Ok(Some(update))
         }
         // Transport-class errors may have corrupted the stdio stream — propagate
         // so the caller can respawn the agent instead of reusing a poisoned one.
@@ -1072,7 +1083,7 @@ async fn apply_model_switch(
                 target: "pool::model",
                 "fatal error setting model {desired} via {method_label}: {e}"
             );
-            return Err(e);
+            Err(e)
         }
         // Application-level errors (Json, etc.) — agent is fine, just uses default model.
         Ok(Err(e)) => {
@@ -1080,6 +1091,7 @@ async fn apply_model_switch(
                 target: "pool::model",
                 "failed to set model {desired} via {method_label}: {e} — proceeding with agent default"
             );
+            Ok(None)
         }
         Err(_) => {
             // Outer timeout fired — the inner send_request may have left the
@@ -1088,7 +1100,114 @@ async fn apply_model_switch(
                 target: "pool::model",
                 "model set via {method_label} timed out ({MODEL_SWITCH_TIMEOUT:?}) — treating as fatal"
             );
-            return Err(AcpError::Timeout(MODEL_SWITCH_TIMEOUT));
+            Err(AcpError::Timeout(MODEL_SWITCH_TIMEOUT))
+        }
+    }
+}
+
+fn merge_session_config_update(session_config: &mut serde_json::Value, update: &serde_json::Value) {
+    for key in ["configOptions", "modes", "models"] {
+        if let Some(value) = update.get(key) {
+            session_config[key] = value.clone();
+        }
+    }
+}
+
+fn configured_session_options() -> BTreeMap<String, serde_json::Value> {
+    let Ok(raw) = std::env::var(ACP_CONFIG_OPTIONS_ENV) else {
+        return BTreeMap::new();
+    };
+    match serde_json::from_str::<BTreeMap<String, serde_json::Value>>(&raw) {
+        Ok(options) => options,
+        Err(error) => {
+            tracing::warn!("ignoring invalid {ACP_CONFIG_OPTIONS_ENV}: {error}");
+            BTreeMap::new()
+        }
+    }
+}
+
+fn config_option_accepts_value(option: &serde_json::Value, value: &serde_json::Value) -> bool {
+    if !matches!(
+        value,
+        serde_json::Value::String(_) | serde_json::Value::Bool(_) | serde_json::Value::Number(_)
+    ) {
+        return false;
+    }
+    if let Some(options) = option.get("options").and_then(serde_json::Value::as_array) {
+        if !options.is_empty() {
+            return options
+                .iter()
+                .any(|candidate| candidate.get("value") == Some(value));
+        }
+    }
+    match option.get("type").and_then(serde_json::Value::as_str) {
+        Some("boolean") => value.is_boolean(),
+        Some("number") => value.is_number(),
+        _ => option
+            .get("currentValue")
+            .or_else(|| option.get("value"))
+            .is_none_or(|current| std::mem::discriminant(current) == std::mem::discriminant(value)),
+    }
+}
+
+async fn apply_configured_session_options(
+    acp: &mut AcpClient,
+    session_id: &str,
+    session_config: &mut serde_json::Value,
+) -> Result<(), AcpError> {
+    for (config_id, value) in configured_session_options() {
+        let advertised = session_config
+            .get("configOptions")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|options| {
+                options.iter().find(|option| {
+                    option
+                        .get("configId")
+                        .or_else(|| option.get("id"))
+                        .and_then(serde_json::Value::as_str)
+                        == Some(config_id.as_str())
+                })
+            });
+        let Some(option) = advertised else {
+            tracing::warn!(
+                config_id,
+                "saved ACP option is no longer advertised; using engine default"
+            );
+            continue;
+        };
+        if matches!(
+            option.get("category").and_then(serde_json::Value::as_str),
+            Some("model" | "mode")
+        ) || !config_option_accepts_value(option, &value)
+        {
+            tracing::warn!(
+                config_id,
+                "saved ACP option value is not valid for this session; using engine default"
+            );
+            continue;
+        }
+
+        let result = tokio::time::timeout(
+            MODEL_SWITCH_TIMEOUT,
+            acp.session_set_config_option_value(session_id, &config_id, value),
+        )
+        .await;
+        match result {
+            Ok(Ok(update)) => merge_session_config_update(session_config, &update),
+            Ok(Err(
+                error @ (AcpError::Io(_)
+                | AcpError::WriteTimeout(_)
+                | AcpError::Timeout(_)
+                | AcpError::Protocol(_)
+                | AcpError::AgentExited),
+            )) => return Err(error),
+            Ok(Err(error)) => {
+                tracing::warn!(
+                    config_id,
+                    "failed to apply ACP option: {error}; using engine default"
+                );
+            }
+            Err(_) => return Err(AcpError::Timeout(MODEL_SWITCH_TIMEOUT)),
         }
     }
     Ok(())
@@ -6904,5 +7023,47 @@ mod tests {
             "one fetch_channel_info sequence (initial attempt + single retry)"
         );
         server.abort();
+    }
+
+    #[test]
+    fn config_option_validation_preserves_advertised_scalar_types() {
+        let boolean = json!({ "id": "fast-mode", "type": "boolean", "currentValue": false });
+        assert!(config_option_accepts_value(&boolean, &json!(true)));
+        assert!(!config_option_accepts_value(&boolean, &json!("true")));
+
+        let thought = json!({
+            "id": "reasoningEffort",
+            "category": "thought_level",
+            "options": [
+                { "value": "low", "displayName": "Low" },
+                { "value": "high", "displayName": "High" }
+            ]
+        });
+        assert!(config_option_accepts_value(&thought, &json!("high")));
+        assert!(!config_option_accepts_value(&thought, &json!("max")));
+    }
+
+    #[test]
+    fn model_switch_update_replaces_the_full_dependent_option_set() {
+        let mut session = json!({
+            "configOptions": [{ "id": "model", "currentValue": "old" }],
+            "models": { "currentModelId": "old" }
+        });
+        let update = json!({
+            "configOptions": [
+                { "id": "model", "category": "model", "currentValue": "new" },
+                {
+                    "id": "reasoningEffort",
+                    "category": "thought_level",
+                    "currentValue": "high",
+                    "options": [{ "value": "high", "displayName": "High" }]
+                }
+            ]
+        });
+
+        merge_session_config_update(&mut session, &update);
+
+        assert_eq!(session["configOptions"], update["configOptions"]);
+        assert_eq!(session["models"]["currentModelId"], "old");
     }
 }

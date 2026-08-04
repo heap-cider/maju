@@ -66,7 +66,7 @@ export type AgentConfigFieldDescriptor =
         | UnavailablePersistence;
       targetApplication:
         | { kind: "envVar"; key: string }
-        | { kind: "acpConfigOption"; id: string; category: string };
+        | { kind: "acpConfigOption"; id: string | null; category: string };
       render: "control" | "deferredUntilNativeOptionsAvailable";
       value: string | null;
     };
@@ -142,24 +142,18 @@ export function deriveAgentConfigFieldModel({
       render: "control",
       value: valueFromEnv(config, MAJU_AGENT_THINKING_EFFORT),
     });
-  } else if (runtime?.id === "claude") {
+  } else {
     fields.push({
       kind: "effort",
       optionSource: "harnessNative",
       currentPersistence: { kind: "unavailable" },
       targetApplication: {
         kind: "acpConfigOption",
-        id: "effort",
+        id: null,
         category: "thought_level",
       },
       render: "deferredUntilNativeOptionsAvailable",
       value: null,
-    });
-  } else {
-    omissions.push({
-      kind: "effort",
-      reason:
-        runtime?.id === "codex" ? "ownedByModelId" : "unsupportedByHarness",
     });
   }
 

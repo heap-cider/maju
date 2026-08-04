@@ -215,6 +215,69 @@ test.describe("agent provider dropdown screenshots", () => {
     page,
   }) => {
     await installMockBridge(page, {
+      acpRuntimesCatalog: [
+        {
+          id: "codex",
+          label: "Codex",
+          avatar_url: "",
+          availability: "available",
+          command: "codex-acp",
+          binary_path: "/usr/local/bin/codex-acp",
+          default_args: [],
+          mcp_command: null,
+          install_hint: "",
+          install_instructions_url: "https://github.com/openai/codex",
+          can_auto_install: false,
+          requires_external_cli: true,
+          underlying_cli_path: "/usr/local/bin/codex",
+          node_required: false,
+          auth_status: { status: "authenticated" },
+          source: "builtin",
+        },
+      ],
+      discoverAgentModels: {
+        models: [
+          { id: "gpt-5.5", name: "GPT-5.5", description: null },
+          { id: "gpt-5.4", name: "GPT-5.4", description: null },
+        ],
+        supportsSwitching: true,
+        configOptions: [
+          {
+            configId: "model",
+            category: "model",
+            displayName: "Model",
+            description: null,
+            optionType: "select",
+            currentValue: "gpt-5.5",
+            options: [
+              { value: "gpt-5.5", displayName: "GPT-5.5" },
+              { value: "gpt-5.4", displayName: "GPT-5.4" },
+            ],
+          },
+          {
+            configId: "reasoningEffort",
+            category: "thought_level",
+            displayName: "Reasoning effort",
+            description: "Reasoning available for the selected model.",
+            optionType: "select",
+            currentValue: "medium",
+            options: [
+              { value: "low", displayName: "Low" },
+              { value: "medium", displayName: "Medium" },
+              { value: "high", displayName: "High" },
+            ],
+          },
+          {
+            configId: "fast-mode",
+            category: null,
+            displayName: "Fast mode",
+            description: "Use lower-latency inference.",
+            optionType: "boolean",
+            currentValue: false,
+            options: [],
+          },
+        ],
+      },
       globalAgentConfig: {
         provider: "databricks_v2",
         model: "global-databricks-model",
@@ -250,6 +313,16 @@ test.describe("agent provider dropdown screenshots", () => {
     await expect(
       dialog.getByRole("combobox", { name: /model/i }),
     ).toBeVisible();
+    await expect(
+      dialog.getByRole("combobox", { name: "Reasoning effort" }),
+    ).toBeVisible();
+    await dialog.getByRole("button", { name: /Advanced/i }).click();
+    const fastMode = dialog.getByRole("combobox", { name: "Fast mode" });
+    await expect(fastMode).toBeVisible();
+    await fastMode.scrollIntoViewIfNeeded();
     await expect(dialog.getByText("Model changes apply only")).toHaveCount(0);
+
+    await waitForAnimations(page);
+    await dialog.screenshot({ path: `${SHOTS}/04-acp-native-options.png` });
   });
 });

@@ -2,11 +2,6 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
-import type {
-  AcpRuntimeCatalogEntry,
-  CreatePersonaInput,
-  UpdatePersonaInput,
-} from "@/shared/api/types";
 import { cn } from "@/shared/lib/cn";
 import { ChooserDialogContent } from "@/shared/ui/chooser-dialog-content";
 import { Dialog } from "@/shared/ui/dialog";
@@ -17,6 +12,8 @@ import { PersonaDropdownField } from "./PersonaDropdownField";
 import type { EnvVarsValue } from "./EnvVarsEditor";
 import { PersonaAdvancedFields } from "./PersonaAdvancedFields";
 import { PersonaModelField } from "./PersonaModelField";
+import { AcpThoughtLevelField } from "./AcpNativeConfigFields";
+import { MAJU_ACP_CONFIG_OPTIONS } from "../lib/acpNativeOptions";
 import { runtimeAvailabilityWarning } from "./runtimeAvailabilityWarning";
 import { PersonaProviderApiKeyField } from "./PersonaProviderApiKeyField";
 import {
@@ -90,38 +87,10 @@ import {
   runtimeDropdownAction,
   usePendingHarnessSelection,
 } from "./addCustomHarness";
+import { ADVANCED_FIELDS_MOTION_TRANSITION } from "./agentDialogMotion";
+import type { AgentDefinitionDialogProps } from "./AgentDefinitionDialog.types";
 
-type AgentDefinitionDialogProps = {
-  open: boolean;
-  title: string;
-  description: string;
-  submitLabel: string;
-  initialValues: CreatePersonaInput | UpdatePersonaInput | null;
-  error: Error | null;
-  isPending: boolean;
-  runtimes: AcpRuntimeCatalogEntry[];
-  runtimesLoading?: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (
-    input: CreatePersonaInput | UpdatePersonaInput,
-    options: AgentDefinitionSubmitOptions,
-  ) => Promise<unknown>;
-  /** Publishes saved changes when the edited agent is shared in the catalog. */
-  publishCatalogUpdatesOnSave?: boolean;
-  /** Rendered below the form fields in create mode only ("Where to run"). */
-  createRunSection?: React.ReactNode;
-  /** Extra create-mode submit gate (e.g. incomplete provider config). */
-  createSubmitBlocked?: boolean;
-};
-
-export type AgentDefinitionSubmitOptions = {
-  publishCatalogUpdates: boolean;
-};
-
-const ADVANCED_FIELDS_MOTION_TRANSITION = {
-  duration: 0.18,
-  ease: [0.23, 1, 0.32, 1],
-} as const;
+export type { AgentDefinitionSubmitOptions } from "./AgentDefinitionDialog.types";
 
 export function AgentDefinitionDialog({
   open,
@@ -521,6 +490,7 @@ export function AgentDefinitionDialog({
     [globalConfig.env_vars, envVars],
   );
   const {
+    discoveredConfigOptions,
     discoveredModelOptions,
     modelDiscoveryLoading,
     modelDiscoveryStatus,
@@ -535,6 +505,7 @@ export function AgentDefinitionDialog({
     provider: runtimeSupportsLlmProviderSelection(runtime)
       ? effectiveProvider
       : "",
+    selectedModel: model,
     selectedRuntime,
   });
   const staticModelOptions = getPersonaModelOptions(runtime, effectiveProvider);
@@ -944,6 +915,17 @@ export function AgentDefinitionDialog({
                 ) : null}
               </AnimatePresence>
 
+              {aiConfigurationMode === "custom" ? (
+                <AcpThoughtLevelField
+                  configOptions={discoveredConfigOptions}
+                  disabled={isPending || modelDiscoveryLoading}
+                  envVars={envVars}
+                  inheritedEnvVars={inheritedEnvVarsForAdvanced}
+                  onEnvVarsChange={setEnvVars}
+                  useCustomSelect
+                />
+              ) : null}
+
               {aiConfigurationMode === "defaults" ? (
                 <AgentCreateAiDefaultsSummary
                   canChooseProvider={runtimeCanChooseLlmProvider}
@@ -1009,12 +991,15 @@ export function AgentDefinitionDialog({
                     transition={advancedFieldsTransition}
                   >
                     <PersonaAdvancedFields
+                      acpConfigOptions={discoveredConfigOptions}
                       behaviorDraft={behaviorDraft}
                       disabled={isPending}
                       envVars={envVars}
                       fileSatisfiedEnvKeys={localModeGate.fileSatisfiedEnvKeys}
                       hiddenEnvKeys={
-                        topLevelSecretEnvVar ? [topLevelSecretEnvVar] : []
+                        topLevelSecretEnvVar
+                          ? [topLevelSecretEnvVar, MAJU_ACP_CONFIG_OPTIONS]
+                          : [MAJU_ACP_CONFIG_OPTIONS]
                       }
                       inheritedEnvVars={inheritedEnvVarsForAdvanced}
                       model={model}
