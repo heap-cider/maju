@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.8
+
+- feat: fix Windows output and add Android updates ([`7f2f93288`](https://github.com/heap-cider/maju/commit/7f2f93288eabdf9646eb4bbd43cc542ee02fa865))
+
+
 ## v0.2.7
 
 - chore(sync): adopt Buzz desktop-v0.5.4 ([#8](https://github.com/heap-cider/maju/pull/8)) ([`016883084`](https://github.com/heap-cider/maju/commit/016883084a1cbe6397227aa4666eb4512f818eb2))
