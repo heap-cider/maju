@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.6
+
+- fix: deduplicate tagged welcome agents across devices ([`06429c696`](https://github.com/heap-cider/maju/commit/06429c69653e1f5f7c554f353bd1214a0d063c62))
+
+
 ## v0.2.5
 
 - fix: clean up synced welcome agent duplicates ([`d2aca6344`](https://github.com/heap-cider/maju/commit/d2aca6344ff818397b9c08180ec63a9ee2d0e41a))
