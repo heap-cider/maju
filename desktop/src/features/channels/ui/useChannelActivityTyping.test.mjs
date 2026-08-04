@@ -10,6 +10,7 @@ import {
 import { resetActiveAgentTurnsStore } from "../../agents/activeAgentTurnsStore.ts";
 import {
   channelScopedBotTypingPubkeyKey,
+  mergeAgentNamesIntoProfiles,
   mergeMemberAgentFlagsIntoProfiles,
 } from "./useChannelActivityTyping.ts";
 
@@ -74,6 +75,46 @@ describe("thread-only bot typing regression", () => {
     const state = getAgentWorkingState(AGENT, "chan-1");
     assert.equal(state.working, true);
     assert.equal(state.source, "typing");
+  });
+});
+
+describe("mergeAgentNamesIntoProfiles", () => {
+  it("prefers the current managed avatar over a stale profile cache", () => {
+    const merged = mergeAgentNamesIntoProfiles(
+      {
+        [AGENT]: {
+          displayName: "Yui",
+          avatarUrl: "https://example.com/codex-default.png",
+          nip05Handle: null,
+        },
+      },
+      [
+        {
+          pubkey: AGENT,
+          name: "Yui",
+          avatarUrl: "https://example.com/yui.png",
+        },
+      ],
+      [],
+    );
+
+    assert.equal(merged[AGENT]?.avatarUrl, "https://example.com/yui.png");
+  });
+
+  it("keeps the relay profile when the managed avatar is absent", () => {
+    const merged = mergeAgentNamesIntoProfiles(
+      {
+        [AGENT]: {
+          displayName: "Yui",
+          avatarUrl: "https://example.com/relay.png",
+          nip05Handle: null,
+        },
+      },
+      [{ pubkey: AGENT, name: "Yui", avatarUrl: null }],
+      [],
+    );
+
+    assert.equal(merged[AGENT]?.avatarUrl, "https://example.com/relay.png");
   });
 });
 
