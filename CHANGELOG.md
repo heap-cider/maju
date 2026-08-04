@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.9
+
+- fix: keep agent avatars consistent across devices ([`494e16cbf`](https://github.com/heap-cider/maju/commit/494e16cbf366f2bb0b8db92522752ce12554999f))
+
+
 ## v0.2.8
 
 - feat: fix Windows output and add Android updates ([`7f2f93288`](https://github.com/heap-cider/maju/commit/7f2f93288eabdf9646eb4bbd43cc542ee02fa865))
