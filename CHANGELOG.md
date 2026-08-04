@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.10
+
+- fix(acp): advertise the v1 initialize schema ([`289b7ce8e`](https://github.com/heap-cider/maju/commit/289b7ce8e6533349e953e93a1c29e56e1af9cc55))
+
+
 ## v0.2.9
 
 - fix: keep agent avatars consistent across devices ([`494e16cbf`](https://github.com/heap-cider/maju/commit/494e16cbf366f2bb0b8db92522752ce12554999f))
