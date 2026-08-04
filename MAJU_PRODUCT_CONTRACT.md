@@ -53,6 +53,14 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
   offline, one standby takes over automatically; two devices must not answer
   the same request as the same agent.
 
+## Agent harness compatibility
+
+- Maju advertises the stable ACP v1 initialization schema to external
+  harnesses. It does not follow Buzz's experimental v2 advertisement while the
+  request body remains v1-shaped, preserving existing Codex and Claude
+  compatibility while allowing dual-version adapters to connect without a
+  retry.
+
 ## Account devices
 
 - The account private key is the account identity and may sign in on multiple

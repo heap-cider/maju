@@ -123,7 +123,7 @@ fn agent_error_from_json(error: &serde_json::Value) -> AcpError {
 
 fn build_initialize_params() -> serde_json::Value {
     serde_json::json!({
-        "protocolVersion": 2,
+        "protocolVersion": 1,
         "clientCapabilities": build_client_capabilities(),
         "clientInfo": {
             "name": "maju-acp",
@@ -596,8 +596,9 @@ impl AcpClient {
     /// arm can choose [`ACP_STEER_METHOD`] for adapters that implement it.
     /// Parsed here rather than at each call site so no caller can forget it.
     pub async fn initialize(&mut self) -> Result<serde_json::Value, AcpError> {
-        // Requesting version 2 is an intentional temporary pin — we are squatting
-        // on ACP v2 ahead of the upstream ACP RFD. Revisit when that RFD merges.
+        // Advertise the stable v1 schema that this request actually uses.
+        // Experimental v2 adapters that also support v1 can negotiate down
+        // without adding a retry or provider-specific launch path.
         let params = build_initialize_params();
         let result = self.send_request("initialize", params).await?;
         self.steering_supported = result
@@ -2393,24 +2394,21 @@ mod tests {
     }
 
     #[test]
-    fn initialize_request_format() {
+    fn initialize_request_uses_consistent_v1_schema() {
         let msg = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 0u64,
             "method": "initialize",
-            "params": {
-                "protocolVersion": 2,
-                "clientCapabilities": build_client_capabilities(),
-                "clientInfo": {
-                    "name": "maju-acp",
-                    "version": "0.1.0"
-                }
-            }
+            "params": build_initialize_params()
         });
-        assert_eq!(msg["params"]["protocolVersion"].as_u64(), Some(2));
+        assert_eq!(msg["params"]["protocolVersion"].as_u64(), Some(1));
         assert_eq!(
             msg["params"]["clientInfo"]["name"].as_str(),
             Some("maju-acp")
+        );
+        assert!(
+            msg["params"].get("info").is_none(),
+            "ACP v2 info must not be mixed into a v1 initialize request"
         );
         assert!(msg["params"]["clientCapabilities"].is_object());
         assert_eq!(
