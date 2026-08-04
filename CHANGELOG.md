@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.11
+
+- feat(agents): support native ACP config options ([`b3321d2a4`](https://github.com/heap-cider/maju/commit/b3321d2a4cfc7baba0024b8aa72f5aeba6944a79))
+
+
 ## v0.2.10
 
 - fix(acp): advertise the v1 initialize schema ([`289b7ce8e`](https://github.com/heap-cider/maju/commit/289b7ce8e6533349e953e93a1c29e56e1af9cc55))
