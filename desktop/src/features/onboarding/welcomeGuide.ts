@@ -130,23 +130,28 @@ export function resolveWelcomeTeamStarterForRelay(
       (agent.teamId === WELCOME_TEAM_ID || hasStarterName(agent, starter)),
   );
 
-  // The multi-device bug produced two exact-name starter identities: the
-  // restored legacy event had no team_id, then onboarding minted a second
-  // team-tagged identity. Every device must make the same choice, so keep the
-  // oldest logical identity instead of preferring whichever copy runs locally.
-  // Requiring both a legacy untagged record and a tagged record avoids treating
-  // two intentionally-created instances with the same name as this migration.
+  // The multi-device bug produced two exact-name starter identities. Older
+  // data can be a mix of an untagged record and a team-tagged record, while a
+  // second device can also provision two records that are both team-tagged.
+  // Every device must make the same choice, so keep the oldest logical
+  // identity instead of preferring whichever copy runs locally. The built-in
+  // Welcome team id is reserved for these auto-provisioned starters, so two
+  // exact-name team members are safe to collapse. Two untagged user-created
+  // instances remain distinct.
   const hasLegacyUntaggedCandidate = candidates.some(
     (agent) => agent.teamId !== WELCOME_TEAM_ID,
   );
   const hasWelcomeTeamCandidate = candidates.some(
     (agent) => agent.teamId === WELCOME_TEAM_ID,
   );
+  const allCandidatesBelongToWelcomeTeam = candidates.every(
+    (agent) => agent.teamId === WELCOME_TEAM_ID,
+  );
   if (
     candidates.length > 1 &&
     candidates.every((agent) => hasStarterName(agent, starter)) &&
-    hasLegacyUntaggedCandidate &&
-    hasWelcomeTeamCandidate
+    (allCandidatesBelongToWelcomeTeam ||
+      (hasLegacyUntaggedCandidate && hasWelcomeTeamCandidate))
   ) {
     const [canonical, ...duplicates] = [...candidates].sort(
       compareAgentIdentityAge,

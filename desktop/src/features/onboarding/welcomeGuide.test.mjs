@@ -415,15 +415,43 @@ test("a legacy synced starter is reused before its team tag is republished", () 
   );
 });
 
-test("same-name instances that are both team tagged are not auto-deleted", () => {
+test("same-name Welcome team instances from two devices keep the oldest identity", () => {
+  const bumble = WELCOME_TEAM_STARTERS[2];
+  const original = makeAgent({
+    name: bumble.name,
+    personaId: bumble.personaId,
+    relayUrl: "",
+    createdAt: "2026-06-11T00:00:00.000Z",
+  });
+  const duplicate = makeAgent({
+    name: bumble.name,
+    personaId: bumble.personaId,
+    pubkey: PUB_B,
+    status: "running",
+    relayUrl: RELAY_A,
+    createdAt: "2026-06-11T00:01:00.000Z",
+  });
+
+  const resolution = resolveWelcomeTeamStarterForRelay(
+    [duplicate, original],
+    bumble,
+    RELAY_A,
+  );
+  assert.equal(resolution.canonical, original);
+  assert.deepEqual(resolution.duplicates, [duplicate]);
+});
+
+test("same-name untagged user-created instances remain distinct", () => {
   const bumble = WELCOME_TEAM_STARTERS[2];
   const stopped = makeAgent({
     name: bumble.name,
     personaId: bumble.personaId,
+    teamId: null,
   });
   const running = makeAgent({
     name: bumble.name,
     personaId: bumble.personaId,
+    teamId: null,
     pubkey: PUB_B,
     status: "running",
   });
