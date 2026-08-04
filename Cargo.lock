@@ -3895,6 +3895,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
+name = "local-encoding-ng"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3ad0f282498523d84ce1acb03a199a4a11cb2c7e282d47ff8870fb2882aedcc"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4229,6 +4238,7 @@ dependencies = [
  "git-sign-nostr",
  "ignore",
  "image",
+ "local-encoding-ng",
  "maju-cli",
  "maju-core",
  "nix 0.31.3",

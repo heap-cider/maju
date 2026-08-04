@@ -46,6 +46,8 @@ or mobile GitHub Release.
    publishes the same relay source as an amd64/arm64 GHCR image under the full
    semver, major/minor, major, SHA, and stable `latest` aliases. Matching
    `debug-` tags retain symbols for profiling.
+   Android's `versionCode` is derived monotonically from the release semver, so
+   a signed GitHub APK installs over an older Maju APK without deleting app data.
 4. **First publication only:** change the new `maju` package visibility to
    Public in GitHub Packages. Public GHCR images can then be pulled by a VPS
    without registry credentials.

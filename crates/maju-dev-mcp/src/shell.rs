@@ -965,7 +965,107 @@ fn align_to_char_boundary(buf: &[u8], start: usize) -> usize {
 }
 
 fn lossy(buf: Vec<u8>) -> String {
-    String::from_utf8(buf).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+    if let Some(decoded) = decode_utf_bom(&buf) {
+        return decoded;
+    }
+
+    match String::from_utf8(buf) {
+        Ok(text) => text,
+        Err(error) => {
+            let bytes = error.into_bytes();
+            if let Some(decoded) = decode_bomless_utf16(&bytes) {
+                return decoded;
+            }
+
+            #[cfg(windows)]
+            if let Some(decoded) = decode_windows_shell_bytes(&bytes) {
+                return decoded;
+            }
+
+            String::from_utf8_lossy(&bytes).into_owned()
+        }
+    }
+}
+
+/// Decode the Unicode formats that identify themselves with a byte-order mark.
+/// Shell output is text, so stripping the marker is less surprising than
+/// returning a leading U+FEFF to the agent.
+fn decode_utf_bom(bytes: &[u8]) -> Option<String> {
+    if let Some(rest) = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
+        return std::str::from_utf8(rest).ok().map(ToOwned::to_owned);
+    }
+    if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
+        return decode_utf16(rest, true);
+    }
+    if let Some(rest) = bytes.strip_prefix(&[0xFE, 0xFF]) {
+        return decode_utf16(rest, false);
+    }
+    None
+}
+
+fn decode_utf16(bytes: &[u8], little_endian: bool) -> Option<String> {
+    if !bytes.len().is_multiple_of(2) {
+        return None;
+    }
+    let units = bytes.chunks_exact(2).map(|pair| {
+        let pair = [pair[0], pair[1]];
+        if little_endian {
+            u16::from_le_bytes(pair)
+        } else {
+            u16::from_be_bytes(pair)
+        }
+    });
+    Some(
+        std::char::decode_utf16(units)
+            .map(|c| c.unwrap_or('\u{FFFD}'))
+            .collect(),
+    )
+}
+
+/// Windows PowerShell can emit UTF-16 through redirected stdout without a BOM.
+/// Only accept the shape when one byte lane is mostly NUL, which avoids treating
+/// arbitrary legacy-code-page text as UTF-16.
+fn decode_bomless_utf16(bytes: &[u8]) -> Option<String> {
+    if bytes.len() < 4 || !bytes.len().is_multiple_of(2) {
+        return None;
+    }
+
+    let pairs = bytes.len() / 2;
+    let even_nuls = bytes.iter().step_by(2).filter(|byte| **byte == 0).count();
+    let odd_nuls = bytes
+        .iter()
+        .skip(1)
+        .step_by(2)
+        .filter(|byte| **byte == 0)
+        .count();
+    let mostly_even = even_nuls * 2 >= pairs && odd_nuls * 8 <= pairs;
+    let mostly_odd = odd_nuls * 2 >= pairs && even_nuls * 8 <= pairs;
+
+    match (mostly_even, mostly_odd) {
+        (true, false) => decode_utf16(bytes, false),
+        (false, true) => decode_utf16(bytes, true),
+        _ => None,
+    }
+}
+
+#[cfg(windows)]
+fn decode_windows_shell_bytes(bytes: &[u8]) -> Option<String> {
+    use local_encoding_ng::{Encoder, Encoding};
+
+    // cmd.exe and console-native tools normally use the OEM page; PowerShell
+    // and GUI-oriented tools commonly use the ANSI page. Try each once, while
+    // retaining UTF-8 as the unconditional fast path above.
+    Encoding::OEM
+        .to_string(bytes)
+        .or_else(|_| Encoding::ANSI.to_string(bytes))
+        .ok()
+}
+
+#[cfg(all(windows, test))]
+fn decode_windows_code_page(bytes: &[u8], code_page: u32) -> Option<String> {
+    use local_encoding_ng::{windows::EncoderCodePage, Encoder};
+
+    EncoderCodePage(code_page).to_string(bytes).ok()
 }
 
 fn rotate_artifacts(state: &SharedState, new_path: PathBuf) {
@@ -1000,6 +1100,41 @@ mod tests {
             None => panic!("no text content"),
         };
         serde_json::from_str(&text).expect("json")
+    }
+
+    #[test]
+    fn shell_output_keeps_valid_utf8_korean() {
+        assert_eq!(lossy("한글 출력\n".as_bytes().to_vec()), "한글 출력\n");
+    }
+
+    #[test]
+    fn shell_output_decodes_utf8_and_utf16_boms() {
+        let mut utf8 = vec![0xEF, 0xBB, 0xBF];
+        utf8.extend_from_slice("한글\n".as_bytes());
+        assert_eq!(lossy(utf8), "한글\n");
+
+        let mut utf16_le = vec![0xFF, 0xFE];
+        for unit in "한글\r\n".encode_utf16() {
+            utf16_le.extend_from_slice(&unit.to_le_bytes());
+        }
+        assert_eq!(lossy(utf16_le), "한글\r\n");
+    }
+
+    #[test]
+    fn shell_output_detects_bomless_utf16() {
+        let mut utf16_le = Vec::new();
+        for unit in "PowerShell 한글\r\n".encode_utf16() {
+            utf16_le.extend_from_slice(&unit.to_le_bytes());
+        }
+        assert_eq!(lossy(utf16_le), "PowerShell 한글\r\n");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn shell_output_decodes_windows_949_korean() {
+        // "한글\r\n" encoded as Windows-949 (the Korean Windows console page).
+        let decoded = decode_windows_code_page(&[0xC7, 0xD1, 0xB1, 0xDB, 0x0D, 0x0A], 949);
+        assert_eq!(decoded.as_deref(), Some("한글\r\n"));
     }
 
     #[tokio::test(flavor = "current_thread")]
