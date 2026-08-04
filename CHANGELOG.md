@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.7
+
+- chore(sync): adopt Buzz desktop-v0.5.4 ([#8](https://github.com/heap-cider/maju/pull/8)) ([`016883084`](https://github.com/heap-cider/maju/commit/016883084a1cbe6397227aa4666eb4512f818eb2))
+
+
 ## v0.2.6
 
 - fix: deduplicate tagged welcome agents across devices ([`06429c696`](https://github.com/heap-cider/maju/commit/06429c69653e1f5f7c554f353bd1214a0d063c62))
