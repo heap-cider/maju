@@ -6,10 +6,10 @@ use super::agent_env::build_maju_agent_provider_defaults;
 
 use crate::{
     managed_agents::{
-        append_log_marker, known_acp_runtime, login_shell_path, managed_agent_log_path,
-        missing_command_message, normalize_agent_args, open_log_file, resolve_command,
-        spawn_key_refusal, KnownAcpRuntime, ManagedAgentPairRuntime, ManagedAgentRecord,
-        ManagedAgentRuntimeKey, ManagedAgentSummary,
+        append_log_marker, current_agent_avatar_url, known_acp_runtime, login_shell_path,
+        managed_agent_log_path, missing_command_message, normalize_agent_args, open_log_file,
+        resolve_command, spawn_key_refusal, KnownAcpRuntime, ManagedAgentPairRuntime,
+        ManagedAgentRecord, ManagedAgentRuntimeKey, ManagedAgentSummary,
     },
     util::now_iso,
 };
@@ -294,7 +294,6 @@ pub fn build_managed_agent_summary(
         .and_then(|r| r.mcp_command)
         .unwrap_or("")
         .to_string();
-
     Ok(ManagedAgentSummary {
         pubkey: record.pubkey.clone(),
         name: record.name.clone(),
@@ -303,6 +302,7 @@ pub fn build_managed_agent_summary(
         team_id: record.team_id.clone(),
         relay_url: record.relay_url.clone(),
         acp_command: record.acp_command.clone(),
+        avatar_url: current_agent_avatar_url(record, &descriptor.command, personas),
         agent_command: descriptor.command,
         agent_command_override: record.agent_command_override.clone(),
         agent_args: descriptor.args,
@@ -312,7 +312,6 @@ pub fn build_managed_agent_summary(
         max_turn_duration_seconds: record.max_turn_duration_seconds,
         parallelism: record.parallelism,
         system_prompt: effective_prompt,
-        avatar_url: record.avatar_url.clone(),
         model: effective_model,
         model_source,
         provider: effective_provider,

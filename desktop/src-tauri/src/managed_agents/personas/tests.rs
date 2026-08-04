@@ -1,7 +1,8 @@
 use super::{
     built_in_persona_records, ensure_persona_ids_are_active, ensure_persona_is_active,
-    merge_personas, migrate_retired_personas, validate_persona_activation_change,
-    validate_persona_deletion, BUILT_IN_PERSONAS, RETIRED_PERSONAS,
+    merge_personas, migrate_retired_personas, resolve_current_agent_avatar_url,
+    validate_persona_activation_change, validate_persona_deletion, BUILT_IN_PERSONAS,
+    RETIRED_PERSONAS,
 };
 use crate::managed_agents::discovery::{default_agent_command, effective_agent_command};
 use crate::managed_agents::AgentDefinition;
@@ -29,6 +30,50 @@ fn custom_persona(id: &str, display_name: &str) -> AgentDefinition {
         created_at: "2026-03-19T00:00:00Z".to_string(),
         updated_at: "2026-03-19T00:00:00Z".to_string(),
     }
+}
+
+#[test]
+fn current_definition_avatar_overrides_stale_device_snapshot() {
+    let persona = custom_persona("yui", "Yui");
+
+    let resolved = resolve_current_agent_avatar_url(
+        Some("yui"),
+        Some("https://example.com/codex-default.png".to_string()),
+        "codex-acp",
+        &[persona],
+    );
+
+    assert_eq!(resolved.as_deref(), Some("https://example.com/avatar.png"));
+}
+
+#[test]
+fn cleared_definition_avatar_uses_current_command_default() {
+    let mut persona = custom_persona("yui", "Yui");
+    persona.avatar_url = None;
+
+    let resolved = resolve_current_agent_avatar_url(
+        Some("yui"),
+        Some("https://example.com/old-custom.png".to_string()),
+        "codex-acp",
+        &[persona],
+    );
+
+    assert_eq!(
+        resolved,
+        crate::managed_agents::managed_agent_avatar_url("codex-acp")
+    );
+}
+
+#[test]
+fn orphaned_agent_keeps_its_stored_avatar() {
+    let resolved = resolve_current_agent_avatar_url(
+        Some("missing"),
+        Some("https://example.com/stored.png".to_string()),
+        "codex-acp",
+        &[],
+    );
+
+    assert_eq!(resolved.as_deref(), Some("https://example.com/stored.png"));
 }
 
 #[test]

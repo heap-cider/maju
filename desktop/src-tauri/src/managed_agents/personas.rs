@@ -68,6 +68,48 @@ pub(crate) fn built_in_persona_avatar_url(id: &str) -> Option<&'static str> {
         .and_then(|persona| persona.avatar_url)
 }
 
+/// Resolve the avatar currently owned by an agent definition.
+///
+/// A linked definition is authoritative across devices. The per-device agent
+/// record is only a runtime snapshot and may still contain an older command
+/// icon after an inbound definition update. Unlinked or orphaned records keep
+/// using their stored avatar because there is no definition to override it.
+pub(crate) fn resolve_current_agent_avatar_url(
+    persona_id: Option<&str>,
+    stored_avatar_url: Option<String>,
+    effective_command: &str,
+    personas: &[AgentDefinition],
+) -> Option<String> {
+    let stored_avatar_url = stored_avatar_url.and_then(|url| {
+        let trimmed = url.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    });
+    let Some(persona) = persona_id.and_then(|id| personas.iter().find(|item| item.id == id)) else {
+        return stored_avatar_url;
+    };
+
+    persona
+        .avatar_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|url| !url.is_empty())
+        .map(str::to_string)
+        .or_else(|| super::managed_agent_avatar_url(effective_command))
+}
+
+pub(crate) fn current_agent_avatar_url(
+    record: &super::ManagedAgentRecord,
+    effective_command: &str,
+    personas: &[AgentDefinition],
+) -> Option<String> {
+    resolve_current_agent_avatar_url(
+        record.persona_id.as_deref(),
+        record.avatar_url.clone(),
+        effective_command,
+        personas,
+    )
+}
+
 const RETIRED_PERSONAS: &[(&str, &str)] = &[
     (
         "builtin:solo",

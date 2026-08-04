@@ -91,50 +91,44 @@ pub(crate) async fn reconcile_agent_profile(
     // Query the relay for the agent's existing kind:0 profile.
     let existing = query_agent_profile(state, &relay_url, agent_pubkey).await?;
 
-    // Resolve the expected avatar — backfilling for legacy records that have no
-    // stored avatar_url yet.
-    let expected_avatar = match data.avatar_url.as_deref() {
-        Some(url) => url.to_string(),
-        None => {
-            // Legacy record: the relay profile may have been corrupted by the
-            // old reconciliation code (it overwrote the persona avatar with the
-            // command default), so the persona record is the authoritative source.
-            let persona_avatar = data.persona_id.as_ref().and_then(|pid| {
-                load_personas(app)
-                    .ok()?
-                    .into_iter()
-                    .find(|p| p.id == *pid)?
-                    .avatar_url
-            });
+    // The current definition wins over the per-device runtime snapshot. This
+    // prevents another PC with an old command-default icon from publishing it
+    // over a newer custom avatar. Unlinked legacy records still recover from
+    // their relay profile before falling back to the command icon.
+    let personas = load_personas(app).unwrap_or_default();
+    let stored_or_legacy_avatar = data.avatar_url.clone().or_else(|| {
+        let resolved = resolve_legacy_avatar(
+            None,
+            existing.as_ref().and_then(|info| info.picture.clone()),
+            &data.agent_command,
+        );
+        (!resolved.is_empty()).then_some(resolved)
+    });
+    let expected_avatar = crate::managed_agents::resolve_current_agent_avatar_url(
+        data.persona_id.as_deref(),
+        stored_or_legacy_avatar,
+        &data.agent_command,
+        &personas,
+    );
 
-            let backfilled = resolve_legacy_avatar(
-                persona_avatar,
-                existing.as_ref().and_then(|info| info.picture.clone()),
-                &data.agent_command,
-            );
-
-            // Persist the backfilled avatar so this migration only runs once.
-            if !backfilled.is_empty() {
-                let _store_guard = state
-                    .managed_agents_store_lock
-                    .lock()
-                    .map_err(|e| e.to_string())?;
-                let mut records = load_managed_agents(app)?;
-                if let Some(record) = records.iter_mut().find(|r| r.pubkey == data.pubkey) {
-                    record.avatar_url = Some(backfilled.clone());
-                    save_managed_agents(app, &records)?;
-                }
-            }
-
-            backfilled
+    // Repair the local snapshot too. Future starts then agree even if the
+    // definition is temporarily unavailable during an early sync window.
+    let stored_avatar = data
+        .avatar_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|url| !url.is_empty());
+    if stored_avatar != expected_avatar.as_deref() {
+        let _store_guard = state
+            .managed_agents_store_lock
+            .lock()
+            .map_err(|e| e.to_string())?;
+        let mut records = load_managed_agents(app)?;
+        if let Some(record) = records.iter_mut().find(|r| r.pubkey == data.pubkey) {
+            record.avatar_url = expected_avatar.clone();
+            save_managed_agents(app, &records)?;
         }
-    };
-
-    let expected_avatar = if expected_avatar.is_empty() {
-        None
-    } else {
-        Some(expected_avatar)
-    };
+    }
 
     if !profile_needs_sync(existing.as_ref(), &data.name, expected_avatar.as_deref()) {
         return Ok(());
