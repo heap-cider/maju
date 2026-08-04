@@ -41,6 +41,7 @@ export default defineConfig({
         "**/channel-mute.spec.ts",
         "**/channel-star.spec.ts",
         "**/channel-controls.spec.ts",
+        "**/channel-activity-popover.spec.ts",
         "**/active-turn-resilience.spec.ts",
         "**/profile-active-turn.spec.ts",
         "**/config-bridge-screenshots.spec.ts",
@@ -134,6 +135,7 @@ export default defineConfig({
         "**/harness-management.spec.ts",
         "**/harness-catalog-screenshots.spec.ts",
         "**/inline-custom-harness.spec.ts",
+        "**/where-to-run-config.spec.ts",
         "**/huddle-transcription.spec.ts",
       ],
       use: {
