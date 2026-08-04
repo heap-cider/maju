@@ -104,6 +104,7 @@ export function CommunitySwitcher({
     React.useState<Community | null>(null);
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
   const profileMenuHoverTimer = React.useRef<number | null>(null);
+  const profileMenuPinnedOpen = React.useRef(false);
   const connectionState = useRelayConnection();
   const degraded = isRelayConnectionDegraded(connectionState);
   const connectionLabel = CONNECTION_STATE_LABEL[connectionState];
@@ -121,6 +122,7 @@ export function CommunitySwitcher({
   function scheduleProfileMenu(nextOpen: boolean) {
     if (variant !== "profile-menu") return;
     clearProfileMenuHoverTimer();
+    if (!nextOpen && profileMenuPinnedOpen.current) return;
     profileMenuHoverTimer.current = window.setTimeout(
       () => setDropdownOpen(nextOpen),
       nextOpen ? 80 : 160,
@@ -132,10 +134,15 @@ export function CommunitySwitcher({
       setDropdownOpen(nextOpen);
       return;
     }
-    if (!nextOpen) {
-      clearProfileMenuHoverTimer();
-    }
+    clearProfileMenuHoverTimer();
+    profileMenuPinnedOpen.current = nextOpen;
     setDropdownOpen(nextOpen);
+  }
+
+  function closeProfileMenu() {
+    clearProfileMenuHoverTimer();
+    profileMenuPinnedOpen.current = false;
+    setDropdownOpen(false);
   }
 
   React.useEffect(
@@ -243,7 +250,7 @@ export function CommunitySwitcher({
                 <button
                   className="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-hidden transition-colors hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus-visible:bg-muted/50 focus-visible:outline-none"
                   onClick={() => {
-                    setDropdownOpen(false);
+                    closeProfileMenu();
                     void writeTextToClipboard(activeCommunity.relayUrl);
                   }}
                   role="menuitem"
@@ -256,7 +263,7 @@ export function CommunitySwitcher({
                   <button
                     className="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-hidden transition-colors hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus-visible:bg-muted/50 focus-visible:outline-none"
                     onClick={() => {
-                      setDropdownOpen(false);
+                      closeProfileMenu();
                       onInvite();
                     }}
                     role="menuitem"
@@ -269,7 +276,7 @@ export function CommunitySwitcher({
                 <button
                   className="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-hidden transition-colors hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus-visible:bg-muted/50 focus-visible:outline-none"
                   onClick={() => {
-                    setDropdownOpen(false);
+                    closeProfileMenu();
                     setEditingCommunity(activeCommunity);
                   }}
                   role="menuitem"
@@ -284,7 +291,7 @@ export function CommunitySwitcher({
             <button
               className="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-hidden transition-colors hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus-visible:bg-muted/50 focus-visible:outline-none"
               onClick={() => {
-                setDropdownOpen(false);
+                closeProfileMenu();
                 onAddCommunity();
               }}
               role="menuitem"

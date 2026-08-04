@@ -24,7 +24,7 @@
 - `origin` (`heap-cider/maju`) is the writable primary repository. `upstream`
   (`block/buzz`) is read-only and must never receive pushes, issues, or pull
   requests from Maju work.
-- Maju is currently synchronized through Buzz release `desktop-v0.5.3`.
+- Maju is currently synchronized through Buzz release `desktop-v0.5.4`.
 - Do not merge, rebase, or cherry-pick an upstream release directly into Maju.
   Use the project-local `sync-buzz-upstream` skill to inspect and normalize the
   upstream release delta first.
@@ -187,6 +187,10 @@ first, then implement handling in the relay.
 
 **Channel scoping**: Channels use `h` tags (NIP-29 group tag), not `e` tags.
 Filters and queries must scope to `h` tags when operating within a channel.
+This applies to events *inside* a channel. Addressable events that describe a
+channel carry its id in their `d` tag instead: kind:39000 (metadata),
+kind:39001, kind:39002 (membership). `get_channels` resolves a user's channels
+from the `d` tag of their kind:39002 events, not from `h`.
 
 **Agent-facing operations go in `maju-cli`**: New agent-facing features belong in `maju-cli` — add a subcommand there first, then wire the REST/WebSocket call in `client.rs`. `maju-dev-mcp` (shell + file tools for `maju-agent`) is separate.
 

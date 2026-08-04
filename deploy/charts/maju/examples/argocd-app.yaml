@@ -16,9 +16,13 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: oci://ghcr.io/heap-cider/maju/charts
-    chart: maju
-    targetRevision: 0.1.0
+    # Argo CD >= 3.1 native OCI sources require the full chart artifact path.
+    # For oci:// URLs the split `repoURL: .../charts` + `chart: maju` form
+    # ignores `chart` and can fail with a pull-denied error. The validator still
+    # requires `path`, so OCI sources use ".".
+    repoURL: oci://ghcr.io/heap-cider/maju/charts/maju
+    path: .
+    targetRevision: 0.1.7
     helm:
       releaseName: maju
       values: |
