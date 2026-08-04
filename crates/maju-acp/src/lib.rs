@@ -4041,7 +4041,10 @@ async fn run_authenticate(args: AuthenticateArgs) -> Result<()> {
 /// Flow: spawn → initialize → session/new → print models → shutdown.
 /// No relay connection, no MCP servers, no subscriptions. ~2-5s total.
 async fn run_models(args: ModelsArgs) -> Result<()> {
-    use acp::{extract_model_config_options, extract_model_state};
+    use acp::{
+        extract_model_config_options, extract_model_state, extract_session_config_options,
+        resolve_model_switch_method, ModelSwitchMethod,
+    };
 
     let agent_args = config::normalize_agent_args(&args.agent.agent_command, args.agent.agent_args);
     let cwd = std::env::current_dir()
@@ -4097,9 +4100,67 @@ async fn run_models(args: ModelsArgs) -> Result<()> {
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
 
-    // Extract model info from session/new response.
-    let config_options = extract_model_config_options(&session_resp.raw);
-    let model_state = extract_model_state(&session_resp.raw);
+    // Select the requested model inside this short-lived probe session. ACP
+    // returns the full, model-dependent configOptions list after a successful
+    // change, so use that response as the authoritative discovery result.
+    let mut session_result = session_resp.raw;
+    if let Some(requested_model) = args
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|m| !m.is_empty())
+    {
+        if let Some(method) = resolve_model_switch_method(&session_result, requested_model) {
+            let switch_result = tokio::time::timeout(MODELS_TIMEOUT, async {
+                match method {
+                    ModelSwitchMethod::ConfigOption {
+                        config_id,
+                        option_value,
+                    } => {
+                        client
+                            .session_set_config_option(
+                                &session_resp.session_id,
+                                &config_id,
+                                &option_value,
+                            )
+                            .await
+                    }
+                    ModelSwitchMethod::SetModel { model_id } => {
+                        client
+                            .session_set_model(&session_resp.session_id, &model_id)
+                            .await
+                    }
+                }
+            })
+            .await;
+
+            match switch_result {
+                Ok(Ok(update)) => {
+                    for key in ["configOptions", "models"] {
+                        if let Some(value) = update.get(key) {
+                            session_result[key] = value.clone();
+                        }
+                    }
+                }
+                Ok(Err(error)) => {
+                    client.shutdown().await;
+                    eprintln!("error: failed to select model {requested_model}: {error}");
+                    std::process::exit(1);
+                }
+                Err(_) => {
+                    client.shutdown().await;
+                    eprintln!("error: model selection timed out ({MODELS_TIMEOUT:?})");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
+    // Keep the JSON path complete for the desktop while preserving the
+    // model-only human-readable output below.
+    let session_config_options = extract_session_config_options(&session_result);
+    let config_options = extract_model_config_options(&session_result);
+    let model_state = extract_model_state(&session_result);
 
     if args.json {
         // Structured JSON output — consumed by Phase 3 `get_agent_models`.
@@ -4109,7 +4170,7 @@ async fn run_models(args: ModelsArgs) -> Result<()> {
                 "version": agent_version,
             },
             "stable": {
-                "configOptions": config_options,
+                "configOptions": session_config_options,
             },
             "unstable": model_state.as_ref().map(|ms| serde_json::json!({
                 "currentModelId": ms.get("currentModelId"),

@@ -1,6 +1,40 @@
 use super::*;
 
 #[test]
+fn model_normalization_keeps_full_typed_config_options() {
+    let raw = serde_json::json!({
+        "agent": { "name": "generic-acp", "version": "1.0" },
+        "stable": {
+            "configOptions": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "category": "model",
+                    "type": "select",
+                    "currentValue": "base",
+                    "options": [{ "value": "base", "name": "Base" }]
+                },
+                {
+                    "id": "fast-mode",
+                    "name": "Fast mode",
+                    "type": "boolean",
+                    "currentValue": false
+                }
+            ]
+        }
+    });
+
+    let response = normalize_agent_models(&raw, Some("base".to_string()));
+    assert_eq!(response.models.len(), 1);
+    assert_eq!(response.models[0].id, "base");
+    assert_eq!(response.config_options.len(), 2);
+    assert_eq!(
+        response.config_options[1].current_value,
+        Some(serde_json::json!(false))
+    );
+}
+
+#[test]
 fn openai_model_normalization_keeps_agent_text_models() {
     let models = normalize_openai_compatible_models(
         OpenAiModelListResponse {

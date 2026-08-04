@@ -384,7 +384,7 @@ pub fn put_agent_session_config(
     state.put_session_cache(runtime_key, cache);
 }
 
-fn parse_config_options(raw: Option<&serde_json::Value>) -> Vec<AcpConfigOptionEntry> {
+pub(super) fn parse_config_options(raw: Option<&serde_json::Value>) -> Vec<AcpConfigOptionEntry> {
     let arr = match raw.and_then(|v| v.as_array()) {
         Some(a) => a,
         None => return Vec::new(),
@@ -404,13 +404,19 @@ fn parse_config_options(raw: Option<&serde_json::Value>) -> Vec<AcpConfigOptionE
                     .map(str::to_string),
                 display_name: opt
                     .get("displayName")
+                    .or_else(|| opt.get("name"))
                     .and_then(|v| v.as_str())
                     .map(str::to_string),
+                description: opt
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+                option_type: opt.get("type").and_then(|v| v.as_str()).map(str::to_string),
                 current_value: opt
-                    .get("value")
-                    .or_else(|| opt.get("currentValue"))
-                    .and_then(|v| v.as_str())
-                    .map(str::to_string),
+                    .get("currentValue")
+                    .or_else(|| opt.get("value"))
+                    .filter(|value| value.is_string() || value.is_boolean() || value.is_number())
+                    .cloned(),
                 options: parse_option_values(opt.get("options")),
             })
         })
@@ -429,6 +435,7 @@ fn parse_option_values(raw: Option<&serde_json::Value>) -> Vec<AcpConfigOptionVa
                 value,
                 display_name: o
                     .get("displayName")
+                    .or_else(|| o.get("name"))
                     .and_then(|v| v.as_str())
                     .map(str::to_string),
             })

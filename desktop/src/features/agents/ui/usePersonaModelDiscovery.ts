@@ -167,6 +167,7 @@ export function usePersonaModelDiscovery({
   modelFieldVisible,
   open,
   provider,
+  selectedModel = "",
   selectedRuntime,
 }: {
   envVars: EnvVarsValue;
@@ -174,6 +175,7 @@ export function usePersonaModelDiscovery({
   modelFieldVisible: boolean;
   open: boolean;
   provider: string;
+  selectedModel?: string;
   selectedRuntime: AcpRuntimeCatalogEntry | undefined;
 }) {
   const [modelDiscoveryData, setModelDiscoveryData] =
@@ -194,6 +196,7 @@ export function usePersonaModelDiscovery({
   const modelDiscoveryRequestRef = React.useRef(0);
 
   const trimmedProvider = provider.trim();
+  const trimmedSelectedModel = selectedModel.trim();
   const shouldDebounceModelDiscovery =
     providerRequiresExplicitModel(trimmedProvider);
   const discoveryAgentCommand = selectedRuntime?.command?.trim()
@@ -228,6 +231,7 @@ export function usePersonaModelDiscovery({
       agentCommand: discoveryAgentCommand,
       agentArgs: modelDiscoveryArgsKey,
       provider: trimmedProvider,
+      model: trimmedSelectedModel,
       envVars: modelDiscoveryEnvKey,
     });
   }, [
@@ -236,6 +240,7 @@ export function usePersonaModelDiscovery({
     modelDiscoveryArgsKey,
     modelDiscoveryEnvKey,
     trimmedProvider,
+    trimmedSelectedModel,
   ]);
 
   React.useEffect(() => {
@@ -291,6 +296,7 @@ export function usePersonaModelDiscovery({
         agentCommand: activeAgentCommand,
         agentArgs: selectedRuntimeDefaultArgs ?? [],
         provider: trimmedProvider || undefined,
+        model: trimmedSelectedModel || undefined,
         envVars,
         definitionEnv: selectedRuntimeDefinitionEnv ?? {},
       })
@@ -364,6 +370,7 @@ export function usePersonaModelDiscovery({
     selectedRuntimeLabel,
     shouldDebounceModelDiscovery,
     trimmedProvider,
+    trimmedSelectedModel,
   ]);
 
   const activeModelDiscoveryData =
@@ -397,6 +404,7 @@ export function usePersonaModelDiscovery({
   });
 
   return {
+    discoveredConfigOptions: activeModelDiscoveryData?.configOptions ?? [],
     discoveredModelOptions,
     modelDiscoveryLoading: modelDiscoveryPending,
     modelDiscoveryStatus:

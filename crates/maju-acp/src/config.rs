@@ -13,6 +13,11 @@ use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
 
+/// Internal, typed ACP session option overrides persisted by Maju Desktop.
+/// The JSON object is consumed by `maju-acp` and is not forwarded to the
+/// underlying adapter process.
+pub const ACP_CONFIG_OPTIONS_ENV: &str = "MAJU_ACP_CONFIG_OPTIONS";
+
 use crate::filter::SubscriptionRule;
 
 /// Default idle timeout (seconds) when neither `--idle-timeout` nor the
@@ -182,6 +187,12 @@ pub struct ModelsArgs {
     /// Output structured JSON instead of human-readable text.
     #[arg(long)]
     pub json: bool,
+
+    /// Model to select before returning config options. This lets callers
+    /// discover model-dependent options such as reasoning effort without
+    /// keeping a probe session alive.
+    #[arg(long)]
+    pub model: Option<String>,
 }
 
 /// Shared agent-spawn flags for lightweight local ACP helper subcommands.

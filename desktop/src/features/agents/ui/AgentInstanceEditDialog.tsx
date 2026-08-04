@@ -13,11 +13,9 @@ import {
 } from "@/features/agents/hooks";
 import { isManagedAgentActive } from "@/features/agents/lib/managedAgentControlActions";
 import type {
-  ManagedAgent,
   RespondToMode,
   UpdateManagedAgentInput,
 } from "@/shared/api/types";
-import type { EditAgentFocusTarget } from "@/features/agents/openEditAgentEvent";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { ChooserDialogContent } from "@/shared/ui/chooser-dialog-content";
@@ -85,6 +83,8 @@ import { AgentDefaultsDialog } from "./AgentDefaultsDialog";
 import { useProviderApiKeyFieldState } from "./providerApiKeyFieldState";
 import { resolveModelFieldStatusMessage } from "./agentConfigControls";
 import { AdvancedRequiredBadge } from "./AdvancedRequiredBadge";
+import { AcpThoughtLevelField } from "./AcpNativeConfigFields";
+import { MAJU_ACP_CONFIG_OPTIONS } from "../lib/acpNativeOptions";
 import { showAgentProfileSyncWarning } from "./agentProfileSyncWarning";
 import { AddCustomHarnessDialog } from "./AddCustomHarnessDialog";
 import {
@@ -92,11 +92,8 @@ import {
   runtimeDropdownAction,
   usePendingHarnessSelection,
 } from "./addCustomHarness";
-
-const ADVANCED_FIELDS_MOTION_TRANSITION = {
-  duration: 0.18,
-  ease: [0.23, 1, 0.32, 1],
-} as const;
+import { ADVANCED_FIELDS_MOTION_TRANSITION } from "./agentDialogMotion";
+import type { AgentInstanceEditDialogProps } from "./AgentInstanceEditDialog.types";
 
 export function AgentInstanceEditDialog({
   agent,
@@ -105,16 +102,7 @@ export function AgentInstanceEditDialog({
   onEditLinkedPersona,
   onOpenChange,
   onUpdated,
-}: {
-  agent: ManagedAgent;
-  /** Optional field to scroll/focus when the dialog opens from a card deep-link. */
-  initialFocus?: EditAgentFocusTarget;
-  open: boolean;
-  /** Present only when the linked definition is editable (non-built-in, resolved). Caller closes this dialog and enters definition-edit. */
-  onEditLinkedPersona?: () => void;
-  onOpenChange: (open: boolean) => void;
-  onUpdated?: (agent: ManagedAgent) => void;
-}) {
+}: AgentInstanceEditDialogProps) {
   const updateMutation = useUpdateManagedAgentMutation();
   const startMutation = useStartManagedAgentMutation();
   const runtimesQuery = useAcpRuntimesQuery({ enabled: open });
@@ -414,6 +402,7 @@ export function AgentInstanceEditDialog({
   const providerForDiscovery = llmProviderFieldVisible ? effectiveProvider : "";
 
   const {
+    discoveredConfigOptions,
     discoveredModelOptions,
     modelDiscoveryLoading,
     modelDiscoveryStatus,
@@ -423,6 +412,7 @@ export function AgentInstanceEditDialog({
     modelFieldVisible: true,
     open,
     provider: providerForDiscovery,
+    selectedModel: inheritedSubmission.model ?? "",
     selectedRuntime,
   });
 
@@ -879,8 +869,6 @@ export function AgentInstanceEditDialog({
         }
       >
         <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-          {/* Avatar is definition-level identity. hideEditControl suppresses
-              the internal pencil badge; the CTA below is the only edit path. */}
           <div className="flex flex-col items-center gap-2">
             <AgentCreationPreview
               avatarUrl={previewAvatarUrl}
@@ -910,7 +898,6 @@ export function AgentInstanceEditDialog({
             )}
           </div>
           <div className="space-y-5">
-            {/* Agent name */}
             <div className="space-y-1.5">
               <label
                 className="text-sm font-medium text-foreground"
@@ -1131,6 +1118,15 @@ export function AgentInstanceEditDialog({
               ) : null}
             </div>
 
+            <AcpThoughtLevelField
+              configOptions={discoveredConfigOptions}
+              disabled={updateMutation.isPending || modelDiscoveryLoading}
+              envVars={envVars}
+              inheritedEnvVars={inheritedEnvVarsForAdvanced}
+              onEnvVarsChange={setEnvVars}
+              useCustomSelect
+            />
+
             <AgentAiDefaultsNotice
               onEditDefaults={() => setAiDefaultsOpen(true)}
               triggerRef={aiDefaultsTriggerRef}
@@ -1178,6 +1174,7 @@ export function AgentInstanceEditDialog({
                     transition={advancedFieldsTransition}
                   >
                     <EditAgentAdvancedFields
+                      acpConfigOptions={discoveredConfigOptions}
                       acpCommand={acpCommand}
                       agentArgs={agentArgs}
                       autoRestartOnConfigChange={autoRestartOnConfigChange}
@@ -1185,7 +1182,9 @@ export function AgentInstanceEditDialog({
                       envVars={envVars}
                       fileSatisfiedEnvKeys={fileSatisfiedEnvKeys}
                       hiddenEnvKeys={
-                        topLevelSecretEnvVar ? [topLevelSecretEnvVar] : []
+                        topLevelSecretEnvVar
+                          ? [topLevelSecretEnvVar, MAJU_ACP_CONFIG_OPTIONS]
+                          : [MAJU_ACP_CONFIG_OPTIONS]
                       }
                       focusKey={
                         initialFocus?.type === "env_key"

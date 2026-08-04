@@ -1,5 +1,9 @@
 import type { Page } from "@playwright/test";
-import type { ChannelTemplate, RelayEvent } from "../../src/shared/api/types";
+import type {
+  AcpConfigOptionEntry,
+  ChannelTemplate,
+  RelayEvent,
+} from "../../src/shared/api/types";
 import { FEATURE_OVERRIDES_STORAGE_KEY, PREVIEW_FEATURE_IDS } from "./features";
 
 export const TEST_IDENTITIES = {
@@ -518,6 +522,7 @@ type MockBridgeOptions = {
     supportsSwitching: boolean;
     agentDefaultModel?: string | null;
     selectedModel?: string | null;
+    configOptions?: AcpConfigOptionEntry[];
   };
   /**
    * When set, `discover_agent_models` throws with this message instead of

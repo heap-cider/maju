@@ -25,6 +25,11 @@ import {
   getRenderableEffortField,
   hasRenderableAgentConfigField,
 } from "@/features/agents/lib/agentConfigCore";
+import { MAJU_ACP_CONFIG_OPTIONS } from "@/features/agents/lib/acpNativeOptions";
+import {
+  AcpAdvancedOptionFields,
+  AcpThoughtLevelField,
+} from "@/features/agents/ui/AcpNativeConfigFields";
 import {
   getBakedProviderInheritLabel,
   getGlobalModelFallback,
@@ -58,6 +63,20 @@ import { SettingsOptionGroup } from "@/features/settings/ui/SettingsOptionGroup"
 import { AdvancedRequiredBadge } from "./AdvancedRequiredBadge";
 import { CardMintKeyCue } from "./CardMintKeyCue";
 import { getGlobalAgentCredentialState } from "./globalAgentCredentialState";
+import {
+  type AgentConfigDisclosure,
+  resolveDisclosure,
+  shouldRenderModelControl,
+  shouldRevealDependentConfigFields,
+  shouldShowModelStatusMessage,
+} from "./agentConfigFieldVisibility";
+
+export {
+  resolveDisclosure,
+  shouldRenderModelControl,
+  shouldRevealDependentConfigFields,
+  shouldShowModelStatusMessage,
+};
 
 export const EMPTY_GLOBAL_CONFIG: GlobalAgentConfig = {
   env_vars: {},
@@ -71,17 +90,13 @@ const BAKED_STRUCTURED_KEYS = new Set([
   "MAJU_AGENT_PROVIDER",
   "MAJU_AGENT_MODEL",
   MAJU_AGENT_THINKING_EFFORT,
+  MAJU_ACP_CONFIG_OPTIONS,
 ]);
 
 const PROGRESSIVE_FIELDS_TRANSITION = {
   duration: 0.22,
   ease: [0.23, 1, 0.32, 1],
 } as const;
-type AgentConfigDisclosure =
-  | "full"
-  | "onboarding-essential"
-  | "progressive-defaults";
-
 // Canonical behaviors (PR 2 flag cleanup). These were per-surface props;
 // onboarding's values won every call and are now the only behavior:
 // - auto-select a valid model when the provider changes
@@ -102,92 +117,6 @@ export const CANONICAL_CONFIG_BEHAVIORS = {
   preserveCredentialEnvVarsOnProviderChange,
   requireProviderForModelAndEffort,
 } as const;
-
-/**
- * Disclosure preset → the eight visibility decisions it owns. Full and
- * progressive defaults expose the same controls; the progressive preset
- * changes only when those controls are revealed. Exported for the contract
- * test.
- */
-export function resolveDisclosure(disclosure: AgentConfigDisclosure) {
-  const full = disclosure !== "onboarding-essential";
-  return {
-    showAdvancedFields: full,
-    showCustomModelOption: full,
-    showCustomProviderOption: full,
-    showDescriptions: full,
-    showEffortField: true,
-    showProviderPlaceholderOption: full,
-    showRequiredIndicators: full,
-    showUnavailableEffortOptions: full,
-  } as const;
-}
-
-export function shouldRevealDependentConfigFields({
-  disclosure,
-  providerFieldVisible,
-  providerValue,
-}: {
-  disclosure: AgentConfigDisclosure;
-  providerFieldVisible: boolean;
-  providerValue: string;
-}): boolean {
-  return (
-    disclosure !== "progressive-defaults" ||
-    !providerFieldVisible ||
-    providerValue.trim().length > 0
-  );
-}
-
-/**
- * Determines whether the status line beneath the Model field should render.
- *
- * Discovery warnings bypass the `onboarding-essential` preset so that a
- * first-run failure is never silently invisible.  On the happy path
- * (`status === null`) the status line stays hidden in onboarding, keeping
- * the page clean.
- */
-export function shouldShowModelStatusMessage(
-  showDescriptions: boolean,
-  status: { message: string; tone: string } | null,
-): boolean {
-  return showDescriptions || status !== null;
-}
-
-/**
- * Whether the Model control should render given discovery state.
- *
- * Optional-model harnesses (Claude Code / Codex, `acpNative`) omit the control
- * while discovery is in flight and after a **confirmed successful empty**
- * catalog (IPC resolved, no usable options) — there is nothing useful to pick.
- * Discovery failures / unavailable runtimes keep the control so #2246 failure
- * UI can render. Full disclosure still shows the control when Custom model is
- * available. Required-model harnesses always render the control.
- */
-export function shouldRenderModelControl({
-  discoveredModelOptions,
-  modelDiscoveryLoading,
-  modelDiscoverySuccessfulEmpty,
-  modelIsOptional,
-  showCustomModelOption,
-}: {
-  discoveredModelOptions: readonly { id: string }[] | null;
-  modelDiscoveryLoading: boolean;
-  /** True only when discovery IPC resolved with a response that yielded no options. */
-  modelDiscoverySuccessfulEmpty: boolean;
-  modelIsOptional: boolean;
-  showCustomModelOption: boolean;
-}): boolean {
-  if (!modelIsOptional) return true;
-  if (modelDiscoveryLoading) return false;
-  const hasExplicitModel = (discoveredModelOptions ?? []).some(
-    (option) => option.id.trim().length > 0,
-  );
-  if (hasExplicitModel) return true;
-  if (showCustomModelOption) return true;
-  // Omit only on confirmed successful empty — not on failure/unavailable.
-  return !modelDiscoverySuccessfulEmpty;
-}
 
 export type AgentConfigFieldsProps = {
   bakedEnv: BakedEnvEntry[];
@@ -356,6 +285,7 @@ export function AgentConfigFields({
   }, [configIsValid, onValidityChange]);
 
   const {
+    discoveredConfigOptions,
     discoveredModelOptions,
     modelDiscoveryLoading,
     modelDiscoveryStatus,
@@ -366,6 +296,7 @@ export function AgentConfigFields({
     modelFieldVisible: !dependentFieldsDisabled,
     open: true,
     provider: providerForDiscovery,
+    selectedModel: config.model ?? "",
     selectedRuntime,
   });
   const modelControlVisible = shouldRenderModelControl({
@@ -580,6 +511,10 @@ export function AgentConfigFields({
     if (effortPersistenceKey && effort !== undefined) {
       merged[effortPersistenceKey] = effort;
     }
+    const nativeOptions = config.env_vars[MAJU_ACP_CONFIG_OPTIONS];
+    if (nativeOptions !== undefined) {
+      merged[MAJU_ACP_CONFIG_OPTIONS] = nativeOptions;
+    }
     onConfigChange({ ...config, env_vars: merged });
   }
 
@@ -637,6 +572,11 @@ export function AgentConfigFields({
     ? (config.env_vars[effortPersistenceKey] ?? "")
     : "";
   const effortFieldVisible = showEffortField && effortField !== undefined;
+  const nativeThoughtLevelVisible = discoveredConfigOptions.some(
+    (option) =>
+      option.category === "thought_level" &&
+      (option.optionType === "boolean" || option.options.length > 0),
+  );
 
   const progressiveDefaults = disclosure === "progressive-defaults";
   const fieldClassName = unstyled
@@ -862,6 +802,23 @@ export function AgentConfigFields({
         </div>
       ) : null}
 
+      {!effortFieldVisible && showEffortField && nativeThoughtLevelVisible ? (
+        <div className={blockClassName}>
+          <AcpThoughtLevelField
+            configOptions={discoveredConfigOptions}
+            disabled={dependentFieldsDisabled || modelDiscoveryLoading}
+            envVars={config.env_vars}
+            fieldClassName={unstyled ? fieldClassName : undefined}
+            labelClassName={fieldLabelClassName}
+            onEnvVarsChange={(env_vars) =>
+              onConfigChange({ ...config, env_vars })
+            }
+            selectClassName={selectClassName}
+            useCustomSelect={useCustomSelect}
+          />
+        </div>
+      ) : null}
+
       {showAdvancedFields ? (
         <div className={cn(blockClassName, "space-y-3")}>
           <CardMintKeyCue envVars={config.env_vars} />
@@ -903,6 +860,15 @@ export function AgentConfigFields({
                       : PROGRESSIVE_FIELDS_TRANSITION
                   }
                 >
+                  <AcpAdvancedOptionFields
+                    configOptions={discoveredConfigOptions}
+                    disabled={dependentFieldsDisabled || modelDiscoveryLoading}
+                    envVars={config.env_vars}
+                    onEnvVarsChange={(env_vars) =>
+                      onConfigChange({ ...config, env_vars })
+                    }
+                    useCustomSelect={useCustomSelect}
+                  />
                   <EnvVarsEditor
                     fileSatisfiedKeys={advancedFileSatisfiedEnvKeys}
                     hiddenKeys={apiKeyEnvVar ? [apiKeyEnvVar] : []}
@@ -914,7 +880,9 @@ export function AgentConfigFields({
                     requiredKeys={advancedRequiredEnvKeys}
                     value={Object.fromEntries(
                       Object.entries(config.env_vars).filter(
-                        ([k]) => k !== MAJU_AGENT_THINKING_EFFORT,
+                        ([k]) =>
+                          k !== MAJU_AGENT_THINKING_EFFORT &&
+                          k !== MAJU_ACP_CONFIG_OPTIONS,
                       ),
                     )}
                   />
@@ -922,21 +890,34 @@ export function AgentConfigFields({
               ) : null}
             </AnimatePresence>
           ) : advancedOpen ? (
-            <EnvVarsEditor
-              fileSatisfiedKeys={advancedFileSatisfiedEnvKeys}
-              hiddenKeys={apiKeyEnvVar ? [apiKeyEnvVar] : []}
-              inheritedRows={bakedGenericRows}
-              inheritedRowsLabel="build"
-              keyAnnotations={CARD_MINT_KEY_ANNOTATIONS}
-              label="Environment variables"
-              onChange={handleEnvVarsChange}
-              requiredKeys={advancedRequiredEnvKeys}
-              value={Object.fromEntries(
-                Object.entries(config.env_vars).filter(
-                  ([k]) => k !== MAJU_AGENT_THINKING_EFFORT,
-                ),
-              )}
-            />
+            <div className="space-y-5">
+              <AcpAdvancedOptionFields
+                configOptions={discoveredConfigOptions}
+                disabled={dependentFieldsDisabled || modelDiscoveryLoading}
+                envVars={config.env_vars}
+                onEnvVarsChange={(env_vars) =>
+                  onConfigChange({ ...config, env_vars })
+                }
+                useCustomSelect={useCustomSelect}
+              />
+              <EnvVarsEditor
+                fileSatisfiedKeys={advancedFileSatisfiedEnvKeys}
+                hiddenKeys={apiKeyEnvVar ? [apiKeyEnvVar] : []}
+                inheritedRows={bakedGenericRows}
+                inheritedRowsLabel="build"
+                keyAnnotations={CARD_MINT_KEY_ANNOTATIONS}
+                label="Environment variables"
+                onChange={handleEnvVarsChange}
+                requiredKeys={advancedRequiredEnvKeys}
+                value={Object.fromEntries(
+                  Object.entries(config.env_vars).filter(
+                    ([k]) =>
+                      k !== MAJU_AGENT_THINKING_EFFORT &&
+                      k !== MAJU_ACP_CONFIG_OPTIONS,
+                  ),
+                )}
+              />
+            </div>
           ) : null}
         </div>
       ) : null}

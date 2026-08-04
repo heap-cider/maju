@@ -60,6 +60,14 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
   request body remains v1-shaped, preserving existing Codex and Claude
   compatibility while allowing dual-version adapters to connect without a
   retry.
+- Agent model and engine controls come from the ACP session's live
+  `configOptions`, not adapter names or model-name parsing. `category=model`
+  supplies the model picker and `category=thought_level` supplies reasoning;
+  other advertised boolean or choice options live under advanced settings.
+- Changing the model refreshes the full option set immediately, so dependent
+  controls show every value the selected model actually advertises. Missing,
+  stale, or invalid options fall back visibly to the engine default instead of
+  being guessed or silently converted.
 
 ## Account devices
 

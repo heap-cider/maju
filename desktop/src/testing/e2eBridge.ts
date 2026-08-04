@@ -13,7 +13,11 @@ import {
 import { relayClient } from "@/shared/api/relayClient";
 import { activateRateLimit } from "@/shared/api/relayRateLimitGate";
 import type { ConnectionState } from "@/shared/api/relayClientShared";
-import type { ChannelTemplate, RelayEvent } from "@/shared/api/types";
+import type {
+  AcpConfigOptionEntry,
+  ChannelTemplate,
+  RelayEvent,
+} from "@/shared/api/types";
 import { getMarkdownParseCount } from "@/shared/ui/markdown/nodeCache";
 import { syncAgentTurnsFromEvents } from "@/features/agents/activeAgentTurnsStore";
 import { recordTimeoutFromRejection } from "@/features/moderation/lib/timeoutStore";
@@ -501,6 +505,7 @@ type E2eConfig = {
       supportsSwitching: boolean;
       agentDefaultModel?: string | null;
       selectedModel?: string | null;
+      configOptions?: AcpConfigOptionEntry[];
     };
     /**
      * When set, `discover_agent_models` throws with this message instead of
@@ -11615,6 +11620,7 @@ export function maybeInstallE2eTauriMocks() {
             agentDefaultModel: discoverOverride.agentDefaultModel ?? null,
             selectedModel: discoverOverride.selectedModel ?? null,
             supportsSwitching: discoverOverride.supportsSwitching,
+            configOptions: discoverOverride.configOptions ?? [],
           };
         }
         const input = (

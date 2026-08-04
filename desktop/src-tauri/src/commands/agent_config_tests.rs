@@ -5,6 +5,24 @@
 //! `agent_config.rs`, so `use super::*` gives access to all items in that module.
 
 use super::*;
+
+#[test]
+fn config_options_preserve_boolean_values_and_v1_names() {
+    let payload = serde_json::json!([{
+        "id": "fast-mode",
+        "name": "Fast mode",
+        "description": "Use lower-latency inference",
+        "type": "boolean",
+        "currentValue": true
+    }]);
+
+    let options = parse_config_options(Some(&payload));
+    assert_eq!(options.len(), 1);
+    assert_eq!(options[0].config_id, "fast-mode");
+    assert_eq!(options[0].display_name.as_deref(), Some("Fast mode"));
+    assert_eq!(options[0].option_type.as_deref(), Some("boolean"));
+    assert_eq!(options[0].current_value, Some(serde_json::json!(true)));
+}
 use crate::managed_agents::config_bridge::types::ConfigOrigin;
 use crate::managed_agents::{BackendKind, RespondTo};
 

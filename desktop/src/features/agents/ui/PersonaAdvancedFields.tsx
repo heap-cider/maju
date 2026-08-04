@@ -5,6 +5,8 @@ import { CreateAgentRespondToField } from "./RespondToField";
 import type { PersonaBehaviorDraft } from "./personaBehaviorDraft";
 import { isMajuAgentRuntime } from "./majuAgentConfig";
 import { MajuAgentModelTuningFields } from "./majuAgentModelTuningFields";
+import { AcpAdvancedOptionFields } from "./AcpNativeConfigFields";
+import type { AcpConfigOptionEntry } from "@/shared/api/types";
 import {
   CARD_MINT_KEY_ANNOTATIONS,
   PERSONA_FIELD_CONTROL_CLASS,
@@ -13,6 +15,7 @@ import {
 } from "./agentConfigOptions";
 
 export function PersonaAdvancedFields({
+  acpConfigOptions = [],
   behaviorDraft,
   disabled,
   envVars,
@@ -28,6 +31,7 @@ export function PersonaAdvancedFields({
   fileSatisfiedEnvKeys = [],
   hiddenEnvKeys = [],
 }: {
+  acpConfigOptions?: readonly AcpConfigOptionEntry[];
   behaviorDraft: PersonaBehaviorDraft;
   disabled: boolean;
   envVars: EnvVarsValue;
@@ -50,6 +54,14 @@ export function PersonaAdvancedFields({
 }) {
   return (
     <div className="space-y-5 pt-2">
+      <AcpAdvancedOptionFields
+        configOptions={acpConfigOptions}
+        disabled={disabled}
+        envVars={envVars}
+        inheritedEnvVars={inheritedEnvVars}
+        onEnvVarsChange={onEnvVarsChange}
+        useCustomSelect
+      />
       <CreateAgentRespondToField
         allowlist={behaviorDraft.respondToAllowlist}
         disabled={disabled}
