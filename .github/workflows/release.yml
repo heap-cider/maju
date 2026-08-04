@@ -249,8 +249,18 @@ jobs:
       - name: Build signed release APK
         working-directory: mobile
         run: |
+          IFS=. read -r major minor patch <<< "$VERSION"
+          if (( major > 1999 || minor > 999 || patch > 999 )); then
+            echo "Version cannot be represented as an Android version code: $VERSION" >&2
+            exit 1
+          fi
+          version_code=$((10#$major * 1000000 + 10#$minor * 1000 + 10#$patch))
+          if (( version_code < 2 || version_code > 2100000000 )); then
+            echo "Android version code is outside the supported range: $version_code" >&2
+            exit 1
+          fi
           flutter pub get
-          flutter build apk --release --build-name "$VERSION" --build-number 1
+          flutter build apk --release --build-name "$VERSION" --build-number "$version_code"
 
       - name: Collect APK
         shell: bash

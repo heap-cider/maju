@@ -22,6 +22,10 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
 - macOS and iOS are not Maju release targets.
 - Public releases are distributed through the Maju GitHub repository. Relay
   containers are distributed through Maju's public GHCR package.
+- The Android app checks Maju's latest public GitHub release in-app. It can
+  download the signed APK and hand it to Android's installer, where the user
+  gives the final update approval. Updating in place preserves app data and
+  desktop pairing; deleting the installed app is not part of the update flow.
 
 ## Self-hosted communities and onboarding
 

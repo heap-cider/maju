@@ -11,6 +11,7 @@ import 'features/channels/agent_activity/observer_subscription.dart';
 import 'features/channels/deep_link_dispatcher.dart';
 import 'features/profile/user_status_cache_provider.dart';
 import 'features/profile/settings_profile_header.dart';
+import 'features/settings/app_update_prompt.dart';
 import 'features/settings/settings_page.dart';
 import 'shared/auth/auth.dart';
 import 'shared/deeplink/pending_deep_link_provider.dart';
@@ -99,12 +100,16 @@ class App extends HookConsumerWidget {
         loading: () => const _SplashScreen(),
         error: (_, _) => const PairingPage(),
         data: (state) => switch (state.status) {
-          AuthStatus.authenticated => const DeepLinkDispatcher(
-            child: HomePage(settingsPageBuilder: _buildSettingsPage),
+          AuthStatus.authenticated => const AppUpdateListener(
+            child: DeepLinkDispatcher(
+              child: HomePage(settingsPageBuilder: _buildSettingsPage),
+            ),
           ),
-          _ => const DeepLinkDispatcher(
-            dispatchMessageLinks: false,
-            child: PairingPage(),
+          _ => const AppUpdateListener(
+            child: DeepLinkDispatcher(
+              dispatchMessageLinks: false,
+              child: PairingPage(),
+            ),
           ),
         },
       ),

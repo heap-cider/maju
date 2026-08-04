@@ -14,10 +14,13 @@ import '../../shared/widgets/app_list_card.dart';
 import '../../shared/widgets/frosted_app_bar.dart';
 import '../../shared/widgets/frosted_scaffold.dart';
 import 'accent_picker_page.dart';
+import 'app_update.dart';
+import 'app_update_prompt.dart';
 import 'theme_picker_page.dart';
 
 part 'settings_page/appearance_section.dart';
 part 'settings_page/connection_section.dart';
+part 'settings_page/update_section.dart';
 
 class SettingsPage extends HookConsumerWidget {
   const SettingsPage({super.key, required this.profileHeader});
@@ -43,6 +46,7 @@ class SettingsPage extends HookConsumerWidget {
                 profileHeader,
                 const _AppearanceSection(),
                 const _ConnectionSection(),
+                const _AppUpdateSection(),
                 const _RemoveCommunitySection(),
               ],
             ),
