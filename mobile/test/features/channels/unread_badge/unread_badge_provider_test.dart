@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maju/features/channels/channel.dart';
 import 'package:maju/features/channels/channels_provider.dart';
-import 'package:maju/features/channels/read_state/read_state_provider.dart';
+import 'package:maju/shared/read_state/read_state_provider.dart';
 import 'package:maju/features/channels/unread_badge/observed_unread_event.dart';
 import 'package:maju/features/channels/unread_badge/unread_badge_provider.dart';
 

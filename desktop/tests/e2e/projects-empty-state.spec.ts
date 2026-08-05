@@ -18,9 +18,7 @@ test("an empty Projects page opens the real create flow", async ({ page }) => {
 
   const emptyState = page.getByTestId("projects-empty-state");
   await expect(emptyState).toBeVisible();
-  await expect(
-    emptyState.getByRole("heading", { name: "Create your first project" }),
-  ).toBeVisible();
+  await expect(emptyState.getByText("No projects yet")).toBeVisible();
   await expect(
     emptyState.getByRole("button", { name: "Create project" }),
   ).toBeVisible();
@@ -50,9 +48,10 @@ test("an empty Projects page opens the real create flow", async ({ page }) => {
   const dialog = page.getByTestId("create-project-dialog");
   await expect(dialog).toBeVisible();
   await expect(page.getByTestId("create-project-name")).toBeFocused();
-  await expect(page.getByTestId("create-project-clone-url")).toHaveCount(0);
-
-  await page.getByTestId("create-project-advanced-toggle").click();
+  await expect(
+    page.getByTestId("create-project-access-channel"),
+  ).not.toHaveValue("");
+  await expect(page.getByTestId("create-project-description")).toBeVisible();
   await expect(page.getByTestId("create-project-clone-url")).toBeVisible();
   await expect(page.getByTestId("create-project-web-url")).toBeVisible();
 
@@ -62,6 +61,15 @@ test("an empty Projects page opens the real create flow", async ({ page }) => {
   });
 
   await page.getByTestId("create-project-name").fill("first-project");
+  await page
+    .getByTestId("create-project-description")
+    .fill("Created from the empty Projects page");
+  await page
+    .getByTestId("create-project-clone-url")
+    .fill("https://github.com/heap-cider/maju.git");
+  await page
+    .getByTestId("create-project-web-url")
+    .fill("https://github.com/heap-cider/maju");
   await page.getByTestId("create-project-submit").click();
   await expect(dialog).toBeHidden();
   await expect(page.getByText("first-project", { exact: true })).toBeVisible();

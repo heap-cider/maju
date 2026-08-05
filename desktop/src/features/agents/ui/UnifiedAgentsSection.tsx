@@ -1,11 +1,6 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  RefreshCw,
-} from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 
 import { resolveAgentCardModelLabel } from "@/features/agents/lib/agentCardModelLabel";
 import {
@@ -22,6 +17,7 @@ import type { ProfilePanelOpenOptions } from "@/shared/context/ProfilePanelConte
 import { useFeedbackToasts } from "@/shared/hooks/useToastEffect";
 import { useFileImportZone } from "@/shared/hooks/useFileImportZone";
 import { Badge } from "@/shared/ui/badge";
+import { RestartDiffBadge } from "./RestartDiffBadge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -516,10 +512,10 @@ function AgentCardStatus({
           <span className="truncate">Configuration missing</span>
         </Badge>
       ) : agent.needsRestart ? (
-        <Badge className="max-w-full gap-1" variant="warning">
-          <RefreshCw className="h-3 w-3 shrink-0" />
-          <span className="truncate">Restart required</span>
-        </Badge>
+        <RestartDiffBadge
+          autoRestartEnabled={agent.autoRestartOnConfigChange}
+          restartDiff={agent.restartDiff}
+        />
       ) : null}
       {representativeLabel ? (
         <span

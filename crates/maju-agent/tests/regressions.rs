@@ -197,6 +197,10 @@ impl Harness {
     }
 }
 
+fn session_cwd() -> String {
+    std::env::temp_dir().to_string_lossy().into_owned()
+}
+
 fn openai_text(content: &str) -> Value {
     json!({
         "id": "cc-1", "object": "chat.completion", "model": "fake-model",
@@ -247,7 +251,7 @@ async fn init_session(h: &mut Harness, mcp_servers: Value) -> String {
     let _ = h.recv().await;
     h.send(
         "session/new",
-        json!({"cwd":"/tmp","mcpServers": mcp_servers}),
+        json!({"cwd": session_cwd(), "mcpServers": mcp_servers}),
     )
     .await;
     let r = h
@@ -320,7 +324,7 @@ async fn mcp_init_timeout_kills_child() {
     h.send(
         "session/new",
         json!({
-            "cwd": "/tmp",
+            "cwd": session_cwd(),
             "mcpServers": [{
                 "name": "stuck",
                 "command": fake_mcp,
@@ -365,7 +369,7 @@ async fn tool_metadata_caps_enforced() {
     h.send(
         "session/new",
         json!({
-            "cwd": "/tmp",
+            "cwd": session_cwd(),
             "mcpServers": [{
                 "name": "many",
                 "command": fake_mcp,
@@ -438,8 +442,11 @@ async fn mcp_server_count_cap() {
             })
         })
         .collect();
-    h.send("session/new", json!({"cwd":"/tmp","mcpServers": servers}))
-        .await;
+    h.send(
+        "session/new",
+        json!({"cwd": session_cwd(), "mcpServers": servers}),
+    )
+    .await;
     let r = h
         .recv_until(|v| v.get("result").is_some() || v.get("error").is_some())
         .await;
@@ -617,7 +624,7 @@ async fn per_turn_tool_call_cap_enforced() {
     h.send(
         "session/new",
         json!({
-            "cwd": "/tmp",
+            "cwd": session_cwd(),
             "mcpServers": [{
                 "name": "many",
                 "command": fake_mcp,
@@ -692,7 +699,7 @@ async fn description_clamping_enforced() {
     h.send(
         "session/new",
         json!({
-            "cwd": "/tmp",
+            "cwd": session_cwd(),
             "mcpServers": [{
                 "name": "big",
                 "command": fake_mcp,
@@ -758,7 +765,7 @@ async fn init_session_with_fake_mcp(h: &mut Harness, extra_mcp_env: &[(&str, &st
     h.send(
         "session/new",
         json!({
-            "cwd": "/tmp",
+            "cwd": session_cwd(),
             "mcpServers": [{
                 "name": "fake",
                 "command": fake_mcp,

@@ -107,6 +107,10 @@ impl Harness {
     }
 }
 
+fn session_cwd() -> String {
+    std::env::temp_dir().to_string_lossy().into_owned()
+}
+
 async fn spawn_fake_llm(responses: Vec<Value>) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -193,7 +197,10 @@ async fn handshake(h: &mut Harness) -> String {
     );
 
     let new_id = h
-        .send("session/new", json!({ "cwd": "/tmp", "mcpServers": [] }))
+        .send(
+            "session/new",
+            json!({ "cwd": session_cwd(), "mcpServers": [] }),
+        )
         .await;
     let new = h.recv_for_id(new_id).await;
     let sid = new["result"]["sessionId"].as_str().unwrap().to_owned();

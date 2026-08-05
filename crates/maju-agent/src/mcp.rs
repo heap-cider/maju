@@ -881,9 +881,33 @@ fn killpg(pgid: u32, name: &str, stage: &str) {
         result.is_ok()
     );
 }
-#[cfg(not(unix))]
+
+#[cfg(windows)]
+fn killpg(pgid: u32, name: &str, stage: &str) {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let result = std::process::Command::new("taskkill")
+        .args(["/T", "/F", "/PID", &pgid.to_string()])
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+
+    match result {
+        Ok(status) => tracing::info!(
+            "taskkill MCP {name} ({stage}) pid={pgid} ok={} status={status}",
+            status.success()
+        ),
+        Err(error) => {
+            tracing::warn!("taskkill MCP {name} ({stage}) pid={pgid} failed: {error}")
+        }
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 fn killpg(_pgid: u32, name: &str, stage: &str) {
-    tracing::info!("relying on Drop to kill MCP {name} ({stage})");
+    tracing::info!("MCP process-tree cleanup unsupported for {name} ({stage})");
 }
 
 fn valid_name(s: &str) -> bool {

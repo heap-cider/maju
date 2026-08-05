@@ -1,18 +1,37 @@
+import * as React from "react";
 import { Input } from "@/shared/ui/input";
 import { cn } from "@/shared/lib/cn";
 import { EnvVarsEditor, type EnvVarsValue } from "./EnvVarsEditor";
 import { CreateAgentRespondToField } from "./RespondToField";
 import type { PersonaBehaviorDraft } from "./personaBehaviorDraft";
-import { isMajuAgentRuntime } from "./majuAgentConfig";
-import { MajuAgentModelTuningFields } from "./majuAgentModelTuningFields";
+import {
+  isMajuAgentRuntime,
+  MAJU_AGENT_THINKING_EFFORT,
+} from "./majuAgentConfig";
+import {
+  AGENT_PARALLELISM_HELP,
+  AGENT_PARALLELISM_PLACEHOLDER,
+} from "../lib/agentParallelism";
+import {
+  MajuAgentModelTuningFields,
+  NumericTuningFields,
+} from "./majuAgentModelTuningFields";
 import { AcpAdvancedOptionFields } from "./AcpNativeConfigFields";
-import type { AcpConfigOptionEntry } from "@/shared/api/types";
 import {
   CARD_MINT_KEY_ANNOTATIONS,
   PERSONA_FIELD_CONTROL_CLASS,
   PERSONA_FIELD_SHELL_CLASS,
   PERSONA_LABEL_OPTIONAL_CLASS,
 } from "./agentConfigOptions";
+import type {
+  AcpConfigOptionEntry,
+  AcpRuntimeCatalogEntry,
+} from "@/shared/api/types";
+import {
+  deriveNumericDescriptors,
+  structuredEnvKeys,
+  type RuntimeCatalogStatus,
+} from "../lib/agentConfigCore";
 
 export function PersonaAdvancedFields({
   acpConfigOptions = [],
@@ -30,6 +49,8 @@ export function PersonaAdvancedFields({
   requiredEnvKeys = [],
   fileSatisfiedEnvKeys = [],
   hiddenEnvKeys = [],
+  catalogStatus = "ready" as RuntimeCatalogStatus,
+  selectedRuntime,
 }: {
   acpConfigOptions?: readonly AcpConfigOptionEntry[];
   behaviorDraft: PersonaBehaviorDraft;
@@ -40,7 +61,7 @@ export function PersonaAdvancedFields({
   inheritedEnvVars?: EnvVarsValue;
   /** Active LLM model — forwarded to MajuAgentModelTuningFields for effort filtering. */
   model?: string;
-  /** Runtime id for the maju-agent tuning knobs visibility gate. */
+  /** Runtime id for the maju-agent effort-tuning knob visibility gate. */
   modelTuningRuntimeId?: string;
   namePoolText: string;
   onBehaviorDraftChange: (value: PersonaBehaviorDraft) => void;
@@ -51,7 +72,42 @@ export function PersonaAdvancedFields({
   requiredEnvKeys?: readonly string[];
   fileSatisfiedEnvKeys?: readonly string[];
   hiddenEnvKeys?: readonly string[];
+  /**
+   * Lifecycle status of the runtime catalog query. Controls the numeric-tuning
+   * gate and hidden-key behaviour:
+   * - `loading` or `error`: no structured controls; keys not hidden — saved
+   *   values stay visible as generic rows.
+   * - `ready`: descriptors derived from `selectedRuntime` (empty when the
+   *   runtime has no numeric env-var fields).
+   */
+  catalogStatus?: RuntimeCatalogStatus;
+  /**
+   * The catalog entry for the selected runtime. Drives descriptor-based
+   * numeric tuning fields. When undefined after the catalog has settled,
+   * no numeric controls render.
+   */
+  selectedRuntime?: AcpRuntimeCatalogEntry;
 }) {
+  // Numeric tuning descriptors — gate on catalog status so that loading/error
+  // never collapses to "no controls": keys stay visible as generic rows.
+  const numericDescriptors = React.useMemo(
+    () =>
+      catalogStatus === "ready"
+        ? deriveNumericDescriptors(selectedRuntime)
+        : [],
+    [catalogStatus, selectedRuntime],
+  );
+
+  const effectiveHiddenKeys = React.useMemo(
+    () => [
+      ...hiddenEnvKeys,
+      ...(isMajuAgentRuntime(modelTuningRuntimeId)
+        ? [MAJU_AGENT_THINKING_EFFORT]
+        : []),
+      ...structuredEnvKeys(numericDescriptors),
+    ],
+    [hiddenEnvKeys, modelTuningRuntimeId, numericDescriptors],
+  );
   return (
     <div className="space-y-5 pt-2">
       <AcpAdvancedOptionFields
@@ -95,7 +151,7 @@ export function PersonaAdvancedFields({
           >
             <Input
               className={cn(
-                "h-8 px-0 py-0 leading-6",
+                "h-8 px-0 py-0 leading-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
                 PERSONA_FIELD_CONTROL_CLASS,
               )}
               disabled={disabled}
@@ -109,13 +165,13 @@ export function PersonaAdvancedFields({
                   parallelism: event.target.value,
                 })
               }
-              placeholder="1"
+              placeholder={AGENT_PARALLELISM_PLACEHOLDER}
               type="number"
               value={behaviorDraft.parallelism}
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            How many conversations each running instance handles at once (1–32).
+            {AGENT_PARALLELISM_HELP}
           </p>
         </div>
       </div>
@@ -154,14 +210,33 @@ export function PersonaAdvancedFields({
       <EnvVarsEditor
         disabled={disabled}
         fileSatisfiedKeys={fileSatisfiedEnvKeys}
-        hiddenKeys={hiddenEnvKeys}
+        hiddenKeys={effectiveHiddenKeys}
         keyAnnotations={CARD_MINT_KEY_ANNOTATIONS}
         onChange={onEnvVarsChange}
         requiredKeys={requiredEnvKeys}
         value={envVars}
       />
 
-      {/* Tier-1 maju-agent model-tuning knobs — only shown for maju-agent. */}
+      {/* Descriptor-driven numeric tuning knobs — shown when catalog has settled
+          and the runtime exposes numeric env-var fields. */}
+      {numericDescriptors.length > 0 ? (
+        <NumericTuningFields
+          descriptors={numericDescriptors}
+          envVars={envVars}
+          inheritedEnvVars={inheritedEnvVars}
+          onEnvVarChange={(key, value) => {
+            const next = { ...envVars };
+            if (value === "") {
+              delete next[key];
+            } else {
+              next[key] = value;
+            }
+            onEnvVarsChange(next);
+          }}
+        />
+      ) : null}
+
+      {/* Effort-tuning knob — only shown for maju-agent. */}
       {isMajuAgentRuntime(modelTuningRuntimeId) ? (
         <MajuAgentModelTuningFields
           envVars={envVars}

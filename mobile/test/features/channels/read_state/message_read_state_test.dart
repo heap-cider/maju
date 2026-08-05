@@ -1,5 +1,5 @@
-import 'package:maju/features/channels/read_state/message_read_state.dart';
-import 'package:maju/features/channels/read_state/read_state_provider.dart';
+import 'package:maju/shared/read_state/message_read_state.dart';
+import 'package:maju/shared/read_state/read_state_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 ReadStateState _state(

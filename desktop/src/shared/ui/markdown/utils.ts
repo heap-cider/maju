@@ -2,6 +2,7 @@ import * as React from "react";
 import { defaultUrlTransform } from "react-markdown";
 
 import { isMessageLink } from "@/features/messages/lib/messageLink";
+import { parseEntityLink } from "@/shared/lib/entityLink";
 
 export function useStableArray<T>(arr: T[]): T[] {
   const ref = React.useRef(arr);
@@ -166,16 +167,32 @@ export function isInsideHiddenSpoiler(element: Element): boolean {
 }
 
 /**
- * `urlTransform` for `<ReactMarkdown>` that preserves `maju://message?…`
- * links. The default transform strips unknown schemes (returns `""`) before
- * the `a` component override can see them, which would break copy → paste →
- * click end-to-end. Everything else delegates to `defaultUrlTransform`.
+ * `urlTransform` for `<ReactMarkdown>` that preserves `maju://` deep links
+ * used by Maju — both `maju://message?…` links and `maju://pr|issue|repo?…`
+ * entity links. The default transform strips unknown schemes (returns `""`)
+ * before the `a` component override can see them, which would break copy →
+ * paste → click end-to-end.
+ *
+ * Policy:
+ * - `maju://message` hrefs — preserved unconditionally (handled by the
+ *   message-link pill renderer).
+ * - `maju://pr|issue|repo` hrefs — preserved only when `parseEntityLink`
+ *   succeeds, keeping the sanitizer active against arbitrary `maju://` URIs.
+ * - Everything else delegates to `defaultUrlTransform`.
+ */
+export function majuDeepLinkUrlTransform(value: string, key: string): string {
+  if (key !== "href") return defaultUrlTransform(value);
+  if (isMessageLink(value)) return value;
+  if (parseEntityLink(value).ok) return value;
+  return defaultUrlTransform(value);
+}
+
+/**
+ * @deprecated Preserved for external callers; use `majuDeepLinkUrlTransform`
+ * which also handles `maju://pr|issue|repo` entity links.
  */
 export function messageLinkUrlTransform(value: string, key: string): string {
-  if (key === "href" && isMessageLink(value)) {
-    return value;
-  }
-  return defaultUrlTransform(value);
+  return majuDeepLinkUrlTransform(value, key);
 }
 
 export function getReactNodeText(node: React.ReactNode): string {

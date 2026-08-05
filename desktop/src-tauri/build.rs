@@ -13,8 +13,6 @@ fn main() {
     println!("cargo:rerun-if-env-changed=MAJU_BUILD_MAJU_AGENT_MODEL");
     println!("cargo:rerun-if-env-changed=MAJU_BUILD_AGENT_ENV");
     println!("cargo:rerun-if-env-changed=MAJU_BUILD_RELAY_RECONNECT_CMD");
-    println!("cargo:rerun-if-env-changed=MAJU_BUILD_OBSERVER_ARCHIVE_DEFAULT");
-    println!("cargo:rerun-if-env-changed=MAJU_BUILD_AGENT_METRIC_ARCHIVE_DEFAULT");
     println!("cargo:rerun-if-env-changed=MAJU_BUILD_AUTO_CONNECT_DEFAULT_RELAY");
     println!("cargo:rustc-check-cfg=cfg(maju_updater_enabled)");
 
@@ -73,21 +71,6 @@ fn main() {
             panic!("MAJU_BUILD_RELAY_RECONNECT_CMD doesn't match ReconnectHookConfig: {e}")
         });
         println!("cargo:rustc-env=MAJU_DESKTOP_BUILD_RELAY_RECONNECT_CMD={val}");
-    }
-
-    // Presence-only flag: when set (any non-empty value), observer-feed archive
-    // defaults to ON for the current identity on first run.  OSS builds leave
-    // this unset → default OFF.  No JSON validation needed — the command only
-    // checks `.is_some()`.
-    if std::env::var("MAJU_BUILD_OBSERVER_ARCHIVE_DEFAULT").is_ok() {
-        println!("cargo:rustc-env=MAJU_DESKTOP_BUILD_OBSERVER_ARCHIVE_DEFAULT=1");
-    }
-
-    // Presence-only flag: when set (any non-empty value), agent-turn-metric
-    // archive defaults to ON for the current identity on first run.  OSS builds
-    // leave this unset → default OFF.
-    if std::env::var("MAJU_BUILD_AGENT_METRIC_ARCHIVE_DEFAULT").is_ok() {
-        println!("cargo:rustc-env=MAJU_DESKTOP_BUILD_AGENT_METRIC_ARCHIVE_DEFAULT=1");
     }
 
     // Presence-only release capability: internal desktop builds opt into

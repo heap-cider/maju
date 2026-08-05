@@ -429,6 +429,7 @@ fn deploy_payload_carries_the_full_behavioral_quad() {
     ))
     .expect("sample record");
 
+    let launch = serde_json::json!({ "command": "goose" });
     let payload = deploy_payload_json(
         &record,
         "wss://relay.example".to_string(),
@@ -436,6 +437,7 @@ fn deploy_payload_carries_the_full_behavioral_quad() {
         Some("openai".to_string()),
         None,
         std::collections::BTreeMap::new(),
+        launch.clone(),
     );
 
     assert_eq!(payload["parallelism"], 4);
@@ -444,4 +446,5 @@ fn deploy_payload_carries_the_full_behavioral_quad() {
     assert_eq!(payload["model"], "gpt-x");
     assert_eq!(payload["provider"], "openai");
     assert_eq!(payload["relay_url"], "wss://relay.example");
+    assert_eq!(payload["launch"], launch);
 }

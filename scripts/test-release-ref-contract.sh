@@ -55,6 +55,8 @@ if grep -q 'relay-v' \
   echo "a separate relay-v release lane still exists" >&2
   exit 1
 fi
+"$repo_root/scripts/test-desktop-release-cache-key.sh"
+"$repo_root/scripts/test-desktop-release-cache-workflow.sh"
 grep -q 'test-release-ref-contract\.sh' "$repo_root/.github/workflows/ci.yml"
 if grep -qE 'crates/maju-relay/Cargo\.toml|mobile/pubspec\.yaml' \
   "$repo_root/.github/workflows/release.yml"; then

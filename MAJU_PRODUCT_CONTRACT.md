@@ -97,6 +97,7 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
 - Projects belong to the active community and are published to its relay.
 - When a community has no projects, the Projects page shows one primary create
   action that opens the real project creation flow directly.
-- Creating a project starts with its name and optional description. Maju
-  derives the repository identifier and creates the relay repository; links to
-  an existing remote repository or website are optional advanced settings.
+- Every project creation entry point uses the same full flow: a name, a
+  repository access channel, and optional description, initial repository clone
+  URL, and initial repository web URL. Creation publishes the project with its
+  initial repository, and a project may contain multiple repositories.
