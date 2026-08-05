@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.12
+
+- chore(sync): adopt Buzz desktop-v0.5.5 ([`1d874222c`](https://github.com/heap-cider/maju/commit/1d874222c8ab2d030bd4228df61862c3bc3de31d))
+
+
 ## v0.2.11
 
 - feat(agents): support native ACP config options ([`b3321d2a4`](https://github.com/heap-cider/maju/commit/b3321d2a4cfc7baba0024b8aa72f5aeba6944a79))
