@@ -24,6 +24,8 @@ import {
   deriveAgentConfigFieldModel,
   getRenderableEffortField,
   hasRenderableAgentConfigField,
+  structuredEnvKeys,
+  filterBakedGenericRows,
 } from "@/features/agents/lib/agentConfigCore";
 import { MAJU_ACP_CONFIG_OPTIONS } from "@/features/agents/lib/acpNativeOptions";
 import {
@@ -57,7 +59,9 @@ import {
 } from "@/features/agents/ui/majuAgentConfig";
 import {
   EffortSelectField,
+  NumericTuningFields,
   useEffortAutoClear,
+  type NumericDescriptor,
 } from "@/features/agents/ui/majuAgentModelTuningFields";
 import { SettingsOptionGroup } from "@/features/settings/ui/SettingsOptionGroup";
 import { AdvancedRequiredBadge } from "./AdvancedRequiredBadge";
@@ -85,7 +89,6 @@ export const EMPTY_GLOBAL_CONFIG: GlobalAgentConfig = {
   preferred_runtime: null,
 };
 
-/** Baked env keys that route to structured controls, not the generic env editor. */
 const BAKED_STRUCTURED_KEYS = new Set([
   "MAJU_AGENT_PROVIDER",
   "MAJU_AGENT_MODEL",
@@ -198,6 +201,19 @@ export function AgentConfigFields({
     effortField?.currentPersistence.kind === "envVar"
       ? effortField.currentPersistence.key
       : null;
+
+  const numericDescriptors = fieldModel.fields.filter(
+    (d): d is NumericDescriptor =>
+      (d.kind === "maxOutputTokens" ||
+        d.kind === "contextLimit" ||
+        d.kind === "maxRounds") &&
+      d.render === "control",
+  );
+  const allStructuredKeys = structuredEnvKeys([
+    ...(effortField ? [effortField] : []),
+    ...numericDescriptors,
+  ]);
+  const bakedEnvMap = Object.fromEntries(bakedEnv.map((e) => [e.key, e.value]));
   const bakedProvider = React.useMemo(
     () => bakedEnv.find((e) => e.key === "MAJU_AGENT_PROVIDER")?.value ?? null,
     [bakedEnv],
@@ -230,8 +246,12 @@ export function AgentConfigFields({
     [bakedEnv],
   );
   const bakedGenericRows = React.useMemo<readonly InheritedEnvRow[]>(
-    () => bakedEnv.filter((e) => !BAKED_STRUCTURED_KEYS.has(e.key)),
-    [bakedEnv],
+    () =>
+      filterBakedGenericRows(bakedEnv, [
+        ...BAKED_STRUCTURED_KEYS,
+        ...allStructuredKeys,
+      ]),
+    [bakedEnv, allStructuredKeys],
   );
 
   const providerValue = providerFieldVisible ? (config.provider ?? "") : "";
@@ -518,6 +538,12 @@ export function AgentConfigFields({
     onConfigChange({ ...config, env_vars: merged });
   }
 
+  const handleNumericEnvVarChange = (key: string, value: string) => {
+    const next = { ...config.env_vars, [key]: value };
+    if (value === "") delete next[key];
+    onConfigChange({ ...config, env_vars: next });
+  };
+
   // On internal Block builds, MAJU_AGENT_PROVIDER is baked in and a boot
   // migration rewrites v1→v2. Hide the legacy v1 option so it is not offered
   // for new selections; OSS builds show it.
@@ -678,6 +704,41 @@ export function AgentConfigFields({
       ) : null}
     </div>
   ) : null;
+
+  const advancedEditorBlock = (
+    <>
+      <AcpAdvancedOptionFields
+        configOptions={discoveredConfigOptions}
+        disabled={dependentFieldsDisabled || modelDiscoveryLoading}
+        envVars={config.env_vars}
+        onEnvVarsChange={(env_vars) => onConfigChange({ ...config, env_vars })}
+        useCustomSelect={useCustomSelect}
+      />
+      <EnvVarsEditor
+        fileSatisfiedKeys={advancedFileSatisfiedEnvKeys}
+        hiddenKeys={[
+          ...(apiKeyEnvVar ? [apiKeyEnvVar] : []),
+          MAJU_ACP_CONFIG_OPTIONS,
+          ...allStructuredKeys,
+        ]}
+        inheritedRows={bakedGenericRows}
+        inheritedRowsLabel="build"
+        keyAnnotations={CARD_MINT_KEY_ANNOTATIONS}
+        label="Environment variables"
+        onChange={handleEnvVarsChange}
+        requiredKeys={advancedRequiredEnvKeys}
+        value={config.env_vars}
+      />
+      {numericDescriptors.length > 0 ? (
+        <NumericTuningFields
+          descriptors={numericDescriptors}
+          envVars={config.env_vars}
+          inheritedEnvVars={bakedEnvMap}
+          onEnvVarChange={handleNumericEnvVarChange}
+        />
+      ) : null}
+    </>
+  );
 
   const dependentContent = (
     <>
@@ -860,64 +921,12 @@ export function AgentConfigFields({
                       : PROGRESSIVE_FIELDS_TRANSITION
                   }
                 >
-                  <AcpAdvancedOptionFields
-                    configOptions={discoveredConfigOptions}
-                    disabled={dependentFieldsDisabled || modelDiscoveryLoading}
-                    envVars={config.env_vars}
-                    onEnvVarsChange={(env_vars) =>
-                      onConfigChange({ ...config, env_vars })
-                    }
-                    useCustomSelect={useCustomSelect}
-                  />
-                  <EnvVarsEditor
-                    fileSatisfiedKeys={advancedFileSatisfiedEnvKeys}
-                    hiddenKeys={apiKeyEnvVar ? [apiKeyEnvVar] : []}
-                    inheritedRows={bakedGenericRows}
-                    inheritedRowsLabel="build"
-                    keyAnnotations={CARD_MINT_KEY_ANNOTATIONS}
-                    label="Environment variables"
-                    onChange={handleEnvVarsChange}
-                    requiredKeys={advancedRequiredEnvKeys}
-                    value={Object.fromEntries(
-                      Object.entries(config.env_vars).filter(
-                        ([k]) =>
-                          k !== MAJU_AGENT_THINKING_EFFORT &&
-                          k !== MAJU_ACP_CONFIG_OPTIONS,
-                      ),
-                    )}
-                  />
+                  {advancedEditorBlock}
                 </motion.div>
               ) : null}
             </AnimatePresence>
           ) : advancedOpen ? (
-            <div className="space-y-5">
-              <AcpAdvancedOptionFields
-                configOptions={discoveredConfigOptions}
-                disabled={dependentFieldsDisabled || modelDiscoveryLoading}
-                envVars={config.env_vars}
-                onEnvVarsChange={(env_vars) =>
-                  onConfigChange({ ...config, env_vars })
-                }
-                useCustomSelect={useCustomSelect}
-              />
-              <EnvVarsEditor
-                fileSatisfiedKeys={advancedFileSatisfiedEnvKeys}
-                hiddenKeys={apiKeyEnvVar ? [apiKeyEnvVar] : []}
-                inheritedRows={bakedGenericRows}
-                inheritedRowsLabel="build"
-                keyAnnotations={CARD_MINT_KEY_ANNOTATIONS}
-                label="Environment variables"
-                onChange={handleEnvVarsChange}
-                requiredKeys={advancedRequiredEnvKeys}
-                value={Object.fromEntries(
-                  Object.entries(config.env_vars).filter(
-                    ([k]) =>
-                      k !== MAJU_AGENT_THINKING_EFFORT &&
-                      k !== MAJU_ACP_CONFIG_OPTIONS,
-                  ),
-                )}
-              />
-            </div>
+            advancedEditorBlock
           ) : null}
         </div>
       ) : null}

@@ -1,0 +1,302 @@
+@layer components {
+  .maju-terminal-substrate {
+    background: var(--maju-terminal-background, #101014);
+    color: var(--maju-terminal-foreground, #e8e8ec);
+    display: flex;
+    flex-direction: column;
+    font-family: "JetBrains Mono", monospace;
+    font-variant-ligatures: none;
+    inset: 0;
+    position: absolute;
+    user-select: none;
+    z-index: 0;
+  }
+
+  .maju-terminal-contract-bar {
+    align-items: center;
+    background: hsl(var(--secondary));
+    border-bottom: 1px solid hsl(var(--border));
+    color: hsl(var(--secondary-foreground));
+    display: flex;
+    flex: 0 0 40px;
+    font-family: inherit;
+    font-variant-ligatures: normal;
+    gap: 8px;
+    justify-content: space-between;
+    min-width: 0;
+    padding: 4px 1.25rem;
+  }
+
+  .maju-terminal-tabs,
+  .maju-terminal-readout {
+    align-items: center;
+    display: flex;
+    min-width: 0;
+  }
+
+  .maju-terminal-tab,
+  .maju-terminal-tab-select,
+  .maju-terminal-close,
+  .maju-terminal-new-tab {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: calc(var(--radius) - 2px);
+    color: hsl(var(--muted-foreground));
+    display: flex;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 500;
+    gap: 6px;
+    height: 30px;
+    padding: 0 9px;
+    position: relative;
+  }
+
+  .maju-terminal-tabs {
+    flex: 1 1 auto;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .maju-terminal-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .maju-terminal-readout {
+    background: hsl(var(--secondary));
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .maju-terminal-tab {
+    background: hsl(var(--background));
+    border-radius: 4px;
+    flex: 0 0 auto;
+    padding: 0;
+  }
+
+  .maju-terminal-tab-active {
+    background: hsl(var(--background));
+  }
+
+  .maju-terminal-tab:hover,
+  .maju-terminal-tab:focus-within {
+    background: hsl(var(--foreground) / 0.06);
+  }
+
+  .maju-terminal-tab-select {
+    border-radius: inherit;
+    max-width: 12rem;
+    min-width: 0;
+    padding-left: 32px;
+  }
+
+  .maju-terminal-tab-active .maju-terminal-tab-select {
+    color: hsl(var(--foreground));
+  }
+
+  .maju-terminal-new-tab:hover {
+    background: hsl(var(--foreground) / 0.06);
+    color: hsl(var(--foreground));
+  }
+
+  .maju-terminal-new-tab {
+    align-items: center;
+    background: hsl(var(--background));
+    border-radius: 4px;
+    height: 30px;
+    justify-content: center;
+    padding: 7px;
+    width: 30px;
+  }
+
+  .maju-terminal-new-tab svg {
+    height: 16px;
+    width: 16px;
+  }
+
+  .maju-terminal-tab-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .maju-terminal-designator {
+    align-items: center;
+    display: inline-flex;
+    font-size: 0.75rem;
+    gap: 2px;
+    letter-spacing: 0;
+  }
+
+  .maju-terminal-designator svg {
+    height: 16px;
+    width: 16px;
+  }
+
+  .maju-terminal-close {
+    height: 16px;
+    left: 8px;
+    opacity: 0;
+    padding: 0;
+    pointer-events: none;
+    position: absolute;
+    width: 16px;
+    z-index: 1;
+  }
+
+  .maju-terminal-tab:hover .maju-terminal-close,
+  .maju-terminal-tab:focus-within .maju-terminal-close {
+    color: hsl(var(--foreground));
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .maju-terminal-close svg {
+    height: 16px;
+    width: 16px;
+  }
+
+  .maju-terminal-readout {
+    white-space: nowrap;
+  }
+
+  .maju-terminal-viewport,
+  .maju-terminal-viewport canvas {
+    height: 100%;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .maju-terminal-viewport {
+    overflow: hidden;
+    position: relative;
+  }
+
+  .maju-terminal-viewport canvas {
+    display: block;
+  }
+
+  .maju-terminal-welcome {
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+    z-index: 1;
+  }
+
+  .maju-terminal-input {
+    height: 1px;
+    left: -10000px;
+    opacity: 0;
+    position: absolute;
+    top: 0;
+    width: 1px;
+  }
+}
+
+@layer components {
+  .maju-terminal-dock-host:has(.maju-terminal-substrate) {
+    align-items: flex-end;
+    display: flex;
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: hidden;
+    transition:
+      flex-grow 180ms ease,
+      flex-basis 180ms ease;
+  }
+
+  .maju-content-primary {
+    transition:
+      flex-grow 180ms ease,
+      flex-basis 180ms ease;
+  }
+
+  .maju-terminal-dock-host:has([data-terminal-mode="maximized"]) {
+    flex: 1 1 auto;
+  }
+
+  .maju-content-primary:has(
+    + .maju-terminal-dock-host [data-terminal-mode="maximized"]
+  ) {
+    flex: 0 1 0%;
+    min-height: 0;
+  }
+
+  .maju-terminal-substrate {
+    border-top: 1px solid hsl(var(--border));
+    inset: auto;
+    min-height: 180px;
+    opacity: 1;
+    position: relative;
+    transform: translateY(0);
+    transition:
+      height 180ms ease,
+      transform 180ms ease;
+    width: 100%;
+    z-index: 20;
+  }
+
+  .maju-terminal-substrate[data-terminal-resizing="true"] {
+    transition: none;
+  }
+
+  .maju-terminal-substrate[data-terminal-visible="false"] {
+    height: 0 !important;
+    min-height: 0;
+    pointer-events: none;
+    transform: translateY(16px);
+  }
+
+  .maju-terminal-dock-host [data-terminal-mode="maximized"] {
+    flex: 1 1 auto;
+    height: 100%;
+  }
+
+  .maju-terminal-resize-handle {
+    cursor: ns-resize;
+    height: 5px;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: -3px;
+    z-index: 2;
+  }
+
+  .maju-terminal-window-action {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: calc(var(--radius) - 2px);
+    color: hsl(var(--muted-foreground));
+    display: inline-flex;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+  }
+
+  .maju-terminal-window-action:hover,
+  .maju-terminal-window-action:focus-visible {
+    background: hsl(var(--foreground) / 0.06);
+    color: hsl(var(--foreground));
+  }
+
+  .maju-terminal-window-action svg {
+    height: 16px;
+    width: 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .maju-content-primary,
+    .maju-terminal-dock-host:has(.maju-terminal-substrate),
+    .maju-terminal-substrate {
+      transition: none;
+    }
+  }
+}

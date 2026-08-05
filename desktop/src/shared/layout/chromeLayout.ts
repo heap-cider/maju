@@ -53,6 +53,9 @@ export const channelChrome = {
   contentPadding: "pt-(--maju-channel-content-top-padding,5.75rem)",
   /** Absolute/fixed top offset below the measured channel header chrome. */
   top: "top-(--maju-channel-content-top-padding,5.75rem)",
+  /** Sticky timeline controls sit slightly below the channel navigation. */
+  stickyTimelineTop:
+    "top-[calc(var(--maju-channel-content-top-padding,5.75rem)+0.5rem)]",
   /** Height matching the measured channel header chrome. */
   headerHeight: "h-(--maju-channel-content-top-padding,5.75rem)",
   /** Negative margin for overlaid channel chrome that should not affect flow. */

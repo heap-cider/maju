@@ -1,6 +1,6 @@
-import { ChevronDown } from "lucide-react";
 import * as React from "react";
 
+import { useChannelsQuery } from "@/features/channels/hooks";
 import type { CreateProjectInput } from "@/features/projects/useCreateProject";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
@@ -23,7 +23,7 @@ type CreateProjectDialogProps = {
   open: boolean;
 };
 
-/** Modal for publishing a new project (NIP-34 repo announcement). */
+/** Modal for publishing a project with its initial NIP-34 repository. */
 export function CreateProjectDialog({
   isCreating,
   onCreate,
@@ -34,9 +34,20 @@ export function CreateProjectDialog({
   const [description, setDescription] = React.useState("");
   const [cloneUrl, setCloneUrl] = React.useState("");
   const [webUrl, setWebUrl] = React.useState("");
-  const [showRepositoryLinks, setShowRepositoryLinks] = React.useState(false);
+  const [accessChannelId, setAccessChannelId] = React.useState("");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const nameInputRef = React.useRef<HTMLInputElement>(null);
+  const channelsQuery = useChannelsQuery({ enabled: open });
+  const accessChannels = React.useMemo(
+    () =>
+      (channelsQuery.data ?? []).filter(
+        (channel) =>
+          channel.isMember &&
+          !channel.archivedAt &&
+          channel.channelType !== "dm",
+      ),
+    [channelsQuery.data],
+  );
 
   React.useEffect(() => {
     if (!open) return;
@@ -45,7 +56,7 @@ export function CreateProjectDialog({
     setDescription("");
     setCloneUrl("");
     setWebUrl("");
-    setShowRepositoryLinks(false);
+    setAccessChannelId(accessChannels[0]?.id ?? "");
     setErrorMessage(null);
 
     // Small delay to let the dialog animation start before focusing.
@@ -53,18 +64,19 @@ export function CreateProjectDialog({
       nameInputRef.current?.focus();
     }, 50);
     return () => globalThis.clearTimeout(timerId);
-  }, [open]);
+  }, [accessChannels, open]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const trimmedName = name.trim();
-    if (!trimmedName) return;
+    if (!trimmedName || !accessChannelId) return;
 
     setErrorMessage(null);
 
     try {
       await onCreate({
+        accessChannelId,
         name: trimmedName,
         description: description.trim() || undefined,
         cloneUrl: cloneUrl.trim() || undefined,
@@ -91,12 +103,14 @@ export function CreateProjectDialog({
         className="max-w-lg"
         contentClassName="pt-3"
         data-testid="create-project-dialog"
-        description="Start with a name. Maju creates the repository on your relay."
+        description="Projects group one or more repositories published to this workspace's relay."
         footer={
           <div className="flex w-full items-center justify-end gap-3">
             <Button
               data-testid="create-project-submit"
-              disabled={isCreating || name.trim().length === 0}
+              disabled={
+                isCreating || name.trim().length === 0 || !accessChannelId
+              }
               form="create-project-form"
               type="submit"
             >
@@ -154,6 +168,47 @@ export function CreateProjectDialog({
           <div className="space-y-1.5">
             <label
               className="text-sm font-medium text-foreground"
+              htmlFor="create-project-access-channel"
+            >
+              Repository access channel
+            </label>
+            <div
+              className={cn(
+                "flex min-h-11 items-center px-3",
+                CREATE_FIELD_SHELL_CLASS,
+              )}
+            >
+              <select
+                className={cn(
+                  "h-8 w-full px-0 py-0",
+                  CREATE_FIELD_CONTROL_CLASS,
+                )}
+                data-testid="create-project-access-channel"
+                disabled={isCreating}
+                id="create-project-access-channel"
+                onChange={(event) => {
+                  setAccessChannelId(event.target.value);
+                  setErrorMessage(null);
+                }}
+                required
+                value={accessChannelId}
+              >
+                <option value="">Select a channel</option>
+                {accessChannels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    {channel.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Members of this channel can access project repositories.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label
+              className="text-sm font-medium text-foreground"
               htmlFor="create-project-description"
             >
               Description
@@ -179,103 +234,76 @@ export function CreateProjectDialog({
             </div>
           </div>
 
-          <div className="border-border/70 border-t pt-4">
-            <button
-              aria-expanded={showRepositoryLinks}
-              className="flex w-full items-center justify-between rounded-lg px-1 py-1.5 text-left text-sm font-medium text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
-              data-testid="create-project-advanced-toggle"
-              onClick={() => setShowRepositoryLinks((current) => !current)}
-              type="button"
+          <div className="space-y-1.5">
+            <label
+              className="text-sm font-medium text-foreground"
+              htmlFor="create-project-clone-url"
             >
-              <span>
-                Existing repository links
-                <span className={CREATE_LABEL_OPTIONAL_CLASS}>Optional</span>
-              </span>
-              <ChevronDown
+              Initial repository clone URL
+              <span className={CREATE_LABEL_OPTIONAL_CLASS}>Optional</span>
+            </label>
+            <div
+              className={cn(
+                "flex min-h-11 items-center px-3",
+                CREATE_FIELD_SHELL_CLASS,
+              )}
+            >
+              <Input
+                autoCapitalize="none"
+                autoComplete="off"
+                autoCorrect="off"
                 className={cn(
-                  "h-4 w-4 transition-transform",
-                  showRepositoryLinks && "rotate-180",
+                  "h-8 px-0 py-0 leading-6",
+                  CREATE_FIELD_CONTROL_CLASS,
                 )}
+                data-testid="create-project-clone-url"
+                disabled={isCreating}
+                id="create-project-clone-url"
+                onChange={(event) => {
+                  setCloneUrl(event.target.value);
+                  setErrorMessage(null);
+                }}
+                placeholder="https://relay.example.com/git/bee-garden-game.git"
+                spellCheck={false}
+                value={cloneUrl}
               />
-            </button>
+            </div>
+          </div>
 
-            {showRepositoryLinks ? (
-              <div className="space-y-4 pt-4">
-                <p className="text-xs leading-5 text-muted-foreground">
-                  Add these only when the project already has a remote
-                  repository or website.
-                </p>
-                <div className="space-y-1.5">
-                  <label
-                    className="text-sm font-medium text-foreground"
-                    htmlFor="create-project-clone-url"
-                  >
-                    Clone URL
-                  </label>
-                  <div
-                    className={cn(
-                      "flex min-h-11 items-center px-3",
-                      CREATE_FIELD_SHELL_CLASS,
-                    )}
-                  >
-                    <Input
-                      autoCapitalize="none"
-                      autoComplete="off"
-                      autoCorrect="off"
-                      className={cn(
-                        "h-8 px-0 py-0 leading-6",
-                        CREATE_FIELD_CONTROL_CLASS,
-                      )}
-                      data-testid="create-project-clone-url"
-                      disabled={isCreating}
-                      id="create-project-clone-url"
-                      onChange={(event) => {
-                        setCloneUrl(event.target.value);
-                        setErrorMessage(null);
-                      }}
-                      placeholder="https://github.com/owner/repository.git"
-                      spellCheck={false}
-                      value={cloneUrl}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label
-                    className="text-sm font-medium text-foreground"
-                    htmlFor="create-project-web-url"
-                  >
-                    Project website
-                  </label>
-                  <div
-                    className={cn(
-                      "flex min-h-11 items-center px-3",
-                      CREATE_FIELD_SHELL_CLASS,
-                    )}
-                  >
-                    <Input
-                      autoCapitalize="none"
-                      autoComplete="off"
-                      autoCorrect="off"
-                      className={cn(
-                        "h-8 px-0 py-0 leading-6",
-                        CREATE_FIELD_CONTROL_CLASS,
-                      )}
-                      data-testid="create-project-web-url"
-                      disabled={isCreating}
-                      id="create-project-web-url"
-                      onChange={(event) => {
-                        setWebUrl(event.target.value);
-                        setErrorMessage(null);
-                      }}
-                      placeholder="https://github.com/owner/repository"
-                      spellCheck={false}
-                      value={webUrl}
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : null}
+          <div className="space-y-1.5">
+            <label
+              className="text-sm font-medium text-foreground"
+              htmlFor="create-project-web-url"
+            >
+              Initial repository web URL
+              <span className={CREATE_LABEL_OPTIONAL_CLASS}>Optional</span>
+            </label>
+            <div
+              className={cn(
+                "flex min-h-11 items-center px-3",
+                CREATE_FIELD_SHELL_CLASS,
+              )}
+            >
+              <Input
+                autoCapitalize="none"
+                autoComplete="off"
+                autoCorrect="off"
+                className={cn(
+                  "h-8 px-0 py-0 leading-6",
+                  CREATE_FIELD_CONTROL_CLASS,
+                )}
+                data-testid="create-project-web-url"
+                disabled={isCreating}
+                id="create-project-web-url"
+                onChange={(event) => {
+                  setWebUrl(event.target.value);
+                  setErrorMessage(null);
+                }}
+                placeholder="https://github.com/owner/repo"
+                spellCheck={false}
+                value={webUrl}
+              />
+            </div>
           </div>
 
           {errorMessage ? (

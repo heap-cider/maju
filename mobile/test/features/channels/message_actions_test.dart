@@ -1,5 +1,5 @@
 import 'package:maju/features/channels/message_actions.dart';
-import 'package:maju/features/channels/read_state/read_state_provider.dart';
+import 'package:maju/shared/read_state/read_state_provider.dart';
 import 'package:maju/features/channels/thread_follows/thread_follows_provider.dart';
 import 'package:maju/features/channels/timeline_message.dart';
 import 'package:maju/shared/reminders/reminder_service.dart';

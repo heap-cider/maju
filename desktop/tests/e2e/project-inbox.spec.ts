@@ -23,7 +23,7 @@ test("Maju Git pull request renders and stays actionable in Inbox", async ({
   await page.getByRole("button", { name: "Repositories", exact: true }).click();
   await page
     .locator(
-      '[data-testid="project-card-maju"], [data-testid="project-row-maju"]',
+      '[data-testid="repository-card-maju"], [data-testid="repository-row-maju"]',
     )
     .first()
     .click();

@@ -215,6 +215,10 @@ impl Harness {
     }
 }
 
+fn session_cwd() -> String {
+    std::env::temp_dir().to_string_lossy().into_owned()
+}
+
 fn openai_text(content: &str) -> Value {
     json!({
         "id": "cc-1", "object": "chat.completion", "model": "fake-model",
@@ -252,8 +256,11 @@ async fn init_session(h: &mut Harness) -> String {
     let r = h.recv().await;
     assert_eq!(r["result"]["protocolVersion"], 2);
     assert_eq!(r["result"]["agentInfo"]["name"], "maju-agent");
-    h.send("session/new", json!({"cwd":"/tmp","mcpServers":[]}))
-        .await;
+    h.send(
+        "session/new",
+        json!({"cwd": session_cwd(), "mcpServers": []}),
+    )
+    .await;
     let r = h.recv().await;
     let sid = r["result"]["sessionId"].as_str().unwrap().to_owned();
     assert!(sid.starts_with("ses_"));
@@ -429,7 +436,7 @@ async fn session_new_rejects_oversized_system_prompt() {
     let id = h
         .send(
             "session/new",
-            json!({"cwd":"/tmp","mcpServers":[],"systemPrompt": big_prompt}),
+            json!({"cwd": session_cwd(), "mcpServers": [], "systemPrompt": big_prompt}),
         )
         .await;
     let r = h.recv_until(|v| v["id"] == json!(id)).await;
@@ -466,7 +473,7 @@ async fn system_prompt_reaches_llm_system_role() {
     let sn_id = h
         .send(
             "session/new",
-            json!({"cwd":"/tmp","mcpServers":[],"systemPrompt": canary}),
+            json!({"cwd": session_cwd(), "mcpServers": [], "systemPrompt": canary}),
         )
         .await;
     let r = h.recv_until(|v| v["id"] == json!(sn_id)).await;
@@ -534,7 +541,10 @@ async fn system_prompt_absent_no_canary() {
 
     // session/new WITHOUT systemPrompt field.
     let sn_id = h
-        .send("session/new", json!({"cwd":"/tmp","mcpServers":[]}))
+        .send(
+            "session/new",
+            json!({"cwd": session_cwd(), "mcpServers": []}),
+        )
         .await;
     let r = h.recv_until(|v| v["id"] == json!(sn_id)).await;
     let sid = r["result"]["sessionId"].as_str().unwrap().to_owned();

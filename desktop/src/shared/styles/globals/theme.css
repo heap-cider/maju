@@ -268,7 +268,8 @@
 }
 
 /* Keep the subtle content-card lift in Maju Light only. */
-:root[data-maju-sidebar]:not(.dark) [data-maju-content-surface] {
+:root[data-maju-sidebar]:not(.dark)
+  [data-maju-content-surface]:not([data-maju-content-unframed]) {
   box-shadow:
     -1px -1px 0 0 hsl(var(--sidebar-border) / 0.45),
     0 0 4px 0 rgb(0 0 0 / 7%);
@@ -293,6 +294,19 @@
   background-color: transparent;
   background-image: none;
   isolation: isolate;
+}
+
+/* The Maju theme uses a translucent color wash. Back it with an opaque copy
+ * of the same gradient by default so its color remains stable over every app
+ * surface, including a lifted huddle. */
+:root[data-maju-sidebar] .maju-theme-gradient-underlay {
+  background-image: linear-gradient(
+    to bottom,
+    var(--maju-gradient-top),
+    var(--maju-gradient-bottom)
+  );
+  background-repeat: no-repeat;
+  background-size: 100vw 100vh;
 }
 
 /*
@@ -805,4 +819,34 @@
 
 :root[data-maju-translucent] .maju-huddle-app-surface::after {
   background: transparent;
+}
+
+:root[data-maju-translucent] .maju-huddle-app-surface-open::after {
+  background: hsl(var(--maju-huddle-drawer-surface));
+}
+
+/* Keep the Maju gradient in the lifted app surface. The shell beneath it is
+ * strictly the huddle drawer, so its dark surface is revealed at the rounded
+ * lower corners instead of the theme gradient bleeding through there. */
+:root[data-maju-sidebar] .maju-huddle-shell[data-huddle-open="true"] {
+  background-color: hsl(var(--maju-huddle-drawer-surface));
+  background-image: none;
+}
+
+:root[data-maju-sidebar][data-maju-translucent]
+  .maju-huddle-shell[data-huddle-open="true"] {
+  background-color: hsl(var(--maju-huddle-drawer-surface));
+  background-image: none;
+}
+
+/* Keep an explicit black base at z-0 while the lifted app surface (and its
+ * two gradient layers) sits above it. This prevents the default gradient
+ * backing from ever replacing the huddle drawer at the exposed corners. */
+:root[data-maju-sidebar] .maju-huddle-shell[data-huddle-open="true"]::before {
+  background: hsl(var(--maju-huddle-drawer-surface));
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
 }

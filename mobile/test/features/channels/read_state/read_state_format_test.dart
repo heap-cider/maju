@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:maju/features/channels/read_state/read_state_format.dart';
+import 'package:maju/shared/read_state/read_state_format.dart';
 import 'package:maju/shared/relay/nostr_models.dart';
 
 void main() {

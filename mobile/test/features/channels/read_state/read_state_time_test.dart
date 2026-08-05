@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:maju/features/channels/read_state/read_state_time.dart';
+import 'package:maju/shared/read_state/read_state_time.dart';
 
 void main() {
   test('dateTimeToUnixSeconds converts DateTime values and nulls', () {

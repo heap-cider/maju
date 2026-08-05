@@ -1,5 +1,5 @@
-import 'package:maju/features/channels/read_state/read_state_format.dart';
-import 'package:maju/features/channels/read_state/read_state_provider.dart';
+import 'package:maju/shared/read_state/read_state_format.dart';
+import 'package:maju/shared/read_state/read_state_provider.dart';
 import 'package:maju/shared/community/community_provider.dart';
 import 'package:maju/shared/relay/relay.dart';
 import 'package:maju/shared/theme/theme_provider.dart';

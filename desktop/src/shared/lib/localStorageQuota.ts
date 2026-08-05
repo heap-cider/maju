@@ -10,8 +10,10 @@
 const PURE_CACHE_KEY_PREFIXES = [
   "maju-channel-messages.v1:",
   "maju-channels.v1:",
+  "maju-observed-unread.v1:",
   "maju-sidebar-skeleton-shape.v1:",
   "maju-timeline-skeleton-shape.v1:",
+  "maju-user-labels.v1:",
 ];
 
 const QUOTA_RECOVERY_MARKER_KEY = "maju-local-storage-quota-recovery.v1";
