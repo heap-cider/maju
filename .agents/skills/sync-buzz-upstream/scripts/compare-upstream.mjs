@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../../..");
+const buzzUpstreamUrl = "https://github.com/block/buzz.git";
+const temporaryRefs = [];
 
 function fail(message, exitCode = 1) {
   const error = new Error(message);
@@ -82,50 +84,37 @@ function parseArgs(argv) {
   return options;
 }
 
-function canonicalGitHubRemote(value) {
-  return value
-    .trim()
-    .replace(/^git@github\.com:/, "https://github.com/")
-    .replace(/\.git$/, "")
-    .replace(/\/$/, "");
-}
-
-function verifyRemotes() {
-  const origin = canonicalGitHubRemote(
-    gitText(["config", "--get", "remote.origin.url"]),
-  );
-  const upstream = canonicalGitHubRemote(
-    gitText(["config", "--get", "remote.upstream.url"]),
-  );
-  const upstreamPush = gitText(
-    ["config", "--get", "remote.upstream.pushurl"],
-    { allowFailure: true },
-  );
-
-  if (origin !== "https://github.com/heap-cider/maju") {
-    fail(`Unexpected origin remote: ${origin || "missing"}`);
-  }
-  if (upstream !== "https://github.com/block/buzz") {
-    fail(`Unexpected upstream remote: ${upstream || "missing"}`);
-  }
-  if (upstreamPush !== "DISABLED") {
-    fail('The upstream push URL must be exactly "DISABLED"');
-  }
-  return { origin, upstream, upstreamPush };
-}
-
 function fetchTags(tags) {
+  const fetchedCommits = new Map();
+  let index = 0;
   for (const tag of new Set(tags)) {
+    const temporaryRef = `refs/maju-sync/buzz-${process.pid}-${index}`;
+    index += 1;
+    temporaryRefs.push(temporaryRef);
     runGit([
       "fetch",
+      "--no-tags",
       "--no-write-fetch-head",
-      "upstream",
-      `refs/tags/${tag}:refs/tags/${tag}`,
+      buzzUpstreamUrl,
+      `+refs/tags/${tag}:${temporaryRef}`,
     ]);
+    fetchedCommits.set(
+      tag,
+      gitText(["rev-parse", `${temporaryRef}^{commit}`]),
+    );
+  }
+  return fetchedCommits;
+}
+
+function cleanupTemporaryRefs() {
+  for (const ref of temporaryRefs.reverse()) {
+    runGit(["update-ref", "-d", ref], { allowFailure: true });
   }
 }
 
-function resolveTag(tag) {
+function resolveTag(tag, fetchedCommits) {
+  const fetchedCommit = fetchedCommits.get(tag);
+  if (fetchedCommit) return fetchedCommit;
   const ref = `refs/tags/${tag}`;
   const exists = runGit(["show-ref", "--verify", "--quiet", ref], {
     allowFailure: true,
@@ -321,11 +310,12 @@ try {
     "-z",
     "--untracked-files=all",
   ]);
-  const remotes = verifyRemotes();
-  if (options.fetch) fetchTags([options.from, options.to]);
+  const fetchedCommits = options.fetch
+    ? fetchTags([options.from, options.to])
+    : new Map();
 
-  const fromCommit = resolveTag(options.from);
-  const toCommit = resolveTag(options.to);
+  const fromCommit = resolveTag(options.from, fetchedCommits);
+  const toCommit = resolveTag(options.to, fetchedCommits);
   const ancestry = runGit(
     ["merge-base", "--is-ancestor", fromCommit, toCommit],
     { allowFailure: true },
@@ -364,8 +354,11 @@ try {
   }
 
   const report = {
-    schemaVersion: 1,
-    remotes,
+    schemaVersion: 2,
+    source: {
+      url: buzzUpstreamUrl,
+      persistentRemoteRequired: false,
+    },
     from: { tag: options.from, commit: fromCommit },
     to: { tag: options.to, commit: toCommit },
     fetched: options.fetch,
@@ -386,4 +379,6 @@ try {
 } catch (error) {
   console.error(`ERROR: ${error.message}`);
   process.exitCode = error.exitCode ?? 1;
+} finally {
+  cleanupTemporaryRefs();
 }

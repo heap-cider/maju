@@ -1,6 +1,6 @@
 ---
 name: sync-buzz-upstream
-description: Inspect and synchronize a new block/buzz release into the heap-cider/maju fork without directly merging upstream. Use when comparing Buzz release tags, reviewing upstream release changes, classifying Maju conflicts, applying user-approved upstream changes, or updating the last synchronized Buzz version.
+description: Inspect and synchronize a new block/buzz release into Maju without directly merging upstream or requiring a persistent Git remote. Use when comparing Buzz release tags, reviewing upstream release changes, classifying Maju conflicts, applying user-approved upstream changes, or updating the last synchronized Buzz version.
 ---
 
 # Sync Buzz Upstream
@@ -14,8 +14,10 @@ releases.
 1. Read the `Maju Product Contract` and `Maju Fork Policy` sections at the top
    of `AGENTS.md`, then read `MAJU_PRODUCT_CONTRACT.md` in full. Treat the
    contract as desired product behavior, not proof of implementation.
-2. Confirm `origin` points to `heap-cider/maju`, `upstream` fetches from
-   `block/buzz`, and the upstream push URL is `DISABLED`.
+2. Do not require or create a persistent `upstream` remote. The bundled
+   analyzer fetches exact release tags directly from the fixed read-only source
+   `https://github.com/block/buzz.git` and removes its temporary refs before it
+   exits. Never push, open issues, or open pull requests against that source.
 3. Preserve the user's existing worktree changes. Do not merge, rebase,
    cherry-pick, commit, push, or edit files during analysis.
 4. Run the bundled analyzer from the repository root:
@@ -30,8 +32,10 @@ releases.
    resolves only `refs/tags/<name>` so branches and arbitrary commits cannot be
    substituted for release tags.
 
-   Omit `--fetch` when both tags already exist locally. Use `--expect-zero` for
-   a same-version smoke test.
+   Use `--fetch` for the normal path so both tags are resolved from the fixed
+   official source without trusting local remote configuration. Omit it only
+   when intentionally testing already-present local tags. Use `--expect-zero`
+   for a same-version smoke test.
 5. Review every reported change. The analyzer translates `buzz`, `Buzz`, and
    `BUZZ` in upstream paths and text to their Maju equivalents before comparing
    them with the current worktree. Independently check each user-visible change
@@ -72,6 +76,7 @@ releases.
 ## Analyzer guarantees
 
 `scripts/compare-upstream.mjs` reads Git objects and the worktree. `--fetch`
-may add missing upstream tag refs, but the script must leave the worktree status
-byte-for-byte unchanged. Treat a nonzero exit or a worktree-integrity failure as
-a blocked analysis and do not continue to application.
+contacts only the fixed Buzz URL, creates no Git remote, and removes its
+temporary refs before exit. The script must leave the worktree status
+byte-for-byte unchanged. Treat a nonzero exit or a worktree-integrity failure
+as a blocked analysis and do not continue to application.

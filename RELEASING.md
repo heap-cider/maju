@@ -5,7 +5,7 @@ Android APK keep their immutable tags cut directly from remote `main`:
 
 | Lane | Entry point | Artifact |
 |------|-------------|----------|
-| Maju bundle | `just release-desktop` | Windows installer, Android APK, Linux relay archive, and `ghcr.io/heap-cider/maju` image |
+| Maju bundle | project-local `release-maju` skill | Windows installer, Android APK, Linux relay archive, and `ghcr.io/heap-cider/maju` image |
 | Mobile | `scripts/mobile-release.sh candidate X.Y.Z` | Exact `mobile-vX.Y.Z-rc.N` source identity |
 
 The ordinary `vX.Y.Z` tag identifies every artifact in the Maju bundle. Mobile
@@ -15,14 +15,13 @@ because OSS CI cannot trigger private CI.
 
 ## Quick Start
 
+Ask an agent to use `$release-maju`, with an explicit version when needed. The
+skill prepares and merges through the canonical Maju repository, then publishes
+the verified commit to GitHub without configuring a persistent GitHub remote.
+
+The separate internal mobile-candidate command remains:
+
 ```sh
-# Maju release (next patch version)
-just release-desktop
-
-# Explicit version
-just release-desktop 0.4.0
-
-# Publish the next mobile candidate from the exact current remote main commit
 scripts/mobile-release.sh candidate 0.5.0
 ```
 
@@ -37,11 +36,15 @@ or mobile GitHub Release.
 
 ### Maju bundle
 
-1. **`just release-desktop`** runs locally on `main`, creates or updates a
-   `version-bump/<version>` PR, bumps the desktop manifests, regenerates
-   lockfiles, and updates `CHANGELOG.md`.
-2. **Merge the PR.** `auto-tag-on-release-pr-merge` pushes `v<version>`.
-3. **The tag triggers both publishers.** `release.yml` publishes the Windows
+1. **`release-maju` prepares a Maju PR.** It creates a
+   `version-bump/<version>` branch from canonical Maju `origin/main`, bumps the
+   desktop manifests, regenerates lockfiles, updates `CHANGELOG.md`, and opens
+   the pull request in Maju.
+2. **Merge the PR in Maju.** The skill verifies the merged commit, creates the
+   immutable `v<version>` tag in Maju, and publishes the exact `main` commit to
+   `heap-cider/maju` by URL. GitHub `main` CI must pass before the tag is
+   published there.
+3. **The GitHub tag triggers both publishers.** `release.yml` publishes the Windows
    installer, Android APK, and standalone Linux relay archive. `docker.yml`
    publishes the same relay source as an amd64/arm64 GHCR image under the full
    semver, major/minor, major, SHA, and stable `latest` aliases. Matching
@@ -179,8 +182,11 @@ and iOS are not public Maju release targets.
 ## Prerequisites
 
 - **Write access** to the `heap-cider/maju` GitHub repository
-- An `origin` remote whose configured URL is the canonical `heap-cider/maju`
-  repository
+- An `origin` remote whose configured URL is the canonical Maju-hosted
+  repository announced by the active project
+- No GitHub remote is required. The release skill addresses
+  `https://github.com/heap-cider/maju.git` directly and uses explicit
+  `--repo heap-cider/maju` arguments for GitHub CLI operations.
 - `gh` CLI version 2.87.0 or newer, authenticated with permission to dispatch
   the candidate workflow
 - Release tag ruleset [`14378754`](https://github.com/heap-cider/maju/rules/14378754)
@@ -209,10 +215,11 @@ actor list.
 
 ## Troubleshooting
 
-### `just release-desktop` fails with "must be on main branch"
-Switch to `main` and pull latest before running the release recipe.
+### Release preparation says the checkout is not canonical
+Clone the project from its Maju repository so that `origin` points to the
+Maju-hosted Git URL, then retry the skill.
 
-### `just release-desktop` fails with "working tree is dirty"
+### Release preparation says the working tree is dirty
 Commit or stash your changes before running the release recipe.
 
 ### New commits land after publishing a mobile candidate

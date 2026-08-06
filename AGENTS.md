@@ -21,9 +21,15 @@
 # Maju Fork Policy
 
 - Maju is an unofficial fork of [`block/buzz`](https://github.com/block/buzz).
-- `origin` (`heap-cider/maju`) is the writable primary repository. `upstream`
-  (`block/buzz`) is read-only and must never receive pushes, issues, or pull
-  requests from Maju work.
+- The Maju-hosted Git repository is the writable development source and should
+  be `origin` in normal project checkouts. Public GitHub
+  (`heap-cider/maju`) is only the build and release destination; publish there
+  with the project-local `release-maju` skill, without requiring a persistent
+  Git remote.
+- Buzz is a read-only release source, not a configured collaboration remote.
+  The `sync-buzz-upstream` skill reads exact tags directly from
+  `https://github.com/block/buzz.git`; a persistent `upstream` remote is not
+  required. Never push, open issues, or open pull requests against Buzz.
 - Maju is currently synchronized through Buzz release `desktop-v0.5.5`.
 - Do not merge, rebase, or cherry-pick an upstream release directly into Maju.
   Use the project-local `sync-buzz-upstream` skill to inspect and normalize the
@@ -37,6 +43,9 @@
 - Do not propose sending general fixes back to Buzz. If Maju fixed something
   first and Buzz later resolves it at the source, explain the difference and
   obtain the user's agreement before replacing Maju's direction or code.
+- Do not treat GitHub branches or pull requests as Maju's development source.
+  Prepare and merge work in Maju, then use `release-maju` only when publishing
+  a verified public release.
 
 ---
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Maju"
+  short_description: "Publish a verified Maju release through GitHub"
+  default_prompt: "Use $release-maju to prepare or publish a Maju release from the canonical Maju repository."
