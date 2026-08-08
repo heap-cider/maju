@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.14
+
+- Restore the macOS notification dependency omitted while synchronizing Buzz desktop-v0.5.7.
+- Keep Maju's direct self-hosted server flow when returning to community setup.
+- Restore the intended agent restart action and avoid duplicate restart badges on agent cards.
+
 ## v0.2.13
 
 - chore(sync): adopt Buzz desktop-v0.5.7 ([`8c24ab59d`](https://github.com/heap-cider/maju/commit/8c24ab59dfdc49ccdf32afa8eb929b62e0cab253))

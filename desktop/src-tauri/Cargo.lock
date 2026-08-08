@@ -4902,7 +4902,7 @@ dependencies = [
 
 [[package]]
 name = "maju-desktop"
-version = "0.2.13"
+version = "0.2.14"
 dependencies = [
  "anyhow",
  "arboard",
@@ -4910,6 +4910,7 @@ dependencies = [
  "audioadapter-buffers",
  "axum",
  "base64 0.22.1",
+ "block2",
  "bytes",
  "bzip2 0.6.1",
  "chrono",

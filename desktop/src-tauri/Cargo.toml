@@ -7,7 +7,7 @@ members = ["crates/maju-terminal"]
 
 [package]
 name = "maju-desktop"
-version = "0.2.13"
+version = "0.2.14"
 description = "Maju desktop app"
 authors = ["you"]
 edition = "2021"
@@ -51,6 +51,7 @@ notify-rust = "4"
 webkit2gtk = { version = "=2.0.2", features = ["v2_22"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+block2 = { version = "0.6", default-features = false, features = ["std"] }
 objc2 = { version = "0.6.4", default-features = false }
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSEvent", "NSHapticFeedback", "NSMenu", "NSMenuItem", "NSStatusItem", "block2"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSDictionary", "NSError", "NSBundle", "NSObject", "NSProcessInfo", "NSString"] }

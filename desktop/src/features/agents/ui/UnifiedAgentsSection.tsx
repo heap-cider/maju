@@ -32,7 +32,6 @@ import { AgentIdentityCard } from "./AgentIdentityCard";
 import { AgentRuntimeAvatarControl } from "./AgentRuntimeAvatarControl";
 import { CreateIdentityCard } from "./CreateIdentityCard";
 import { PersonaActionsMenu } from "./PersonaActionsMenu";
-import { RestartDiffBadge } from "./RestartDiffBadge";
 import { buildUnifiedGroups, pickProfileAgent } from "./unifiedAgentGroups";
 
 type UnifiedAgentsSectionProps = {
@@ -544,7 +543,7 @@ function AgentCardStatus({
     executionLocation?.currentDeviceIsStandby &&
       !executionLocation.representativeIsCurrent,
   );
-  const hasWarning = agent.personaOrphaned || agent.needsRestart;
+  const hasWarning = agent.personaOrphaned;
 
   if (!hasWarning && !representativeLabel && !isCurrentStandby) {
     return null;
@@ -557,11 +556,6 @@ function AgentCardStatus({
           <AlertTriangle className="h-3 w-3 shrink-0" />
           <span className="truncate">Configuration missing</span>
         </Badge>
-      ) : agent.needsRestart ? (
-        <RestartDiffBadge
-          autoRestartEnabled={agent.autoRestartOnConfigChange}
-          restartDiff={agent.restartDiff}
-        />
       ) : null}
       {representativeLabel ? (
         <span

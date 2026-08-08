@@ -850,9 +850,9 @@ test.describe("community rail", () => {
       .getByRole("menuitem", { name: "Leave community" })
       .click();
 
-    await expect(page.getByText("Join or create a community")).toBeVisible();
+    await expect(page.getByText("Connect your Maju server")).toBeVisible();
     await expect(page.getByTestId("welcome-setup-back")).toHaveCount(0);
-    await expect(page.getByTestId("community-choice-join")).toBeVisible();
+    await expect(page.getByTestId("self-hosted-welcome-setup")).toBeVisible();
     await expect
       .poll(() =>
         page.evaluate(() => window.localStorage.getItem("maju-communities")),
@@ -873,7 +873,7 @@ test.describe("community rail", () => {
     });
     await relaunchPage.goto("/");
     await expect(
-      relaunchPage.getByText("Join or create a community"),
+      relaunchPage.getByText("Connect your Maju server"),
     ).toBeVisible();
     await expect(relaunchPage.getByTestId("welcome-setup-back")).toHaveCount(0);
     await expect

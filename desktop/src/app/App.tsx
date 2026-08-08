@@ -508,7 +508,13 @@ function CommunityApp({
   if (!transaction) {
     if (community.needsSetup) {
       // Show welcome setup for first-run users with no communities
-      appContent = <WelcomeSetup onBack={onBackToMachineConfig} />;
+      appContent = (
+        <WelcomeSetup
+          onBack={
+            isFindingCommunityAfterLeave ? undefined : onBackToMachineConfig
+          }
+        />
+      );
     } else if ("error" in community && community.error) {
       // Surface apply failures so the user can retry or change community.
       appContent = (

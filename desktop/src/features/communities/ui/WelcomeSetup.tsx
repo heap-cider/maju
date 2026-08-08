@@ -13,7 +13,7 @@ import { Button } from "@/shared/ui/button";
 import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";
 
 type WelcomeSetupProps = {
-  onBack: () => void;
+  onBack?: () => void;
 };
 
 export function WelcomeSetup({ onBack }: WelcomeSetupProps) {

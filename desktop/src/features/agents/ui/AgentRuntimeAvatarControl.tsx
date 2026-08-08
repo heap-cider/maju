@@ -145,12 +145,12 @@ export function AgentRuntimeAvatarControl({
   const trimmedAvatarUrl = avatarUrl?.trim() || null;
   const isRestartAction = requiresRestart || isRestarting;
   const actionLabel = isRestarting
-    ? `Restarting ${label}`
+    ? "Restarting Agent"
     : isStarting
-      ? `Starting ${label}`
+      ? "Starting Agent"
       : isRestartAction
-        ? `Restart ${label}`
-        : `Start ${label}`;
+        ? "Restart Agent"
+        : "Start Agent";
   const actionText = isRestartAction ? "Restart" : "Start";
   const isPending = isStarting || isRestarting;
   const showRunningDot = isActive && !isRestartAction;

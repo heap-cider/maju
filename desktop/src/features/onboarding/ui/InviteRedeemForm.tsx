@@ -42,7 +42,7 @@ type InviteRedeemFormProps = {
   error: string | null;
   initialValue?: string;
   isRedeeming: boolean;
-  onCancel: () => void;
+  onCancel?: () => void;
   onConnect?: (relayWsUrl: string) => void;
   onRedeem: (relayWsUrl: string, code: string, policyReceipt?: string) => void;
   placeholder?: string;
@@ -323,7 +323,7 @@ export function InviteRedeemForm({
     </Button>
   );
 
-  const cancelButton = (
+  const cancelButton = onCancel ? (
     <Button
       className={
         isOnboardingSpotlight
@@ -338,7 +338,7 @@ export function InviteRedeemForm({
     >
       {isOnboardingSpotlight ? "Back" : "Cancel"}
     </Button>
-  );
+  ) : null;
 
   return (
     <form
