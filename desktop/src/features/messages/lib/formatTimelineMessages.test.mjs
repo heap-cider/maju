@@ -103,7 +103,23 @@ test("a far-future edit still rewrites the body of an old message", () => {
     created_at: 1_900_000_000,
     pubkey: PUBKEY_B,
   });
-  const out = formatTimelineMessages([old, lateEdit], null, undefined, null);
+  const members = [
+    {
+      pubkey: PUBKEY_B,
+      role: "owner",
+      isAgent: false,
+      joinedAt: "2026-01-01T00:00:00Z",
+      displayName: "Owner",
+    },
+  ];
+  const out = formatTimelineMessages(
+    [old, lateEdit],
+    null,
+    undefined,
+    null,
+    undefined,
+    members,
+  );
   assert.equal(out.length, 1, "the message should still render");
   assert.equal(
     out[0].body,
@@ -679,4 +695,103 @@ test("CHANNEL_TIMELINE_CONTENT_KINDS matches isTimelineContentEvent", () => {
       `aux kind ${kind} must not be a timeline content event`,
     );
   }
+});
+
+test("original message link-preview none marker suppresses all generated previews", () => {
+  const [message] = formatTimelineMessages(
+    [
+      streamMessage({
+        content: "https://one.example https://two.example",
+        tags: [
+          ["h", CHANNEL_ID],
+          ["link-preview", "none"],
+        ],
+      }),
+    ],
+    null,
+    undefined,
+    null,
+  );
+  assert.deepEqual(
+    message.tags.find((tag) => tag[0] === "link-preview"),
+    ["link-preview", "none"],
+  );
+});
+
+test("authorized suppression edit remains monotonic across later body edits", () => {
+  const suppress = streamEdit(
+    HEX64_A,
+    "https://one.example https://two.example",
+    {
+      created_at: 1_700_000_001,
+      tags: [
+        ["h", CHANNEL_ID],
+        ["e", HEX64_A],
+        ["link-preview", "none"],
+      ],
+    },
+  );
+  const later = streamEdit(HEX64_A, "later body", {
+    id: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    created_at: 1_700_000_002,
+  });
+  const [message] = formatTimelineMessages(
+    [streamMessage(), suppress, later],
+    null,
+    undefined,
+    null,
+  );
+  assert.equal(message.body, "later body");
+  assert.equal(
+    message.tags.some((tag) => tag[0] === "link-preview" && tag[1] === "none"),
+    true,
+  );
+});
+
+test("spoofed suppression edit cannot hide another author's previews", () => {
+  const spoof = streamEdit(HEX64_A, "spoofed", {
+    pubkey: PUBKEY_B,
+    tags: [
+      ["h", CHANNEL_ID],
+      ["e", HEX64_A],
+      ["link-preview", "none"],
+    ],
+  });
+  const [message] = formatTimelineMessages(
+    [streamMessage(), spoof],
+    null,
+    undefined,
+    null,
+  );
+  assert.equal(message.body, "hello world");
+  assert.equal(
+    message.tags.some((tag) => tag[0] === "link-preview"),
+    false,
+  );
+});
+
+test("verified agent owner may publish a suppression edit", () => {
+  const ownerEdit = streamEdit(HEX64_A, "owner edit", {
+    pubkey: PUBKEY_B,
+    tags: [
+      ["h", CHANNEL_ID],
+      ["e", HEX64_A],
+      ["link-preview", "none"],
+    ],
+  });
+  const profiles = {
+    [PUBKEY_A]: { ownerPubkey: PUBKEY_B },
+  };
+  const [message] = formatTimelineMessages(
+    [streamMessage(), ownerEdit],
+    null,
+    undefined,
+    null,
+    profiles,
+  );
+  assert.equal(message.body, "owner edit");
+  assert.equal(
+    message.tags.some((tag) => tag[0] === "link-preview"),
+    true,
+  );
 });

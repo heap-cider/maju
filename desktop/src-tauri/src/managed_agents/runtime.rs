@@ -6,19 +6,19 @@ use super::agent_env::build_maju_agent_provider_defaults;
 
 use crate::{
     managed_agents::{
-        append_log_marker, current_agent_avatar_url, known_acp_runtime, login_shell_path,
-        managed_agent_log_path, missing_command_message, normalize_agent_args, open_log_file,
-        resolve_command, spawn_key_refusal, KnownAcpRuntime, ManagedAgentPairRuntime,
-        ManagedAgentRecord, ManagedAgentRuntimeKey, ManagedAgentSummary,
+        append_log_marker, known_acp_runtime, login_shell_path, managed_agent_log_path,
+        missing_command_message, normalize_agent_args, open_log_file, resolve_command,
+        spawn_key_refusal, KnownAcpRuntime, ManagedAgentPairRuntime, ManagedAgentRecord,
+        ManagedAgentRuntimeKey, ManagedAgentSummary,
     },
     util::now_iso,
 };
 
 mod path;
 pub(in crate::managed_agents) use path::build_augmented_path;
-pub(crate) use path::compose_path_entries;
-pub(crate) use path::should_skip_claude_executable;
-pub(crate) use path::should_use_inherited;
+pub(crate) use path::{compose_path_entries, should_skip_claude_executable, should_use_inherited};
+
+pub(crate) use super::access_policy::{build_respond_to_env_with_policy, RespondToEnv};
 mod metadata;
 pub(crate) use metadata::{
     apply_agent_display_env, resolve_session_title, runtime_metadata_env_vars,
@@ -31,8 +31,6 @@ pub use stop::{stop_managed_agent_process, stop_managed_agent_workspace_pair};
 
 mod sweep;
 pub(crate) use sweep::sweep_untracked_bundle_harnesses;
-
-type RespondToEnv = (Vec<(&'static str, String)>, Vec<&'static str>);
 
 mod process;
 pub(crate) use process::{
@@ -304,7 +302,7 @@ pub fn build_managed_agent_summary(
         team_id: record.team_id.clone(),
         relay_url: record.relay_url.clone(),
         acp_command: record.acp_command.clone(),
-        avatar_url: current_agent_avatar_url(record, &descriptor.command, personas),
+        avatar_url: record.avatar_url.clone(),
         agent_command: descriptor.command,
         agent_command_override: record.agent_command_override.clone(),
         agent_args: descriptor.args,
@@ -368,44 +366,7 @@ pub(crate) fn build_respond_to_env(
     record: &ManagedAgentRecord,
     owner_hex: Option<&str>,
 ) -> Result<RespondToEnv, String> {
-    // Defensive re-validation: an on-disk record could have been hand-edited.
-    let normalized = super::types::validate_respond_to_allowlist(&record.respond_to_allowlist)?;
-    if record.respond_to == super::types::RespondTo::Allowlist && normalized.is_empty() {
-        return Err(
-            "respond-to mode 'allowlist' requires at least one pubkey in the allowlist".to_string(),
-        );
-    }
-
-    let mut set: Vec<(&'static str, String)> = Vec::new();
-    let mut remove: Vec<&'static str> = Vec::new();
-
-    set.push((
-        "MAJU_ACP_RESPOND_TO",
-        record.respond_to.as_str().to_string(),
-    ));
-
-    if record.respond_to == super::types::RespondTo::Allowlist {
-        set.push(("MAJU_ACP_RESPOND_TO_ALLOWLIST", normalized.join(",")));
-    } else {
-        remove.push("MAJU_ACP_RESPOND_TO_ALLOWLIST");
-    }
-
-    // Legacy fallback: agents created before NIP-OA lack `auth_tag`. Without
-    // it the harness can't resolve the owner, and owner-dependent gate modes
-    // would drop every event. Forwarding the workspace owner pubkey via
-    // MAJU_ACP_AGENT_OWNER keeps those records functional. Modern records
-    // (`auth_tag = Some(...)`) use `MAJU_AUTH_TAG` as before.
-    if record.auth_tag.is_none() {
-        if let Some(owner) = owner_hex {
-            set.push(("MAJU_ACP_AGENT_OWNER", owner.to_string()));
-        } else {
-            remove.push("MAJU_ACP_AGENT_OWNER");
-        }
-    } else {
-        remove.push("MAJU_ACP_AGENT_OWNER");
-    }
-
-    Ok((set, remove))
+    build_respond_to_env_with_policy(record, owner_hex, super::owner_only())
 }
 
 pub(crate) fn configure_runtime_cli(
@@ -702,12 +663,9 @@ pub fn spawn_agent_child(
             );
         }
     }
-    // Only emit MAJU_ACP_IDLE_TIMEOUT when the user has explicitly set an
-    // override. When unset, the maju-acp harness applies its own default
-    // (see `DEFAULT_IDLE_TIMEOUT_SECS` in crates/maju-acp/src/config.rs),
-    // which is the single source of truth. The previously-emitted
-    // `MAJU_ACP_TURN_TIMEOUT` is deprecated upstream and was pinning every
-    // agent to the desktop's stale default (320s), bypassing harness bumps.
+    // Emit MAJU_ACP_IDLE_TIMEOUT only when explicitly set; the harness
+    // DEFAULT_IDLE_TIMEOUT_SECS is the single source of truth. The deprecated
+    // MAJU_ACP_TURN_TIMEOUT pinned agents to a stale default (320s).
     if let Some(idle) = record.idle_timeout_seconds {
         command.env("MAJU_ACP_IDLE_TIMEOUT", idle.to_string());
     }
@@ -715,7 +673,8 @@ pub fn spawn_agent_child(
     if let Some(max_dur) = record.max_turn_duration_seconds {
         command.env("MAJU_ACP_MAX_TURN_DURATION", max_dur.to_string());
     }
-    command.env("MAJU_ACP_AGENTS", record.parallelism.to_string());
+    let acp_n = super::acp_agents_value(effective_command, record.parallelism);
+    command.env("MAJU_ACP_AGENTS", acp_n);
     command.env("MAJU_ACP_MULTIPLE_EVENT_HANDLING", "steer");
     command.env("MAJU_ACP_DEDUP", "queue");
     if let Some(meta) = runtime_meta {
@@ -1015,6 +974,9 @@ pub fn start_managed_agent_process(
     runtimes.insert(key, ManagedAgentPairRuntime::starting(process));
     Ok(())
 }
+
+#[cfg(test)]
+mod test_fixtures;
 
 #[cfg(test)]
 mod tests;

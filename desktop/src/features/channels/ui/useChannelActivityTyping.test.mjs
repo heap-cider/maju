@@ -79,7 +79,7 @@ describe("thread-only bot typing regression", () => {
 });
 
 describe("mergeAgentNamesIntoProfiles", () => {
-  it("prefers the current managed avatar over a stale profile cache", () => {
+  it("prefers the signed relay profile avatar over the managed fallback", () => {
     const merged = mergeAgentNamesIntoProfiles(
       {
         [AGENT]: {
@@ -98,7 +98,10 @@ describe("mergeAgentNamesIntoProfiles", () => {
       [],
     );
 
-    assert.equal(merged[AGENT]?.avatarUrl, "https://example.com/yui.png");
+    assert.equal(
+      merged[AGENT]?.avatarUrl,
+      "https://example.com/codex-default.png",
+    );
   });
 
   it("keeps the relay profile when the managed avatar is absent", () => {

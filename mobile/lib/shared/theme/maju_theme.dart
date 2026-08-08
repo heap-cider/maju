@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'accent_colors.dart';
+import 'app_colors.dart';
+
 /// Name of the first-party Maju theme. Maju reuses the GitHub Light palette for
 /// every base color; the one thing that sets it apart is a branded gradient
 /// painted across the app's top section. Mirrors desktop, where the same
@@ -16,6 +19,57 @@ const majuDarkThemeName = 'maju-dark';
 /// gradient so System mode keeps it on across an OS light/dark switch.
 bool isMajuTheme(String themeName) =>
     themeName == majuThemeName || themeName == majuDarkThemeName;
+
+/// Whether the current widget tree is using the first-party Maju treatment.
+bool isMajuThemeContext(BuildContext context) =>
+    Theme.of(context).extension<AppColors>()?.topSectionGradient != null;
+
+/// Primary foreground for the mobile top navigation.
+///
+/// Every theme uses its own [ColorScheme.onSurface]. Maju is the exception:
+/// its desktop-matching top gradient needs a neutral black or white foreground
+/// rather than the accent-derived color scheme foreground.
+Color navigationPrimaryForeground(BuildContext context) {
+  final scheme = Theme.of(context).colorScheme;
+  if (!isMajuThemeContext(context)) return scheme.onSurface;
+  return scheme.brightness == Brightness.dark ? Colors.white : Colors.black;
+}
+
+/// Secondary label and placeholder foreground for the mobile top navigation.
+Color navigationSecondaryForeground(BuildContext context) {
+  final scheme = Theme.of(context).colorScheme;
+  if (!isMajuThemeContext(context)) return scheme.onSurfaceVariant;
+  return navigationPrimaryForeground(context).withValues(alpha: 0.4);
+}
+
+/// Channel-section label and icon foreground for the mobile side navigation.
+///
+/// Section labels need more hierarchy than a placeholder. Maju therefore uses
+/// a stronger neutral over its gradient, while all other themes preserve their
+/// established secondary foreground token.
+Color navigationSectionForeground(BuildContext context) {
+  final scheme = Theme.of(context).colorScheme;
+  if (!isMajuThemeContext(context)) return scheme.onSurfaceVariant;
+  return navigationPrimaryForeground(context).withValues(alpha: 0.8);
+}
+
+/// Search-field surface for the mobile top navigation.
+Color navigationSearchSurface(BuildContext context) {
+  final scheme = Theme.of(context).colorScheme;
+  if (!isMajuThemeContext(context)) return scheme.surfaceContainerHighest;
+  return navigationPrimaryForeground(context).withValues(alpha: 0.04);
+}
+
+/// A low-contrast navigation divider derived from the active theme foreground.
+Color navigationDivider(BuildContext context, double opacity) =>
+    navigationPrimaryForeground(context).withValues(alpha: opacity);
+
+/// Maju renders with its fixed neutral foreground while preserving the stored
+/// wire accent so the user's choice returns on another theme.
+int effectiveAccentIndex(String themeName, String storedAccent) {
+  if (isMajuTheme(themeName)) return neutralAccentIndex;
+  return accentIndexForWireValue(storedAccent) ?? defaultAccentIndex;
+}
 
 /// Gradient stops, matching desktop's `--maju-gradient-*` custom properties.
 const _lightTop = Color(0xFFE6E6B6);

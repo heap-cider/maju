@@ -948,9 +948,6 @@ export function AgentDefinitionDialog({
               onSaved={selectSavedHarness}
               open={isAddHarnessOpen}
             />
-
-            {isCreateMode ? createRunSection : null}
-
             <div className="space-y-3">
               <button
                 aria-expanded={showAdvancedFields}
@@ -959,7 +956,8 @@ export function AgentDefinitionDialog({
                 type="button"
               >
                 <span>Advanced</span>
-                {localModeGate.missingEnvKeys.some((key) =>
+                {(isCreateMode && createSubmitBlocked) ||
+                localModeGate.missingEnvKeys.some((key) =>
                   advancedRequiredEnvKeys.includes(key),
                 ) ? (
                   <span
@@ -989,6 +987,9 @@ export function AgentDefinitionDialog({
                   >
                     <PersonaAdvancedFields
                       acpConfigOptions={discoveredConfigOptions}
+                      afterRespondTo={
+                        isCreateMode ? createRunSection : undefined
+                      }
                       behaviorDraft={behaviorDraft}
                       disabled={isPending}
                       envVars={envVars}
@@ -1017,7 +1018,6 @@ export function AgentDefinitionDialog({
                 ) : null}
               </AnimatePresence>
             </div>
-
             {error ? (
               <p className="text-sm text-destructive">{error.message}</p>
             ) : null}

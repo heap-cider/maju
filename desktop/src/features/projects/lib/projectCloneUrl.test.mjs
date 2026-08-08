@@ -5,6 +5,7 @@ import { deriveRelayCloneUrl, effectiveCloneUrls } from "./projectCloneUrl.ts";
 import {
   projectRepoHost,
   projectRepoHostForProject,
+  repositoryDisplayPath,
 } from "./projectRepoHost.ts";
 
 const OWNER = "a".repeat(64);
@@ -102,5 +103,54 @@ test("projectRepoHostForProject recognizes an implicit relay repository", () => 
       ORIGIN,
     ),
     { kind: "maju" },
+  );
+});
+
+test("repositoryDisplayPath renders an external repo as host/path without .git", () => {
+  assert.equal(
+    repositoryDisplayPath(
+      {
+        cloneUrls: ["https://github.com/heap-cider/maju.git"],
+        dtag: "maju",
+        owner: OWNER,
+      },
+      ORIGIN,
+    ),
+    "github.com/heap-cider/maju",
+  );
+});
+
+test("repositoryDisplayPath renders a relay-hosted repo as owner/repo", () => {
+  assert.equal(
+    repositoryDisplayPath(
+      { cloneUrls: [], dtag: "maju", owner: OWNER },
+      ORIGIN,
+      "thomas",
+    ),
+    "thomas/maju",
+  );
+});
+
+test("repositoryDisplayPath falls back to a shortened pubkey owner", () => {
+  assert.equal(
+    repositoryDisplayPath(
+      { cloneUrls: [], dtag: "maju", owner: OWNER },
+      ORIGIN,
+    ),
+    `${"a".repeat(8)}…/maju`,
+  );
+});
+
+test("repositoryDisplayPath fails closed without a resolvable clone URL", () => {
+  assert.equal(
+    repositoryDisplayPath({ cloneUrls: [], dtag: "maju", owner: OWNER }, null),
+    null,
+  );
+  assert.equal(
+    repositoryDisplayPath(
+      { cloneUrls: ["not a URL"], dtag: "maju", owner: OWNER },
+      ORIGIN,
+    ),
+    null,
   );
 });

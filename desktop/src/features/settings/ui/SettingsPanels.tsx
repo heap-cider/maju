@@ -38,8 +38,16 @@ import {
   useThreadViewMode,
   type ThreadViewMode,
 } from "@/features/channels/lib/threadViewModePreference";
+import {
+  setLinkPreviewStyle,
+  useLinkPreviewStyle,
+  type LinkPreviewStyle,
+} from "@/shared/lib/linkPreviewStylePreference";
 import { cn } from "@/shared/lib/cn";
+import { useCommunities } from "@/features/communities/useCommunities";
+import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
+import { SectionHeader } from "@/shared/ui/PageHeader";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,6 +78,7 @@ import {
   useThemePreviewVars,
   withAccentPreviewVars,
 } from "@/shared/theme/useThemePreviewVars";
+import { appearanceCommunityLabel } from "../lib/appearanceScopeCopy";
 import { ChannelTemplatesSettingsCard } from "./ChannelTemplatesSettingsCard";
 import { DevicesSettingsCard } from "./DevicesSettingsCard";
 import { HarnessesSettingsPanel } from "./HarnessesSettingsPanel";
@@ -438,6 +447,10 @@ function ThemeSettingsCard() {
     setFollowSystem,
   } = useTheme();
 
+  const { activeCommunity, communities } = useCommunities();
+  const showCommunityScope = communities.length > 1;
+  const communityLabel = appearanceCommunityLabel(activeCommunity?.name);
+
   // Maju themes pin a neutral accent (GitHub black in light, white in dark),
   // so the accent picker is hidden while a Maju theme is active. `themeName` is
   // the effective theme, so this also covers System mode resolving to Maju.
@@ -537,6 +550,34 @@ function ThemeSettingsCard() {
         title="Appearance"
         description="Choose a theme for Maju."
       />
+
+      {/* Mode, theme, and accent are saved per community
+          (CommunityThemeController restores them on switch). When the user is
+          in multiple communities, a subheader with an inline badge names the
+          community being edited; with one community there is nothing to
+          disambiguate, so no scoping labels are shown. */}
+      {showCommunityScope ? (
+        <SectionHeader
+          className="mb-4"
+          title={
+            <span className="flex min-w-0 items-center gap-2">
+              Theme{" "}
+              <span className="font-normal text-muted-foreground">
+                (per community)
+              </span>
+              {activeCommunity ? (
+                <Badge
+                  className="max-w-56 shrink-0 font-medium normal-case tracking-normal"
+                  data-testid="appearance-community-badge"
+                  variant="outline"
+                >
+                  <span className="truncate">{communityLabel}</span>
+                </Badge>
+              ) : null}
+            </span>
+          }
+        />
+      ) : null}
 
       {/* Mode selector: System / Light / Dark */}
       <div className="mb-4 flex gap-2">
@@ -664,8 +705,83 @@ function ThemeSettingsCard() {
         </AnimatePresence>
       )}
 
+      <LinkPreviewStyleSetting />
       <ThreadLayoutSetting />
     </section>
+  );
+}
+
+const LINK_PREVIEW_STYLE_OPTIONS: {
+  value: LinkPreviewStyle;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "compact",
+    label: "Compact",
+    description: "Show links as compact horizontal cards",
+  },
+  {
+    value: "rich",
+    label: "Rich",
+    description: "Unfurl links with larger images and descriptions",
+  },
+];
+
+function LinkPreviewStyleSetting() {
+  const style = useLinkPreviewStyle();
+  const activeOption =
+    LINK_PREVIEW_STYLE_OPTIONS.find((option) => option.value === style) ??
+    LINK_PREVIEW_STYLE_OPTIONS[0];
+
+  return (
+    <SettingsOptionGroup className="mt-8">
+      <SettingsOptionRow>
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Links</p>
+          <p className="text-sm font-normal text-muted-foreground">
+            {activeOption.description}
+          </p>
+        </div>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              className="h-7 min-w-28 justify-between gap-1.5 rounded-full border border-border/50 bg-muted/45 px-2.5 text-xs font-medium text-foreground shadow-none hover:bg-muted/70"
+              data-testid="link-preview-style-trigger"
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <span className="truncate">{activeOption.label}</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-72">
+            <DropdownMenuRadioGroup
+              onValueChange={(next) =>
+                setLinkPreviewStyle(next as LinkPreviewStyle)
+              }
+              value={style}
+            >
+              {LINK_PREVIEW_STYLE_OPTIONS.map((option) => (
+                <DropdownMenuRadioItem
+                  data-testid={`link-preview-style-${option.value}`}
+                  key={option.value}
+                  value={option.value}
+                >
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-medium">{option.label}</span>
+                    <span className="text-2xs text-muted-foreground">
+                      {option.description}
+                    </span>
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SettingsOptionRow>
+    </SettingsOptionGroup>
   );
 }
 
@@ -693,6 +809,8 @@ const THREAD_VIEW_MODE_OPTIONS: {
  */
 function ThreadLayoutSetting() {
   const threadViewMode = useThreadViewMode();
+  const { communities } = useCommunities();
+  const showCommunityScope = communities.length > 1;
   const activeOption =
     THREAD_VIEW_MODE_OPTIONS.find(
       (option) => option.value === threadViewMode,
@@ -702,7 +820,15 @@ function ThreadLayoutSetting() {
     <SettingsOptionGroup className="mt-8">
       <SettingsOptionRow>
         <div className="min-w-0">
-          <p className="text-sm font-medium">Thread layout</p>
+          <p className="text-sm font-medium">
+            Thread layout
+            {showCommunityScope ? (
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                (all communities)
+              </span>
+            ) : null}
+          </p>
           <p className="text-sm font-normal text-muted-foreground">
             {activeOption.description}
           </p>

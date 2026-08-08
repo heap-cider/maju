@@ -128,9 +128,9 @@ spec:
             - { name: MAJU_MAX_CONNECTIONS,        value: {{ .Values.relay.maxConnections | quote }} }
             - { name: MAJU_MAX_CONCURRENT_HANDLERS, value: {{ .Values.relay.maxConcurrentHandlers | quote }} }
             - { name: MAJU_SEND_BUFFER,            value: {{ .Values.relay.sendBuffer | quote }} }
+            - { name: MAJU_DRAIN_JITTER_MS,        value: {{ .Values.relay.drainJitterMs | quote }} }
             - { name: MAJU_REQUIRE_AUTH_TOKEN,     value: {{ .Values.relay.requireAuthToken | quote }} }
             - { name: MAJU_REQUIRE_RELAY_MEMBERSHIP, value: {{ .Values.relay.requireRelayMembership | quote }} }
-            - { name: MAJU_REQUIRE_MEDIA_GET_AUTH, value: {{ .Values.relay.requireMediaGetAuth | quote }} }
             - { name: MAJU_ALLOW_NIP_OA_AUTH,      value: {{ .Values.relay.allowNipOaAuth | quote }} }
             - { name: MAJU_PUBKEY_ALLOWLIST,       value: {{ .Values.relay.pubkeyAllowlist | quote }} }
             {{- if .Values.relay.corsOrigins }}

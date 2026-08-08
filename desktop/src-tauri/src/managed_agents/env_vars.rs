@@ -5,11 +5,13 @@
 //! Precedence: desktop parent env < persona env < agent env (last wins on
 //! key collision). See `runtime::spawn_agent_child`.
 //!
-//! A small set of *reserved* keys — Maju's identity and secrets — are
-//! rejected at save time and stripped at runtime so a typo or malicious
-//! value can't swap the agent's nsec. Behavior knobs (GOOSE_MODE, MAJU_ACP_MODEL, MAJU_ACP_SYSTEM_PROMPT, …) remain
-//! freely overridable — those have dedicated UI fields, but power users
-//! may want to bypass them.
+//! A small set of *reserved* keys includes Maju's identity, secrets, security
+//! gates, and control-plane values. Save-time validation rejects those keys.
+//! Runtime filtering strips old persisted overrides. Behavior knobs
+//! (GOOSE_MODE, MAJU_ACP_MODEL, MAJU_ACP_SYSTEM_PROMPT, …) remain freely
+//! overridable. Power users can still bypass their dedicated UI fields.
+//! `MAJU_ACP_AGENTS` is reserved because Desktop applies harness-specific caps
+//! before it writes the provider launch policy.
 
 use std::collections::BTreeMap;
 
@@ -41,74 +43,9 @@ pub(crate) fn is_derived_provider_model_key(key: &str) -> bool {
         .any(|k| k.eq_ignore_ascii_case(key))
 }
 
-/// Env var keys that Maju sets itself and users must not override from
-/// the persona/agent env_vars UI. Three categories:
-///
-/// 1. **Identity / secrets** — overriding would swap the agent's nsec or
-///    leak credentials.
-/// 2. **Code-execution surface** — overriding the binary/args lets the
-///    user run arbitrary code as the agent process.
-/// 3. **Security gates** — overriding the respond-to mode/allowlist or
-///    relay URL would silently break the saved security settings (the UI
-///    shows owner-only while the running agent answers anyone, for
-///    example), or redirect the agent to an attacker-controlled relay.
-///
-/// This list is deliberately narrow — it only covers keys with security
-/// implications. Behavior knobs (GOOSE_MODE, MAJU_ACP_MODEL, MAJU_ACP_SYSTEM_PROMPT, …) remain freely
-/// overridable; those have dedicated UI fields but power users may want
-/// to bypass them.
-pub(crate) const RESERVED_ENV_KEYS: &[&str] = &[
-    // Identity / secrets.
-    "MAJU_PRIVATE_KEY",
-    "NOSTR_PRIVATE_KEY",
-    "MAJU_AUTH_TAG",
-    "MAJU_DEVICE_ID",
-    "MAJU_DEVICE_SESSION_ID",
-    "MAJU_DEVICE_NAME",
-    "MAJU_DEVICE_PLATFORM",
-    "MAJU_DEVICE_VERSION",
-    "MAJU_AGENT_RUNNER_ID",
-    "MAJU_API_TOKEN",
-    "MAJU_ACP_PRIVATE_KEY",
-    "MAJU_ACP_API_TOKEN",
-    // Relay URL: overriding would let a malicious config redirect the
-    // agent to an attacker-controlled relay.
-    "MAJU_RELAY_URL",
-    // Code-execution surface: overriding would let the user run arbitrary
-    // binaries/args as the agent process.
-    "MAJU_ACP_AGENT_COMMAND",
-    "MAJU_ACP_AGENT_ARGS",
-    "MAJU_ACP_MCP_COMMAND",
-    // Security gates: respond-to mode + allowlist + legacy owner-only
-    // fallback. Overriding would make the running agent's gate diverge
-    // from the saved/UI-visible settings.
-    "MAJU_ACP_RESPOND_TO",
-    "MAJU_ACP_RESPOND_TO_ALLOWLIST",
-    "MAJU_ACP_AGENT_OWNER",
-    // Stable agent identity used for git attribution and private-conversation
-    // provenance must come from the managed-agent record, not user overrides.
-    "MAJU_ACP_DISPLAY_NAME",
-    // Remote lifetime/presence policy: user env must not disable the
-    // desktop/provider-owned bounds while the saved record still promises them.
-    "MAJU_ACP_EXIT_AFTER_INACTIVITY",
-    "MAJU_ACP_NO_PRESENCE",
-    // Readiness handoff: desktop is the ONLY readiness source. A saved or
-    // ambient env var must not be able to forge setup mode (NotReady) on a
-    // Ready agent or suppress it (empty/stale payload) on a NotReady one.
-    "MAJU_ACP_SETUP_PAYLOAD",
-    // Desktop ownership markers: these brand every spawned harness with the
-    // launching Desktop instance. A user-supplied override would let a
-    // definition masquerade as a different instance or fake the nonce used
-    // for same-session sweep decisions.
-    "MAJU_MANAGED_AGENT",
-    "MAJU_MANAGED_AGENT_START_NONCE",
-];
-
-pub(crate) fn is_reserved_env_key(key: &str) -> bool {
-    RESERVED_ENV_KEYS
-        .iter()
-        .any(|reserved| reserved.eq_ignore_ascii_case(key))
-}
+// Canonical reserved-key list + predicate, shared verbatim with `build.rs`.
+// See `reserved_env_keys.rs` for why this is `include!`d rather than a module.
+include!("reserved_env_keys.rs");
 
 /// Returns true if `key` is a well-formed POSIX-shaped env var name:
 /// `[A-Za-z_][A-Za-z0-9_]*`. This is a hard requirement, not a stylistic
@@ -244,12 +181,14 @@ pub fn validate_user_env_keys(env_vars: &BTreeMap<String, String>) -> Result<(),
 /// Allowlist (case-insensitive):
 /// - `MAJU_AGENT_PROVIDER`, `MAJU_AGENT_MODEL` — agent runtime selection
 /// - `MAJU_AGENT_THINKING_EFFORT` — non-secret enum (none/minimal/low/medium/high/xhigh/max)
+/// - `MAJU_AGENT_THINKING_SUMMARY` — non-secret enum (auto/concise/detailed)
 /// - `DATABRICKS_HOST`, `DATABRICKS_MODEL` — Block non-secret defaults
 pub(crate) fn is_safe_to_reveal(key: &str) -> bool {
     const SAFE_KEYS: &[&str] = &[
         "MAJU_AGENT_PROVIDER",
         "MAJU_AGENT_MODEL",
         "MAJU_AGENT_THINKING_EFFORT",
+        "MAJU_AGENT_THINKING_SUMMARY",
         "DATABRICKS_HOST",
         "DATABRICKS_MODEL",
     ];

@@ -11,6 +11,7 @@ import {
   useStartManagedAgentMutation,
   useUpdateManagedAgentMutation,
 } from "@/features/agents/hooks";
+import { useAgentAccessOwnerOnlyQuery } from "@/features/agents/useAgentAccessOwnerOnly";
 import { isManagedAgentActive } from "@/features/agents/lib/managedAgentControlActions";
 import type {
   RespondToMode,
@@ -60,9 +61,10 @@ import {
   type RuntimeModelProviderSelection,
 } from "./runtimeModelProviderSelection";
 import { AgentCreationPreview } from "./AgentCreationPreview";
+import { OwnerOnlyAccessField } from "./OwnerOnlyAccessField";
 import type { EnvVarsValue } from "./EnvVarsEditor";
 import { useRequiredCredentialState } from "./useRequiredCredentialState";
-import { CreateAgentRespondToField } from "./RespondToField";
+import { RunOnSummarySection } from "./RunOnSummarySection";
 import { PersonaDropdownField } from "./PersonaDropdownField";
 import {
   MODEL_DISCOVERY_LOADING_VALUE,
@@ -157,11 +159,7 @@ export function AgentInstanceEditDialog({
   const [isAddHarnessOpen, setIsAddHarnessOpen] = React.useState(false);
   const shouldReduceMotion = useReducedMotion();
 
-  // Runtime selector: defaults to "custom" until the dialog opens and the
-  // catalog loads. The open-effect re-derives the correct id from the catalog.
   const [selectedRuntimeId, setSelectedRuntimeId] = React.useState("custom");
-
-  // Tracks whether the user has made an in-dialog runtime selection.
   const runtimeTouched = React.useRef(false);
 
   // Reset form state only when the dialog opens or when switching to a different agent.
@@ -383,6 +381,9 @@ export function AgentInstanceEditDialog({
     });
 
   const { data: bakedEnvKeys } = useBakedBuildEnvKeysQuery({ enabled: open });
+  const { data: agentAccessOwnerOnly } = useAgentAccessOwnerOnlyQuery({
+    enabled: open,
+  });
 
   // Merge global env as the base layer so credential keys satisfied via global
   // config (e.g. ANTHROPIC_API_KEY) are available to model discovery. Use
@@ -923,18 +924,15 @@ export function AgentInstanceEditDialog({
                 />
               </div>
             </div>
-
-            {/* Who can send instructions */}
-            <CreateAgentRespondToField
+            <OwnerOnlyAccessField
+              accessLocked={agentAccessOwnerOnly === true}
               allowlist={respondToAllowlist}
               disabled={updateMutation.isPending}
               mode={respondTo}
               onAllowlistChange={setRespondToAllowlist}
               onModeChange={setRespondTo}
-              variant="persona"
             />
-
-            {/* Provider (runtime) */}
+            <RunOnSummarySection backend={agent.backend} />
             <div className="space-y-1.5">
               <label
                 className="text-sm font-medium text-foreground"

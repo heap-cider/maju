@@ -58,6 +58,19 @@ fn build_env_map(
             }
         }
     }
+    // Defense in depth. `build.rs` already refuses to bake a reserved key, so
+    // reaching this filter means the binary was produced by a build that
+    // skipped that check. Drop the key rather than let it override the access
+    // gate: the baked map is written into the spawned agent's environment last
+    // (see `managed_agents/runtime.rs`), so a baked `MAJU_ACP_RESPOND_TO` would
+    // otherwise win over the gate Desktop just set.
+    map.retain(|key, _| {
+        if super::env_vars::is_reserved_env_key(key) {
+            eprintln!("maju-desktop: ignoring reserved env var `{key}` from the baked build env");
+            return false;
+        }
+        true
+    });
     map
 }
 
@@ -357,5 +370,67 @@ mod tests {
             Some("other"),
             "unrelated merged_env keys must pass through unchanged"
         );
+    }
+
+    // ── baked reserved-key filtering ──────────────────────────────────────
+    //
+    // The baked map is written into a spawned agent's environment LAST (see
+    // `managed_agents/runtime.rs`), after Maju sets the access gates. If a
+    // baked reserved key survived here, an internal build packaged with
+    // `MAJU_ACP_RESPOND_TO=anyone` would answer anyone while the UI shows
+    // "Only me". `build.rs` rejects such a key at build time; these tests pin
+    // the runtime backstop for a binary built without that check.
+
+    #[test]
+    fn build_env_map_drops_baked_access_gate_keys() {
+        use base64::Engine as _;
+        let raw = "MAJU_ACP_RESPOND_TO=anyone\nMAJU_ACP_ALLOWED_RESPOND_TO=anyone\nMAJU_ACP_RESPOND_TO_ALLOWLIST=deadbeef\nDATABRICKS_MODEL=goose-claude-opus-4-8";
+        let blob = base64::engine::general_purpose::STANDARD.encode(raw.as_bytes());
+        let map = build_env_map(None, None, Some(&blob));
+        for key in [
+            "MAJU_ACP_RESPOND_TO",
+            "MAJU_ACP_ALLOWED_RESPOND_TO",
+            "MAJU_ACP_RESPOND_TO_ALLOWLIST",
+        ] {
+            assert!(
+                !map.contains_key(key),
+                "baked `{key}` must not reach the spawned agent env"
+            );
+        }
+        assert_eq!(
+            map.get("DATABRICKS_MODEL").map(String::as_str),
+            Some("goose-claude-opus-4-8"),
+            "non-reserved baked keys must still pass through"
+        );
+    }
+
+    #[test]
+    fn build_env_map_drops_baked_reserved_keys_case_insensitively() {
+        use base64::Engine as _;
+        // `is_reserved_env_key` compares case-insensitively, and so must the
+        // baked filter: env lookup is case-sensitive on Unix, but a lowercase
+        // spelling would still be a reserved key smuggled past a case-sensitive
+        // check on Windows.
+        let raw = "maju_acp_respond_to=anyone\nMaju_Private_Key=nsec1fake";
+        let blob = base64::engine::general_purpose::STANDARD.encode(raw.as_bytes());
+        let map = build_env_map(None, None, Some(&blob));
+        assert!(
+            map.is_empty(),
+            "reserved keys in any casing must be dropped from the baked env: {map:?}"
+        );
+    }
+
+    #[test]
+    fn build_env_map_drops_every_reserved_key() {
+        use base64::Engine as _;
+        for key in super::super::env_vars::RESERVED_ENV_KEYS {
+            let raw = format!("{key}=baked-value");
+            let blob = base64::engine::general_purpose::STANDARD.encode(raw.as_bytes());
+            let map = build_env_map(None, None, Some(&blob));
+            assert!(
+                map.is_empty(),
+                "baked reserved key `{key}` must be dropped, got {map:?}"
+            );
+        }
     }
 }

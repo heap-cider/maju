@@ -148,13 +148,10 @@ export function mergeAgentNamesIntoProfiles(
   }
   for (const agent of managedAgents) {
     const key = normalizePubkey(agent.pubkey);
-    const managedAvatar = agent.avatarUrl?.trim() || null;
     merged[key] = {
       ...merged[key],
       displayName: merged[key]?.displayName || agent.name,
-      // The managed-agent summary resolves the latest shared definition.
-      // Prefer it over a stale users-batch kind:0 cache in the message view.
-      avatarUrl: managedAvatar ?? merged[key]?.avatarUrl ?? null,
+      avatarUrl: merged[key]?.avatarUrl ?? agent.avatarUrl,
       nip05Handle: merged[key]?.nip05Handle ?? null,
       ownerPubkey: merged[key]?.ownerPubkey ?? currentPubkey ?? null,
       isAgent: true,

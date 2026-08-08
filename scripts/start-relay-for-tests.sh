@@ -151,6 +151,20 @@ fi
 # ── Start relay ──────────────────────────────────────────────────────────────
 
 log "Starting relay..."
+
+# Optional NIP-43 membership gating: exported by callers that need a
+# membership-gated relay (e.g. the mesh lifecycle smoke). All three must be
+# set together — the relay fails fast otherwise.
+MEMBERSHIP_ENV=()
+if [[ "${MAJU_REQUIRE_RELAY_MEMBERSHIP:-}" == "true" ]]; then
+  MEMBERSHIP_ENV+=(
+    MAJU_REQUIRE_RELAY_MEMBERSHIP=true
+    RELAY_OWNER_PUBKEY="${RELAY_OWNER_PUBKEY:?RELAY_OWNER_PUBKEY required with MAJU_REQUIRE_RELAY_MEMBERSHIP=true}"
+    MAJU_RELAY_PRIVATE_KEY="${MAJU_RELAY_PRIVATE_KEY:?MAJU_RELAY_PRIVATE_KEY required with MAJU_REQUIRE_RELAY_MEMBERSHIP=true}"
+  )
+  log "Membership gating enabled (NIP-43)"
+fi
+
 nohup env \
   DATABASE_URL=postgres://maju:maju_dev@localhost:5432/maju \
   REDIS_URL=redis://localhost:6379 \
@@ -159,6 +173,7 @@ nohup env \
   MAJU_REQUIRE_AUTH_TOKEN=false \
   MAJU_RECONCILE_CHANNELS=true \
   MAJU_GIT_PROBE_WRITERS=8 \
+  ${MEMBERSHIP_ENV[@]+"${MEMBERSHIP_ENV[@]}"} \
   "./target/${CARGO_PROFILE}/maju-relay" > /tmp/maju-relay.log 2>&1 &
 echo $! > /tmp/maju-relay.pid
 

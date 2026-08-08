@@ -18,6 +18,7 @@ import {
 } from "@/app/communityViewTransition";
 import { deriveShellRoute } from "@/app/AppShell.helpers";
 import { ThemeGrainientBackground } from "@/app/ThemeGrainientBackground";
+import { CommunityThemeController } from "@/shared/theme/CommunityThemeController";
 import { useReloadShortcut } from "@/app/useReloadShortcut";
 import { KnownAgentPubkeysProvider } from "@/features/agents/useKnownAgentPubkeys";
 import { huddleWindowChannelId } from "@/features/huddle/lib/huddleWindow";
@@ -40,6 +41,7 @@ import { PendingInviteGate } from "@/features/onboarding/ui/PendingInviteGate";
 import { KeyringLockedScreen } from "@/features/onboarding/ui/KeyringLockedScreen";
 import { RelaunchRequiredScreen } from "@/features/onboarding/ui/RelaunchRequiredScreen";
 import { ResetFailedScreen } from "@/features/onboarding/ui/ResetFailedScreen";
+import { loadCommunityDiscoveryAfterLeave } from "@/features/communities/communityStorage";
 import { useCommunityInit } from "@/features/communities/useCommunityInit";
 import { useNestNotifications } from "@/features/communities/useNestNotifications";
 import { useCommunities } from "@/features/communities/useCommunities";
@@ -316,6 +318,8 @@ function CommunityApp({
   const transactionRef = useRef(communityOnboarding.transaction);
   transactionRef.current = communityOnboarding.transaction;
   const [isCommunityChangeOpen, setIsCommunityChangeOpen] = useState(false);
+  const isFindingCommunityAfterLeave =
+    activeCommunity === null && loadCommunityDiscoveryAfterLeave();
 
   // Surface nest-related backend events (repos-dir errors, legacy migration)
   // as toasts. Mounted before useCommunityInit so the listeners are registered
@@ -340,6 +344,7 @@ function CommunityApp({
     activeCommunity,
     communityKey,
     sharedIdentity,
+    isFindingCommunityAfterLeave,
   );
 
   const transitionCommunity = useCallback(
@@ -536,6 +541,7 @@ function CommunityApp({
   if (appContent === null && (!transaction || isEnteringCurtain)) {
     appContent = communityApplied ? (
       <CommunityQueryProvider key={communityKey}>
+        <CommunityThemeController />
         <AppReady
           isCommunitySwitch={isCommunitySwitch}
           key={communityKey}
@@ -687,6 +693,7 @@ function MachineBootstrap({ sharedIdentity }: { sharedIdentity: boolean }) {
       <MachineOnboardingFlow
         complete={completeMachineOnboarding}
         continueWithIdentity={machine.continueWithIdentity}
+        continueWithRecoveredIdentity={machine.continueWithRecoveredIdentity}
         identityLost={machine.identityLost}
         initialPage={machineInitialPage}
         navigateAfterComplete={navigateAfterOnboarding}

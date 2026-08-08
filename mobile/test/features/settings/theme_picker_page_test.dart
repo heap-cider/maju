@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:maju/features/settings/accent_picker_page.dart';
 import 'package:maju/features/settings/theme_picker_page.dart';
+import 'package:maju/features/settings/settings_page.dart';
 import 'package:maju/shared/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -164,6 +165,40 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(instance.getString('maju_color_scheme'), 'nord');
+    });
+  });
+
+  group('Maju accent behavior', () {
+    testWidgets('settings hides accent navigation for Maju', (tester) async {
+      await _pumpPicker(
+        tester,
+        SettingsPage(
+          profileHeader: const SizedBox.shrink(),
+          identityRecoveryPageBuilder: (_) => const SizedBox.shrink(),
+        ),
+        prefs: {'maju_color_scheme': 'maju', 'maju_accent_color': 4},
+      );
+
+      expect(find.text('Accent color'), findsNothing);
+    });
+
+    testWidgets('settings restores accent navigation away from Maju', (
+      tester,
+    ) async {
+      await _pumpPicker(
+        tester,
+        SettingsPage(
+          profileHeader: const SizedBox.shrink(),
+          identityRecoveryPageBuilder: (_) => const SizedBox.shrink(),
+        ),
+        prefs: {
+          'maju_theme_mode': 'light',
+          'maju_color_scheme': 'github-light',
+          'maju_accent_color': 4,
+        },
+      );
+
+      expect(find.text('Accent color'), findsOneWidget);
     });
   });
 

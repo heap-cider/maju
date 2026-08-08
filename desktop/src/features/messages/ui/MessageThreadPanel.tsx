@@ -20,12 +20,14 @@ import { canManageMessageForCurrentUser } from "@/features/messages/lib/canManag
 import { useMyRelayMembershipQuery } from "@/features/community-members/hooks";
 import { canModerateCommunityContent } from "@/features/moderation/lib/contentModeration";
 import type { TimelineMessage } from "@/features/messages/types";
+import type { VideoReviewPresentation } from "@/features/messages/lib/videoReviewContext";
 import type { UserProfileLookup } from "@/features/profile/lib/identity";
 import type { Channel } from "@/shared/api/types";
 import { KIND_HUDDLE_STARTED } from "@/shared/constants/kinds";
 import type { ThreadPanelLayoutProps } from "@/features/channels/lib/threadPanelLayout";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useIsThreadPanelOverlay } from "@/shared/hooks/use-mobile";
+import { VideoReviewNavigationProvider } from "@/shared/ui/VideoReviewNavigation";
 import { cn } from "@/shared/lib/cn";
 import { AuxiliaryPanel } from "@/shared/layout/AuxiliaryPanel";
 import { AuxiliaryPanelBody } from "@/shared/layout/AuxiliaryPanel";
@@ -41,7 +43,6 @@ import {
 } from "@/features/messages/lib/messageThreadPanelLayout";
 import { Button } from "@/shared/ui/button";
 import { Separator } from "@/shared/ui/separator";
-import type { VideoReviewContext } from "@/shared/ui/VideoPlayer";
 import { ComposerActivityAccessory } from "./ComposerActivityAccessory";
 import { ComposerDockBackdrop } from "./ComposerDockBackdrop";
 import { MessageComposer } from "./MessageComposer";
@@ -114,7 +115,7 @@ type MessageThreadPanelProps = ThreadPanelLayoutProps & {
   threadUnreadCount?: number;
   threadReplyUnreadCounts?: ReadonlyMap<string, number>;
   threadTypingPubkeys: string[];
-  videoReviewContextsByMessageId?: ReadonlyMap<string, VideoReviewContext>;
+  videoReviewPresentation?: VideoReviewPresentation;
   activityAccessoryContent?: React.ReactNode;
   activityAccessoryVisible: boolean;
   widthPx: number;
@@ -228,7 +229,7 @@ export function MessageThreadPanel({
   scrollTargetId,
   scrollTargetHighlights = true,
   threadHead,
-  videoReviewContextsByMessageId,
+  videoReviewPresentation,
   threadReplies,
   threadRepliesPending = false,
   threadUnreadCount,
@@ -628,7 +629,10 @@ export function MessageThreadPanel({
                 }
                 profiles={profiles}
                 showDepthGuides={shouldShowThreadBranchGuides}
-                videoReviewContext={videoReviewContextsByMessageId?.get(
+                videoReviewCommentRootId={videoReviewPresentation?.commentRootIdsByMessageId.get(
+                  threadHead.id,
+                )}
+                videoReviewContext={videoReviewPresentation?.contextsByMessageId.get(
                   threadHead.id,
                 )}
               />
@@ -789,7 +793,10 @@ export function MessageThreadPanel({
                         onToggleReaction={onToggleReaction}
                         profiles={profiles}
                         showDepthGuides={shouldShowThreadBranchGuides}
-                        videoReviewContext={videoReviewContextsByMessageId?.get(
+                        videoReviewCommentRootId={videoReviewPresentation?.commentRootIdsByMessageId.get(
+                          entry.message.id,
+                        )}
+                        videoReviewContext={videoReviewPresentation?.contextsByMessageId.get(
                           entry.message.id,
                         )}
                       />
@@ -968,24 +975,25 @@ export function MessageThreadPanel({
   );
 
   return (
-    <AuxiliaryPanel
-      className="relative"
-      // The focus drawer animates itself; a second slide here would compound.
-      enterMotion={!isFocusMode}
-      footer={threadFooter}
-      header={
-        isHuddleTranscript ? undefined : (
-          <AuxiliaryPanelHeader>{threadHeaderContent}</AuxiliaryPanelHeader>
-        )
-      }
-      isSinglePanelView={isSinglePanelView}
-      layout={layout}
-      onClose={onClose}
-      testId="message-thread-panel"
-      transparentChrome={transparentChrome}
-      widthPx={widthPx}
-    >
-      {threadScrollRegion}
-    </AuxiliaryPanel>
+    <VideoReviewNavigationProvider>
+      <AuxiliaryPanel
+        className="relative"
+        enterMotion={!isFocusMode}
+        footer={threadFooter}
+        header={
+          isHuddleTranscript ? undefined : (
+            <AuxiliaryPanelHeader>{threadHeaderContent}</AuxiliaryPanelHeader>
+          )
+        }
+        isSinglePanelView={isSinglePanelView}
+        layout={layout}
+        onClose={onClose}
+        testId="message-thread-panel"
+        transparentChrome={transparentChrome}
+        widthPx={widthPx}
+      >
+        {threadScrollRegion}
+      </AuxiliaryPanel>
+    </VideoReviewNavigationProvider>
   );
 }

@@ -4,7 +4,11 @@ import test from "node:test";
 import {
   clearCommunityStorage,
   initFirstCommunity,
+  loadCommunities,
+  loadCommunityDiscoveryAfterLeave,
+  markCommunityDiscoveryAfterLeave,
   migrateLegacyCommunityStorage,
+  saveCommunities,
   shouldAutoConnectDefaultRelay,
 } from "./communityStorage.ts";
 
@@ -89,16 +93,42 @@ test("failed first-community write preserves existing community data", () => {
   assert.equal(storage.getItem("maju-active-workspace-id"), "legacy");
 });
 
-test("clearCommunityStorage removes new and legacy state", () => {
+test("loading an existing community clears stale final-leave discovery", () => {
+  const storage = createMemoryStorage({
+    "maju-communities": '[{"id":"joined"}]',
+    "maju-community-discovery-after-leave": "1",
+  });
+  globalThis.localStorage = storage;
+  globalThis.window = { localStorage: storage };
+
+  assert.deepEqual(loadCommunities(), [{ id: "joined" }]);
+  assert.equal(loadCommunityDiscoveryAfterLeave(storage), false);
+});
+
+test("completed final leave persists discovery until a community is saved", () => {
+  const storage = createMemoryStorage();
+  globalThis.localStorage = storage;
+  globalThis.window = { localStorage: storage };
+
+  assert.equal(markCommunityDiscoveryAfterLeave(storage), true);
+  assert.equal(loadCommunityDiscoveryAfterLeave(storage), true);
+
+  assert.equal(saveCommunities([{ id: "joined" }]), true);
+  assert.equal(loadCommunityDiscoveryAfterLeave(storage), false);
+});
+
+test("clearCommunityStorage preserves completed final-leave discovery", () => {
   const storage = createMemoryStorage({
     "maju-communities": "new",
     "maju-active-community-id": "new",
     "maju-workspaces": "old",
     "maju-active-workspace-id": "old",
+    "maju-community-discovery-after-leave": "1",
   });
 
   clearCommunityStorage(storage);
   migrateLegacyCommunityStorage(storage);
 
-  assert.equal(storage.length, 0);
+  assert.equal(storage.length, 1);
+  assert.equal(loadCommunityDiscoveryAfterLeave(storage), true);
 });
