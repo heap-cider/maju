@@ -7,7 +7,7 @@ members = ["crates/maju-terminal"]
 
 [package]
 name = "maju-desktop"
-version = "0.2.12"
+version = "0.2.13"
 description = "Maju desktop app"
 authors = ["you"]
 edition = "2021"

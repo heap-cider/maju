@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.13
+
+- chore(sync): adopt Buzz desktop-v0.5.7 ([`8c24ab59d`](https://github.com/heap-cider/maju/commit/8c24ab59dfdc49ccdf32afa8eb929b62e0cab253))
+- chore: make external remotes skill-scoped ([`e5f5b2aab`](https://github.com/heap-cider/maju/commit/e5f5b2aab84e6da85dbb2b34e66591005d61bf93))
+
+
 ## v0.2.12
 
 - chore(sync): adopt Buzz desktop-v0.5.5 ([`1d874222c`](https://github.com/heap-cider/maju/commit/1d874222c8ab2d030bd4228df61862c3bc3de31d))
