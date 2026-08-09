@@ -30,7 +30,12 @@ releases.
    Pass the exact upstream tag names. The analyzer accepts any valid Git tag
    name instead of assuming a version prefix or release naming scheme, then
    resolves only `refs/tags/<name>` so branches and arbitrary commits cannot be
-   substituted for release tags.
+   substituted for release tags. It normally requires direct tag ancestry. If
+   Buzz tagged a release-branch commit and later squash-merged that release
+   back to main, the analyzer also accepts an ancestor of the newer tag whose
+   complete Git tree is byte-identical to the older tag. It reports this as
+   `tree-equivalent-ancestor`; unrelated or merely similar histories still
+   fail closed.
 
    Use `--fetch` for the normal path so both tags are resolved from the fixed
    official source without trusting local remote configuration. Omit it only

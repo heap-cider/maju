@@ -12,6 +12,7 @@ export type AgentDefinitionSubmitOptions = {
 
 export type AgentDefinitionDialogProps = {
   open: boolean;
+  embedded?: boolean;
   title: string;
   description: string;
   submitLabel: string;
@@ -20,6 +21,7 @@ export type AgentDefinitionDialogProps = {
   isPending: boolean;
   runtimes: AcpRuntimeCatalogEntry[];
   runtimeCatalogStatus?: "loading" | "ready" | "error";
+  onDirtyChange?: (dirty: boolean) => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (
     input: CreatePersonaInput | UpdatePersonaInput,

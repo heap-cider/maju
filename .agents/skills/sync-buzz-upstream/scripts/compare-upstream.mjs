@@ -128,6 +128,57 @@ function resolveTag(tag, fetchedCommits) {
   return gitText(["rev-parse", `refs/tags/${tag}^{commit}`]);
 }
 
+function isAncestor(ancestor, descendant) {
+  return runGit(["merge-base", "--is-ancestor", ancestor, descendant], {
+    allowFailure: true,
+  }).status === 0;
+}
+
+function findTreeEquivalentAncestor(commit, descendant) {
+  const wantedTree = gitText(["rev-parse", `${commit}^{tree}`]);
+  const history = gitText([
+    "log",
+    "--topo-order",
+    "--format=%H %T",
+    descendant,
+  ]);
+
+  for (const line of history.split("\n")) {
+    const [candidate, tree] = line.trim().split(/\s+/, 2);
+    if (candidate && tree === wantedTree) return candidate;
+  }
+  return null;
+}
+
+function resolveHistory(fromTag, toTag, fromCommit, toCommit) {
+  if (isAncestor(fromCommit, toCommit)) {
+    return {
+      relation: "direct-ancestor",
+      comparisonBaseCommit: fromCommit,
+      originalFromCommit: fromCommit,
+    };
+  }
+
+  // Buzz release tags can point at a release-branch commit that is then
+  // squash-merged back to main. The next tag consequently descends from a
+  // different commit SHA even though it contains the exact prior release
+  // tree. Accept that topology only when an ancestor of the new tag has a
+  // byte-identical Git tree; otherwise keep failing closed.
+  const equivalentAncestor = findTreeEquivalentAncestor(fromCommit, toCommit);
+  if (equivalentAncestor) {
+    return {
+      relation: "tree-equivalent-ancestor",
+      comparisonBaseCommit: equivalentAncestor,
+      originalFromCommit: fromCommit,
+    };
+  }
+
+  fail(
+    `${toTag} is not descended from ${fromTag}, and its history contains no ` +
+      "ancestor with the same Git tree as the earlier release",
+  );
+}
+
 function normalizeMajuText(value) {
   return value
     .replaceAll("BUZZ", "MAJU")
@@ -281,6 +332,12 @@ function countByClassification(changes) {
 
 function printHuman(report) {
   console.log(`Buzz upstream comparison: ${report.from.tag} -> ${report.to.tag}`);
+  console.log(`History relation: ${report.history.relation}`);
+  if (report.history.relation === "tree-equivalent-ancestor") {
+    console.log(
+      `Equivalent prior-release commit: ${report.history.comparisonBaseCommit}`,
+    );
+  }
   console.log(`Commits: ${report.commitCount}`);
   console.log(`Changed files: ${report.changedFileCount}`);
   console.log(`Safe to apply: ${report.classifications["safe-to-apply"]}`);
@@ -316,16 +373,19 @@ try {
 
   const fromCommit = resolveTag(options.from, fetchedCommits);
   const toCommit = resolveTag(options.to, fetchedCommits);
-  const ancestry = runGit(
-    ["merge-base", "--is-ancestor", fromCommit, toCommit],
-    { allowFailure: true },
+  const history = resolveHistory(
+    options.from,
+    options.to,
+    fromCommit,
+    toCommit,
   );
-  if (ancestry.status !== 0) {
-    fail(`${options.to} is not descended from ${options.from}`);
-  }
 
   const commitCount = Number.parseInt(
-    gitText(["rev-list", "--count", `${fromCommit}..${toCommit}`]),
+    gitText([
+      "rev-list",
+      "--count",
+      `${history.comparisonBaseCommit}..${toCommit}`,
+    ]),
     10,
   );
   const rawChanges = parseNameStatus(
@@ -359,6 +419,7 @@ try {
       url: buzzUpstreamUrl,
       persistentRemoteRequired: false,
     },
+    history,
     from: { tag: options.from, commit: fromCommit },
     to: { tag: options.to, commit: toCommit },
     fetched: options.fetch,
