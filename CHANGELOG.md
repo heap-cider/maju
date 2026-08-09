@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.15
+
+- Restore automatic permission handling for managed ACP agents, so Codex and other agents can send Maju messages without an invisible approval prompt blocking them.
+- Unify custom agents and persona-based agents into one simpler Add Agent flow.
+- Preserve Maju's live ACP configuration, multi-device agent placement, and cross-device avatars while adopting Buzz desktop-v0.5.8.
+- Improve built-in agent handoff summaries and make the Buzz synchronization comparator catch upstream changes more reliably.
+
 ## v0.2.14
 
 - Restore the macOS notification dependency omitted while synchronizing Buzz desktop-v0.5.7.
