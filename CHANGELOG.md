@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.2.16
+
+- Restore the release security gate after RustSec marked a transitive `nostr-relay-pool` dependency as no longer maintained. The notice is informational rather than a vulnerability; Maju now records the upstream migration blocker explicitly until Mesh LLM adopts `nostr-sdk` 0.45 or newer.
+
 ## v0.2.15
 
 - Restore automatic permission handling for managed ACP agents, so Codex and other agents can send Maju messages without an invisible approval prompt blocking them.
