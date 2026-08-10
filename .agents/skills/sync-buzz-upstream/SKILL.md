@@ -46,6 +46,10 @@ releases.
    them with the current worktree. Independently check each user-visible change
    against `MAJU_PRODUCT_CONTRACT.md`; a clean text comparison does not make a
    product-contract conflict safe.
+   Judge source synchronization separately from release support. Maju not
+   shipping a macOS, iOS, or Linux desktop build does not by itself make shared
+   upstream code a conflict. Apply compatible shared code while continuing to
+   exclude unsupported release artifacts and pipelines.
 6. Present four groups to the user:
    - `safe-to-apply`: Maju still matches the normalized old Buzz file and the
      upstream behavior does not contradict the Maju product contract.
@@ -53,10 +57,17 @@ releases.
    - `conflict`: Maju changed the same text file or path, or the upstream
      behavior contradicts or would make stale a current Maju product decision.
    - `manual-review`: divergent binary or unsupported file transition.
-7. For every user-visible change, name the relevant product-contract heading or
-   state that no current Maju-specific decision applies. Explain the upstream
-   intent, the corresponding Maju files, and the proposed choice for every
-   conflict. Wait for explicit user approval before applying anything.
+7. Keep the report simple. Summarize changes that need no decision, then explain
+   only actual conflicts and judgment calls with four short points: user effect,
+   Buzz's change, Maju's current difference, and the recommended choice. Name
+   the relevant product-contract heading or state that none applies. When Buzz
+   fixes the same problem at its source and no Maju product decision conflicts,
+   recommend the Buzz fix instead of keeping a Maju-only workaround. Wait for
+   explicit user approval before applying anything.
+8. Before calling a runtime problem Maju-specific, compare the exact Buzz tag
+   with the normalized Maju code and reproduce or trace both paths. Distinguish
+   an upstream bug, an agent/tool permission policy, and a real Maju fork
+   conflict instead of guessing from one observed failure.
 
 ## Apply approved changes
 
@@ -64,8 +75,9 @@ releases.
    Maju-native names and paths. Never restore Buzz identifiers merely to reduce
    the diff.
 2. Do not send issues, pull requests, patches, or messages to Buzz.
-3. If Buzz now fixes a problem Maju fixed earlier, compare both approaches and
-   obtain the user's agreement before replacing Maju's implementation.
+3. If Buzz now fixes a problem Maju fixed earlier, compare both approaches. Use
+   the approved upstream root fix when it preserves the product contract; keep
+   the Maju implementation only when there is a concrete Maju-specific reason.
 4. Update `MAJU_PRODUCT_CONTRACT.md` only when the user explicitly approved a
    change to a Maju product decision. Do not rewrite the contract merely to make
    an upstream change appear compatible. Keep only the resulting current
