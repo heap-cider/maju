@@ -202,9 +202,16 @@ describe("stableRowOrder", () => {
         availability: "available",
         source: "builtin",
       }),
+      entry({
+        id: "antigravity",
+        label: "Antigravity",
+        availability: "available",
+        source: "builtin",
+      }),
     ];
     assert.deepEqual(stableRowOrder([], entries), [
       "maju-agent",
+      "antigravity",
       "goose",
       "zeta",
       "off",

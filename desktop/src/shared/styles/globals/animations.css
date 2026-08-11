@@ -186,6 +186,12 @@
   transform-origin: center;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .maju-avatar-squish {
+    animation: none;
+  }
+}
+
 .maju-shimmer {
   --maju-shimmer-duration: 2600ms;
   --maju-shimmer-band: 250%;

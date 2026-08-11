@@ -267,7 +267,7 @@ Maju Desktop supports registering any ACP-speaking agent tool as a selectable ru
 
 ### How it works
 
-**Tier-1 — compiled-in runtimes** (Goose, Claude Code, Codex, Maju Agent): have auto-installers, auth probes, and first-class onboarding. Their IDs (`goose`, `claude`, `codex`, `maju-agent`) are reserved and cannot be overridden.
+**Tier-1 — compiled-in runtimes** (Goose, Claude Code, Codex, Antigravity, Maju Agent): have installation metadata, auth probes, and first-class onboarding. Their IDs (`goose`, `claude`, `codex`, `antigravity`, `maju-agent`) are reserved and cannot be overridden. The Antigravity ACP adapter ships with Maju and reuses the installed `agy` CLI.
 
 **Tier-2 — preset catalog** (Cursor, Oh My Pi, Grok Build, OpenCode, Kimi Code, Amp, Hermes Agent, OpenClaw): static `HarnessDefinition` entries in `desktop/src-tauri/src/managed_agents/discovery.rs` (`PRESET_HARNESSES`). They are always present in the runtime catalog, PATH-probed for availability, not editable or deletable by the user. Displayed with bundled logos; if not installed, a docs link appears instead.
 
@@ -318,7 +318,7 @@ To add a new runtime to the tier-2 gallery:
 4. **Add a bundled logo** (64×64 PNG or optimised SVG) to `desktop/public/harness-logos/<id>.png` and add a corresponding entry to `PRESET_LOGOS` in `desktop/src/features/onboarding/ui/RuntimeIcon.tsx`. Record the source and license in `desktop/public/harness-logos/CREDITS.md`. Only bundle a mark whose upstream license permits redistribution; skipping this step is caught by `presetLogos.test.mjs`, which asserts every `PRESET_HARNESSES` id has a mapped logo that exists on disk.
 5. Run `cargo test --lib` and `just desktop-typecheck` to verify everything compiles.
 
-The built-in `BUILTIN_IDS` set (`goose`, `claude`, `codex`, `maju-agent`, and all current preset ids) is the reserved namespace; every other id is available for custom harnesses.
+The built-in `BUILTIN_IDS` set (`goose`, `claude`, `codex`, `antigravity`, `maju-agent`, and all current preset ids) is the reserved namespace; every other id is available for custom harnesses.
 
 ## Using Any ACP Agent
 

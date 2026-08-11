@@ -12,7 +12,8 @@ import type { AcpRuntimeCatalogEntry } from "@/shared/api/types";
 // where users learned to find them.
 const ROW_SORT_PRIORITY: Record<string, number> = {
   "maju-agent": 0,
-  goose: 1,
+  antigravity: 1,
+  goose: 2,
 };
 
 /**

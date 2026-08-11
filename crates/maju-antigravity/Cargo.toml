@@ -1,0 +1,32 @@
+[package]
+name = "maju-antigravity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Built-in ACP adapter for the Google Antigravity CLI"
+
+[lib]
+name = "maju_antigravity"
+path = "src/lib.rs"
+
+[[bin]]
+name = "maju-antigravity-acp"
+path = "src/main.rs"
+
+[dependencies]
+dirs = "6"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = "3"
+tokio = { workspace = true, features = ["fs", "io-std", "io-util", "process"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
+
+[dev-dependencies]
+tempfile = "3"

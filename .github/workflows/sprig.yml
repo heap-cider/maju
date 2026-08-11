@@ -2,6 +2,7 @@ name: Sprig
 
 # Builds and publishes Sprig — one deploy-anywhere Linux multicall binary for:
 #   maju-acp       ACP harness that bridges Maju events to the LLM agent
+#   maju-antigravity-acp  Antigravity ACP adapter
 #   maju-agent     ACP-compliant agent (spawns MCP, calls LLMs)
 #   maju-dev-mcp   Developer MCP server (multicall: rg, tree, maju,
 #                    git-credential-nostr, git-sign-nostr)
@@ -137,7 +138,7 @@ jobs:
           set -euo pipefail
           TAG="sprig-latest"
           TITLE="Sprig (rolling)"
-          NOTES="Rolling Linux build of Sprig (all-in-one maju-acp + maju-agent + maju-dev-mcp), tracking \`main\` (\`${SHA}\`)."
+          NOTES="Rolling Linux build of Sprig (all-in-one maju-acp + maju-antigravity-acp + maju-agent + maju-dev-mcp), tracking \`main\` (\`${SHA}\`)."
 
           gh release edit "$TAG" \
             --prerelease \
@@ -180,5 +181,5 @@ jobs:
           set -euo pipefail
           gh release create "$TAG" \
             --title "Sprig v${VERSION}" \
-            --notes "Sprig v${VERSION} — Linux all-in-one builds of maju-acp + maju-agent + maju-dev-mcp." \
+            --notes "Sprig v${VERSION} — Linux all-in-one builds of maju-acp + maju-antigravity-acp + maju-agent + maju-dev-mcp." \
             dist/*

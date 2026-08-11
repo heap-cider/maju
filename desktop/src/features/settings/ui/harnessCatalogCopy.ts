@@ -12,6 +12,10 @@
 const HARNESS_DESCRIPTIONS: Record<string, string> = {
   // Built-in runtimes.
   "maju-agent": "Maju's built-in agent runtime, bundled with the app.",
+  // Source: https://antigravity.google/ — Google's agentic development
+  // platform. Maju supplies the ACP bridge; the official CLI supplies models.
+  antigravity:
+    "Google's Antigravity coding agent, connected through Maju's built-in adapter.",
   // Source: https://code.claude.com/docs/en/overview — "Claude Code is an
   // agentic coding tool" that lives in the terminal.
   claude: "Anthropic's agentic coding tool that runs in the terminal.",

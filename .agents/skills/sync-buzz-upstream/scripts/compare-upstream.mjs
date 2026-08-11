@@ -150,6 +150,48 @@ function findTreeEquivalentAncestor(commit, descendant) {
   return null;
 }
 
+function singleParent(commit) {
+  const fields = gitText(["rev-list", "--parents", "-n", "1", commit])
+    .split(/\s+/);
+  return fields.length === 2 ? fields[1] : null;
+}
+
+function commitDelta(commit, parent) {
+  return gitBuffer([
+    "diff-tree",
+    "--no-commit-id",
+    "--raw",
+    "-z",
+    "-r",
+    "--full-index",
+    "--no-renames",
+    parent,
+    commit,
+    "--",
+  ]);
+}
+
+function findPatchEquivalentAncestor(commit, descendant) {
+  const fromParent = singleParent(commit);
+  if (!fromParent || !isAncestor(fromParent, descendant)) return null;
+
+  const wantedDelta = commitDelta(commit, fromParent);
+  const history = gitText([
+    "rev-list",
+    "--topo-order",
+    `${fromParent}..${descendant}`,
+  ]);
+
+  for (const candidate of history.split("\n")) {
+    if (!candidate) continue;
+    const candidateParent = singleParent(candidate);
+    if (!candidateParent) continue;
+    if (!commitDelta(candidate, candidateParent).equals(wantedDelta)) continue;
+    if (isAncestor(fromParent, candidateParent)) return candidate;
+  }
+  return null;
+}
+
 function resolveHistory(fromTag, toTag, fromCommit, toCommit) {
   if (isAncestor(fromCommit, toCommit)) {
     return {
@@ -173,9 +215,29 @@ function resolveHistory(fromTag, toTag, fromCommit, toCommit) {
     };
   }
 
+  // A reviewed release tag can be cut from main, while an unrelated change
+  // lands before the release commit is replayed onto main. The replay then has
+  // a different tree even though its exact object delta is unchanged. Accept
+  // only a single-parent replay on a continuation of the tagged commit's own
+  // parent. Keep the original tag as the snapshot comparison base so changes
+  // that landed between the tag and replay are not skipped.
+  const patchEquivalentAncestor = findPatchEquivalentAncestor(
+    fromCommit,
+    toCommit,
+  );
+  if (patchEquivalentAncestor) {
+    return {
+      relation: "patch-equivalent-ancestor",
+      comparisonBaseCommit: fromCommit,
+      equivalentReleaseCommit: patchEquivalentAncestor,
+      originalFromCommit: fromCommit,
+    };
+  }
+
   fail(
     `${toTag} is not descended from ${fromTag}, and its history contains no ` +
-      "ancestor with the same Git tree as the earlier release",
+      "ancestor with the same Git tree or exact release patch as " +
+      "the earlier release",
   );
 }
 
@@ -338,6 +400,11 @@ function printHuman(report) {
       `Equivalent prior-release commit: ${report.history.comparisonBaseCommit}`,
     );
   }
+  if (report.history.relation === "patch-equivalent-ancestor") {
+    console.log(
+      `Equivalent prior-release replay: ${report.history.equivalentReleaseCommit}`,
+    );
+  }
   console.log(`Commits: ${report.commitCount}`);
   console.log(`Changed files: ${report.changedFileCount}`);
   console.log(`Safe to apply: ${report.classifications["safe-to-apply"]}`);
@@ -414,7 +481,7 @@ try {
   }
 
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     source: {
       url: buzzUpstreamUrl,
       persistentRemoteRequired: false,

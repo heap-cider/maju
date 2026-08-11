@@ -15,6 +15,7 @@ fn dispatch() -> Result<(), String> {
 
     match cmd.as_str() {
         "maju-acp" => maju_acp::run().map_err(|e| e.to_string()),
+        "maju-antigravity-acp" => maju_antigravity::run().map_err(|e| e.to_string()),
         "maju-agent" => maju_agent::run().map_err(|e| e.to_string()),
         "sprig" => match std::env::args().nth(1).as_deref() {
             Some("-V") | Some("--version") => {
@@ -46,8 +47,8 @@ fn print_usage() {
     println!(
         "Sprig — all-in-one Maju ACP harness, agent, and developer MCP\n\n\
 Sprig is a multicall binary. Invoke it through one of the personality names:\n\n\
-  maju-acp       ACP harness\n  maju-agent     ACP-compliant agent\n  maju-dev-mcp   Developer MCP server\n\n\
+  maju-acp                 ACP harness\n  maju-antigravity-acp     Antigravity ACP adapter\n  maju-agent               ACP-compliant agent\n  maju-dev-mcp             Developer MCP server\n\n\
 Developer MCP helper names are also supported: rg, tree, maju, git-credential-nostr, git-sign-nostr.\n\n\
-Installers can create links with:\n  ln -s sprig maju-acp\n  ln -s sprig maju-agent\n  ln -s sprig maju-dev-mcp"
+Installers can create links with:\n  ln -s sprig maju-acp\n  ln -s sprig maju-antigravity-acp\n  ln -s sprig maju-agent\n  ln -s sprig maju-dev-mcp"
     );
 }

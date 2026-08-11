@@ -55,6 +55,13 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
 
 ## Agent harness compatibility
 
+- Maju ships a first-party Antigravity ACP adapter with the desktop app. It
+  uses the user's installed and signed-in `agy` CLI on Windows, macOS, or Linux;
+  no third-party npm adapter is required. Models and model-specific reasoning
+  levels come from live `agy models` output and a short local cache. Short
+  prompts are passed directly without a shell, while long prompts travel
+  through a temporary UTF-8 file instead of the OS command line. Only
+  permission modes that map to real `agy` behavior are advertised.
 - Maju advertises the stable ACP v1 initialization schema to external
   harnesses. It does not follow Buzz's experimental v2 advertisement while the
   request body remains v1-shaped, preserving existing Codex and Claude

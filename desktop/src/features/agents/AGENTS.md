@@ -209,3 +209,8 @@ matches the code is worse than no rule; a new pattern that isn't written down
 here will be broken by the next agent that never learns it existed. Reviewers:
 treat a config-behavior diff without a matching AGENTS.md diff (or an explicit
 "no rules changed" note) as incomplete.
+
+The built-in Antigravity adapter follows the same rule: its model and
+model-specific reasoning controls are live ACP `configOptions`. The runtime
+catalog declares only installation and authentication facts; frontend code must
+not parse Antigravity model suffixes or add adapter-specific option values.

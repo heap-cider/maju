@@ -141,7 +141,7 @@ jobs:
       - name: Build sidecars
         shell: bash
         run: |
-          cargo build --release --target "$TARGET" -p maju-acp -p maju-agent -p maju-dev-mcp -p git-credential-nostr -p maju-cli
+          cargo build --release --target "$TARGET" -p maju-acp -p maju-antigravity -p maju-agent -p maju-dev-mcp -p git-credential-nostr -p maju-cli
           ./scripts/bundle-sidecars.sh "$TARGET"
 
       - name: Build Windows NSIS installer (unsigned)

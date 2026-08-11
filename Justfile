@@ -154,9 +154,13 @@ _ensure-sidecar-stubs:
     #!/usr/bin/env bash
     set -euo pipefail
     TARGET=$(rustc -vV | sed -n 's|host: ||p')
+    SUFFIX=""
+    if [[ "$TARGET" == *-windows-* ]]; then
+        SUFFIX=".exe"
+    fi
     mkdir -p desktop/src-tauri/binaries
-    for bin in maju-acp maju-agent maju-dev-mcp git-credential-nostr maju; do
-        touch "desktop/src-tauri/binaries/${bin}-${TARGET}"
+    for bin in maju-acp maju-antigravity-acp maju-agent maju-dev-mcp git-credential-nostr maju; do
+        touch "desktop/src-tauri/binaries/${bin}-${TARGET}${SUFFIX}"
     done
 
 # Ensure Docker dev services (Postgres, Redis, etc.) are running and healthy
@@ -247,6 +251,7 @@ desktop-release-build target="aarch64-apple-darwin":
     TARGET={{target}}
     mkdir -p desktop/src-tauri/binaries
     touch "desktop/src-tauri/binaries/maju-acp-$TARGET"
+    touch "desktop/src-tauri/binaries/maju-antigravity-acp-$TARGET"
     touch "desktop/src-tauri/binaries/maju-agent-$TARGET"
     touch "desktop/src-tauri/binaries/maju-dev-mcp-$TARGET"
     touch "desktop/src-tauri/binaries/git-credential-nostr-$TARGET"
@@ -442,7 +447,7 @@ dev *ARGS: bootstrap _ensure-sidecar-stubs _ensure-migrations
             fi
         done
     fi
-    cargo build -p maju-acp -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr -p maju-relay
+    cargo build -p maju-acp -p maju-antigravity -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr -p maju-relay
     if [[ -n "{{mesh}}" ]]; then
         export MESH_LLM_NATIVE_RUNTIME_CACHE_DIR="$(./scripts/ensure-mesh-native-runtime.sh)"
     fi
@@ -489,10 +494,10 @@ desktop-standalone *ARGS: _ensure-sidecar-stubs
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
-    cargo build -p maju-acp -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr
+    cargo build -p maju-acp -p maju-antigravity -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr
     TARGET=$(rustc -vV | sed -n 's|host: ||p')
     TARGET_DIR=$(cargo metadata --format-version 1 --no-deps | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).target_directory")
-    for bin in maju-acp maju-agent maju-dev-mcp git-credential-nostr maju; do
+    for bin in maju-acp maju-antigravity-acp maju-agent maju-dev-mcp git-credential-nostr maju; do
         cp "${TARGET_DIR}/debug/${bin}" "desktop/src-tauri/binaries/${bin}-${TARGET}"
         chmod +x "desktop/src-tauri/binaries/${bin}-${TARGET}"
     done
@@ -518,7 +523,7 @@ staging *ARGS: bootstrap _ensure-sidecar-stubs
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
     pnpm install  # unconditional: staging must always start with a clean dep tree
-    cargo build --release -p maju-acp -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr
+    cargo build --release -p maju-acp -p maju-antigravity -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr
     FEATURES=()
     if [[ -n "{{mesh}}" ]]; then
         FEATURES=(--features mesh-llm)
@@ -545,7 +550,7 @@ production *ARGS: bootstrap _ensure-sidecar-stubs
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
     pnpm install  # unconditional: production must always start with a clean dep tree
-    cargo build --release -p maju-acp -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr
+    cargo build --release -p maju-acp -p maju-antigravity -p maju-agent -p maju-dev-mcp -p maju-cli -p git-credential-nostr
     FEATURES=()
     if [[ -n "{{mesh}}" ]]; then
         FEATURES=(--features mesh-llm)

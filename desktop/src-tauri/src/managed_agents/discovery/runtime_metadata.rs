@@ -84,6 +84,43 @@ impl KnownAcpRuntime {
     }
 }
 
+pub(crate) const ANTIGRAVITY_RUNTIME: KnownAcpRuntime = KnownAcpRuntime {
+    id: "antigravity",
+    label: "Antigravity",
+    commands: &["maju-antigravity-acp"],
+    aliases: &["agy-acp"],
+    avatar_url: "",
+    mcp_command: None,
+    mcp_hooks: false,
+    underlying_cli: Some("agy"),
+    cli_install_commands: &[],
+    cli_install_commands_windows: &[],
+    adapter_install_commands: &[],
+    cli_install_instructions_url: "https://antigravity.google/",
+    adapter_install_instructions_url: "https://github.com/heap-cider/maju",
+    cli_install_hint:
+        "Uses the official Antigravity CLI on this device. Install it and sign in before use.",
+    adapter_install_hint: "",
+    skill_dir: None,
+    supports_acp_model_switching: true,
+    model_env_var: None,
+    provider_env_var: None,
+    provider_locked: true,
+    default_env: &[],
+    config_file_path: None,
+    config_file_format: None,
+    supports_acp_native_config: false,
+    thinking_env_var: None,
+    max_tokens_env_var: None,
+    context_limit_env_var: None,
+    max_rounds_env_var: None,
+    required_normalized_fields: &[],
+    login_hint: Some("Open Antigravity or run `agy` once to sign in."),
+    // Live model discovery validates authentication. A generic pipe-based
+    // probe can hang while an `agy` updater descendant holds its handles.
+    auth_probe_args: None,
+};
+
 #[cfg(test)]
 mod tests {
     use super::super::known_acp_runtime_exact;
@@ -123,5 +160,10 @@ mod tests {
         );
         assert!(codex.adapter_install_instructions_url.contains("codex-acp"));
         assert!(codex.cli_install_hint.contains("Codex CLI"));
+
+        let antigravity = known_acp_runtime_exact("antigravity").unwrap();
+        assert_eq!(antigravity.underlying_cli, Some("agy"));
+        assert!(antigravity.adapter_install_commands.is_empty());
+        assert!(antigravity.cli_install_hint.contains("Antigravity"));
     }
 }

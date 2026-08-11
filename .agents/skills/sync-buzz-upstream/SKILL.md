@@ -34,8 +34,12 @@ releases.
    Buzz tagged a release-branch commit and later squash-merged that release
    back to main, the analyzer also accepts an ancestor of the newer tag whose
    complete Git tree is byte-identical to the older tag. It reports this as
-   `tree-equivalent-ancestor`; unrelated or merely similar histories still
-   fail closed.
+   `tree-equivalent-ancestor`. If an unrelated change lands between the reviewed
+   tag and that release commit, it accepts only an exact Git object-delta
+   replay on a continuation of the reviewed tag's parent and reports
+   `patch-equivalent-ancestor`. The original tag remains the comparison base so
+   the interleaved change is included. Unrelated or merely similar histories
+   still fail closed.
 
    Use `--fetch` for the normal path so both tags are resolved from the fixed
    official source without trusting local remote configuration. Omit it only

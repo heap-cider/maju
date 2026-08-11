@@ -18,13 +18,12 @@ pub(crate) use presets::{
     preset_harness_ids,
 };
 use presets::{preset_catalog_entry, PRESET_HARNESSES};
-pub(crate) use runtime_metadata::KnownAcpRuntime;
+pub(crate) use runtime_metadata::{KnownAcpRuntime, ANTIGRAVITY_RUNTIME};
 
 const GOOSE_AVATAR_URL: &str = "https://goose-docs.ai/img/logo_dark.png";
 const CLAUDE_CODE_AVATAR_URL: &str = "https://anthropic.gallerycdn.vsassets.io/extensions/anthropic/claude-code/2.1.77/1773707456892/Microsoft.VisualStudio.Services.Icons.Default";
 const CODEX_AVATAR_URL: &str = "https://openai.gallerycdn.vsassets.io/extensions/openai/chatgpt/26.5313.41514/1773706730621/Microsoft.VisualStudio.Services.Icons.Default";
-const MAJU_AGENT_AVATAR_URL: &str =
-    "https://raw.githubusercontent.com/heap-cider/maju/refs/heads/main/crates/maju-agent/maju-agent.png";
+const MAJU_AGENT_AVATAR_URL: &str = "https://raw.githubusercontent.com/heap-cider/maju/refs/heads/main/crates/maju-agent/maju-agent.png";
 fn common_binary_paths() -> &'static [PathBuf] {
     static PATHS: OnceLock<Vec<PathBuf>> = OnceLock::new();
     PATHS.get_or_init(|| {
@@ -49,22 +48,22 @@ fn common_binary_paths() -> &'static [PathBuf] {
                 home.join(".bun/bin"),
             ]);
         }
-        // Windows well-known dirs for npm global shims and standalone installer targets.
         #[cfg(windows)]
         {
             if let Some(appdata) = std::env::var_os("APPDATA") {
                 paths.push(PathBuf::from(appdata).join("npm"));
             }
             if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+                let local = PathBuf::from(local);
+                paths.push(local.join("agy").join("bin"));
                 paths.push(
-                    PathBuf::from(local)
+                    local
                         .join("Programs")
                         .join("OpenAI")
                         .join("Codex")
                         .join("bin"),
                 );
             }
-            // Goose's legacy Windows installer (superseded by #2680) unpacked
             // to %USERPROFILE%\goose\goose.exe, which is on no standard PATH —
             // without this probe those installs stay permanently undiscovered.
             if let Some(profile) = std::env::var_os("USERPROFILE") {
@@ -178,6 +177,7 @@ const KNOWN_ACP_RUNTIMES: &[KnownAcpRuntime] = &[
         // Verified: `codex login status` exits 0 when logged in, non-zero otherwise.
         auth_probe_args: Some(&["codex", "login", "status"]),
     },
+    ANTIGRAVITY_RUNTIME,
     KnownAcpRuntime {
         id: "maju-agent",
         label: "Maju Agent",

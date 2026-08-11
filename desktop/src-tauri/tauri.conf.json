@@ -54,6 +54,7 @@
     "targets": "all",
     "externalBin": [
       "binaries/maju-acp",
+      "binaries/maju-antigravity-acp",
       "binaries/maju-agent",
       "binaries/maju-dev-mcp",
       "binaries/git-credential-nostr",

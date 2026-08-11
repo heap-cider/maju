@@ -15,5 +15,6 @@ path = "src/main.rs"
 
 [dependencies]
 maju-acp = { path = "../maju-acp" }
+maju-antigravity = { path = "../maju-antigravity" }
 maju-agent = { path = "../maju-agent" }
 maju-dev-mcp = { path = "../maju-dev-mcp" }

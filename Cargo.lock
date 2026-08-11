@@ -4136,8 +4136,24 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
  "urlencoding",
  "webbrowser",
+]
+
+[[package]]
+name = "maju-antigravity"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "nix 0.31.3",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -8833,6 +8849,7 @@ version = "0.1.0"
 dependencies = [
  "maju-acp",
  "maju-agent",
+ "maju-antigravity",
  "maju-dev-mcp",
 ]
 

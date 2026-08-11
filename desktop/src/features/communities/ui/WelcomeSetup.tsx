@@ -30,6 +30,16 @@ export function WelcomeSetup({ onBack }: WelcomeSetupProps) {
       ? identityQuery.error.message
       : "Could not load your public ID."
     : null;
+  const backAction = React.useMemo(
+    () =>
+      onBack
+        ? {
+            onClick: onBack,
+            testId: "welcome-setup-back",
+          }
+        : undefined,
+    [onBack],
+  );
 
   const startConnection = React.useCallback(
     (relayUrl: string, token?: string) => {
@@ -64,7 +74,7 @@ export function WelcomeSetup({ onBack }: WelcomeSetupProps) {
     >
       <StartupWindowDragRegion />
       <OnboardingChrome current={5} />
-      <OnboardingFooterProvider>
+      <OnboardingFooterProvider backAction={backAction}>
         <div className="relative flex min-h-0 w-full max-w-[920px] flex-1 flex-col items-center text-center">
           <div className="w-full max-w-[680px]">
             <h1 className="text-title font-normal">Connect your Maju server</h1>
@@ -78,7 +88,6 @@ export function WelcomeSetup({ onBack }: WelcomeSetupProps) {
             <InviteRedeemForm
               error={null}
               isRedeeming={false}
-              onCancel={onBack}
               onConnect={startConnection}
               onRedeem={redeemInvite}
               placeholder="https://maju.example.com or paste an invite link"

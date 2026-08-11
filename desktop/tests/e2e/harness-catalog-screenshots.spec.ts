@@ -28,6 +28,25 @@ const CATALOG = [
     auth_status: { status: "not_applicable" },
   },
   {
+    id: "antigravity",
+    label: "Antigravity",
+    avatar_url: "",
+    availability: "available",
+    command: "maju-antigravity-acp",
+    binary_path: "/usr/local/bin/maju-antigravity-acp",
+    default_args: [],
+    mcp_command: null,
+    install_hint:
+      "Uses the official Antigravity CLI on this device. Install it and sign in before use.",
+    install_instructions_url: "https://antigravity.google/",
+    can_auto_install: false,
+    requires_external_cli: true,
+    underlying_cli_path: "/usr/local/bin/agy",
+    node_required: false,
+    auth_status: { status: "not_applicable" },
+    source: "builtin",
+  },
+  {
     id: "claude",
     label: "Claude Code",
     avatar_url: "",
@@ -145,6 +164,9 @@ test("after: consolidated harnesses panel + catalog dialog", async ({
   await expect(page.getByTestId("settings-harnesses")).toBeVisible({
     timeout: 10_000,
   });
+  await expect(page.getByTestId("settings-harnesses")).toContainText(
+    "Antigravity",
+  );
   await page.waitForTimeout(700);
 
   // 1. The consolidated panel — ready rows only, no inert controls.
@@ -163,7 +185,10 @@ test("after: consolidated harnesses panel + catalog dialog", async ({
   // 3. Ready entry detail (Ready state, no install action). Ready entries
   // sit in the "Installed" accordion, collapsed by default — expand it.
   await page.getByTestId("harness-catalog-section-installed").click();
-  await page.getByTestId("harness-catalog-list-item-claude").click();
+  await expect(
+    page.getByTestId("harness-catalog-list-item-antigravity"),
+  ).toBeVisible();
+  await page.getByTestId("harness-catalog-list-item-antigravity").click();
   await page.waitForTimeout(300);
   await page.getByTestId("harness-catalog-dialog").screenshot({
     path: `${SHOTS}/after-catalog-ready-detail.png`,

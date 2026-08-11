@@ -4,6 +4,7 @@
 #
 #   sprig            implementation binary
 #   maju-acp       link to sprig (ACP harness)
+#   maju-antigravity-acp link to sprig (Antigravity ACP adapter)
 #   maju-agent     link to sprig (ACP-compliant agent)
 #   maju-dev-mcp   link to sprig (developer MCP server; also dispatches
 #                    rg/tree/maju/git-credential-nostr/git-sign-nostr)
@@ -33,6 +34,7 @@
 # The tarball contains:
 #   sprig
 #   maju-acp
+#   maju-antigravity-acp
 #   maju-agent
 #   maju-dev-mcp
 #   README.md
@@ -59,7 +61,7 @@ else
 fi
 
 BUNDLE_BIN="sprig"
-COMMANDS=(maju-acp maju-agent maju-dev-mcp)
+COMMANDS=(maju-acp maju-antigravity-acp maju-agent maju-dev-mcp)
 
 echo "==> Building Sprig v${VERSION} for ${TARGET}"
 echo "    git_sha=${GIT_SHA}"
@@ -142,6 +144,7 @@ Commands:
 - `sprig` — prints usage/version. Invoke a personality by one of the links below.
 - `maju-acp` — ACP harness that bridges Maju channel events to an
   ACP-compliant agent over stdio.
+- `maju-antigravity-acp` — ACP adapter for an installed Antigravity `agy` CLI.
 - `maju-agent` — ACP-compliant agent (spawns MCP servers, calls LLMs).
 - `maju-dev-mcp` — Developer MCP server (shell, str_replace, todo) and
   multicall entrypoint for `rg`, `tree`, `maju`, `git-credential-nostr`,

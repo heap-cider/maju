@@ -99,3 +99,14 @@ export async function expectSmoothCorners(
     )
     .toBe(true);
 }
+
+/** Wait for the Maju overrides to be installed in Emoji Mart's shadow root. */
+export async function expectEmojiMartStylesInstalled(picker: Locator) {
+  await expect
+    .poll(async () =>
+      picker.evaluate((element) =>
+        Boolean(element.shadowRoot?.querySelector("#maju-emoji-mart-style")),
+      ),
+    )
+    .toBe(true);
+}
