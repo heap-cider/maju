@@ -317,9 +317,9 @@ pub fn parse_models_output(stdout: &str) -> Result<Vec<RawModel>, String> {
     Ok(models)
 }
 
-fn configure_no_window(command: &mut Command) {
+fn configure_no_window(_command: &mut Command) {
     #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    _command.creation_flags(0x0800_0000);
 }
 
 #[cfg(test)]
