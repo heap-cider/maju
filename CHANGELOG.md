@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.17
+
+- Add a first-party Antigravity ACP adapter that uses the installed `agy` CLI and exposes its live model and reasoning choices directly in Maju.
+- Adopt Buzz desktop-v0.5.9 while preserving Maju's self-hosted onboarding, stable agent identities, and ACP configuration behavior.
+- Make agent runs more resilient to rejected images and malformed model responses, reduce repeated ACP session context, and archive per-turn usage for local aggregation.
+- Fix overlapping member mentions, exact short-name search, private-channel invitations, and Welcome banner layout and dismissal state.
+- Pause renderer polling while the app is hidden, bound and sweep stale local caches, polish onboarding, and add channel visibility updates to the CLI.
+
 ## v0.2.16
 
 - Restore the release security gate after RustSec marked a transitive `nostr-relay-pool` dependency as no longer maintained. The notice is informational rather than a vulnerability; Maju now records the upstream migration blocker explicitly until Mesh LLM adopts `nostr-sdk` 0.45 or newer.
