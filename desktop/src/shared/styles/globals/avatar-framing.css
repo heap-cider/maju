@@ -24,6 +24,10 @@
   user-select: none;
 }
 
+.maju-avatar-framing-slider--compact {
+  height: 32px;
+}
+
 .maju-avatar-framing-slider:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px hsl(var(--ring) / 0.42);
@@ -57,6 +61,11 @@
   background: transparent;
   cursor: pointer;
   pointer-events: auto;
+}
+
+.maju-avatar-framing-slider-wrapper:has(.maju-avatar-framing-slider--compact)
+  .maju-avatar-framing-slider-hashmark[data-reset="true"] {
+  top: 16px;
 }
 
 .maju-avatar-framing-slider[data-active="true"]
@@ -109,6 +118,8 @@
 }
 
 .maju-avatar-framing-slider[data-active="true"]
+  .maju-avatar-framing-slider-handle,
+.maju-avatar-framing-slider[data-handle-visible="true"]
   .maju-avatar-framing-slider-handle {
   opacity: 1;
   transform: translate(-50%, -50%) scaleX(1);

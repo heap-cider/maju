@@ -29,6 +29,19 @@ async function fetchForumStructuralEvents(
   }
 }
 
+/** Keeps focused polling for forum posts at the established 15-second cadence. */
+export const FORUM_POSTS_REFETCH_INTERVAL_MS = 15_000;
+/** Keeps focused polling for forum threads at the established 10-second cadence. */
+export const FORUM_THREAD_REFETCH_INTERVAL_MS = 10_000;
+/** Suppresses the focus refetch until forum data is genuinely stale.
+ * Both families poll while focused and have push-invalidation from mutations. */
+export const FORUM_FOCUS_STALE_TIME_MS = 5 * 60_000;
+
+/** Focus-refetch policy shared by forum-posts and forum-thread queries; consumed by focusRefetchPolicy.test.mjs. */
+export const forumFocusRefetchPolicy = {
+  staleTime: FORUM_FOCUS_STALE_TIME_MS,
+  refetchOnWindowFocus: true,
+} as const;
 export function forumPostsQueryKey(channelId: string) {
   return ["forum-posts", channelId] as const;
 }
@@ -38,7 +51,9 @@ export function forumThreadQueryKey(channelId: string, eventId: string) {
 }
 
 export function useForumPostsQuery(channel: Channel | null) {
-  const refetchInterval = useFocusedRefetchInterval(15_000);
+  const refetchInterval = useFocusedRefetchInterval(
+    FORUM_POSTS_REFETCH_INTERVAL_MS,
+  );
 
   const channelId = channel?.id ?? "";
   const enabled = channel !== null && channel.channelType === "forum";
@@ -63,9 +78,8 @@ export function useForumPostsQuery(channel: Channel | null) {
         posts: applyForumStructuralEvents(response.posts, structuralEvents),
       };
     },
-    staleTime: 15_000,
     refetchInterval,
-    refetchOnWindowFocus: true,
+    ...forumFocusRefetchPolicy,
   });
 }
 
@@ -73,7 +87,9 @@ export function useForumThreadQuery(
   channelId: string | null,
   eventId: string | null,
 ) {
-  const refetchInterval = useFocusedRefetchInterval(10_000);
+  const refetchInterval = useFocusedRefetchInterval(
+    FORUM_THREAD_REFETCH_INTERVAL_MS,
+  );
 
   const enabled = channelId !== null && eventId !== null;
   const relaySelfPubkey = useRelaySelfQuery(enabled).data;
@@ -109,9 +125,8 @@ export function useForumThreadQuery(
         replies: applyForumStructuralEvents(response.replies, structuralEvents),
       };
     },
-    staleTime: 10_000,
     refetchInterval,
-    refetchOnWindowFocus: true,
+    ...forumFocusRefetchPolicy,
   });
 }
 

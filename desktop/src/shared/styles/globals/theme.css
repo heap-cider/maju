@@ -181,6 +181,27 @@
 }
 
 /*
+ * Keep Maju's established production selected tint available independently
+ * from the optional prominent treatment.
+ */
+:root {
+  --sidebar-row-subtle-active-surface: rgb(0 0 0 / 7%);
+}
+
+:root.dark {
+  --sidebar-row-subtle-active-surface: rgb(255 255 255 / 16%);
+}
+
+/* The prominent treatment is exclusive to Maju's painted gradient. */
+:root[data-maju-sidebar] {
+  --sidebar-row-active-surface: rgb(255 255 255 / 82%);
+}
+
+:root[data-maju-sidebar].dark {
+  --sidebar-row-active-surface: rgb(255 255 255 / 18%);
+}
+
+/*
  * Maju theme - sidebar gradient.
  *
  * Maju reuses the GitHub Light palette for every base color; its one
@@ -204,8 +225,8 @@
  * floating chip should retain its own fill rather than becoming transparent
  * over the full-app gradient.
  *
- * Item hover/active states use `bg-sidebar-accent` / `bg-sidebar-active`
- * (distinct tokens) and are intentionally left untouched.
+ * Shared row state colors are applied below so Maju and flat themes use the
+ * same hover/selection hierarchy.
  */
 :root[data-maju-sidebar] {
   --maju-gradient-top: var(--maju-gradient-light-top);
@@ -219,7 +240,6 @@
   --maju-hover-surface: rgb(0 0 0 / 4%);
   --maju-sidebar-scrollbar-thumb: var(--maju-hover-surface);
   --maju-active-fill: 0 0% 0%;
-  --maju-active-surface: rgb(0 0 0 / 7%);
   --maju-active-foreground: var(--foreground);
 }
 
@@ -237,11 +257,6 @@
   --maju-chrome-foreground: rgb(255 255 255 / 50%);
   --maju-hover-surface: rgb(255 255 255 / 4%);
   --maju-active-fill: 0 0% 100%;
-  --maju-active-surface: color-mix(
-    in srgb,
-    hsl(var(--maju-active-fill)) 16%,
-    transparent
-  );
   --maju-active-foreground: 0 0% 100%;
 }
 
@@ -425,22 +440,31 @@
 }
 
 /*
- * Active nav pill: use a subtle 7% black tint in light mode and drop the drop
- * shadow so the selection sits flat on the gradient (Maju-only; other themes
- * keep `shadow-xs`). Higher specificity than the active utilities and
- * unlayered, so it wins.
+ * By default, selected navigation uses a darker version of the hover tint,
+ * matching Maju's established production treatment. The optional prominent
+ * preference repaints that same row with the higher-contrast tab surface.
  */
 :root[data-maju-sidebar] [data-testid="app-sidebar"] [data-active="true"],
 :root[data-maju-sidebar] [data-testid="settings-sidebar"] [data-active="true"] {
-  background-color: var(--maju-active-surface);
+  background-color: var(--sidebar-row-subtle-active-surface);
+  box-shadow: none;
+}
+
+:root[data-maju-sidebar][data-prominent-active-tab]
+  [data-testid="app-sidebar"]
+  [data-active="true"],
+:root[data-maju-sidebar][data-prominent-active-tab]
+  [data-testid="settings-sidebar"]
+  [data-active="true"] {
+  --sidebar-active-foreground: var(--sidebar-foreground);
+  background-color: var(--sidebar-row-active-surface);
   box-shadow: none;
 }
 
 /*
- * Hover on non-active nav items uses the theme-specific translucent neutral
- * fill instead of the grey `--sidebar-accent`. Active items are excluded so
- * they retain the active surface. Covers both top-level menu buttons and
- * channel sub-buttons, in the app nav and the settings nav.
+ * Hover on non-active Maju nav items uses the established 4% theme-specific
+ * tint. Active items are excluded so they retain the selected surface. Covers
+ * both top-level menu buttons and channel sub-buttons in app and Settings nav.
  */
 :root[data-maju-sidebar]
   [data-testid="app-sidebar"]
@@ -461,13 +485,24 @@
  * Row actions such as the DM close button are siblings of the menu button.
  * Hovering them still activates the row's Tailwind `group-hover` treatment,
  * so cover the whole menu item to keep that sibling-hover path on the same
- * Maju neutral surface instead of falling back to the legacy accent.
+ * neutral surface instead of falling back to the legacy accent.
  */
 :root[data-maju-sidebar]
   [data-testid="app-sidebar"]
   :where([data-sidebar="menu-item"]:hover)
   > [data-sidebar="menu-button"]:not([data-active="true"]) {
   background-color: var(--maju-hover-surface);
+}
+
+/*
+ * Navigation clicks stay spatially still. The subtle compression begins only
+ * after the sidebar's drag sensor crosses its reorder threshold and is removed
+ * entirely when the user prefers reduced motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :where([data-sidebar-drag-state="dragging"], [data-sidebar-drag-overlay]) {
+    transform: scale(0.985);
+  }
 }
 
 /*
@@ -604,19 +639,42 @@
   color: var(--maju-nav-fg);
 }
 
+/* Follow Maju's selected appearance, independent of the OS color scheme. */
+.dark .sidebar-muted-content {
+  opacity: 0.45;
+}
+
 /*
- * Translucency (Maju theme).
+ * Glass background.
  *
- * ThemeProvider toggles `data-maju-translucent` for Maju themes. Keep the
- * frosted layer on the outer canvases only; nested sidebar/header/footer
- * surfaces pass through so the nav reads as one continuous pane.
+ * ThemeProvider installs native macOS vibrancy before toggling
+ * `data-glass-background`. Keep the frosted layer on the outer canvases only;
+ * nested sidebar/header/footer surfaces pass through so the navigation reads
+ * as one continuous pane while the center content surface remains opaque.
  */
-:root[data-maju-translucent] {
-  --maju-translucency-gradient-alpha: 70%;
+:root[data-glass-background] {
+  --glass-sidebar-surface: hsl(
+    var(--sidebar-background) /
+    var(--glass-background-opacity, 65%)
+  );
+  --maju-translucency-gradient-alpha: var(--glass-background-opacity, 65%);
   --maju-translucency-wash-alpha: 2.4%;
 }
 
-:root[data-maju-translucent] .maju-theme-gradient-layer-light {
+/* The regular Maju theme keeps an opaque copy of the gradient beneath its
+ * color layers. Remove that backing while glass is enabled so the translucent
+ * wash can reveal the native macOS vibrancy view. */
+:root[data-glass-background] .maju-theme-gradient-underlay {
+  background: transparent;
+}
+
+/* Non-Maju themes use their existing sidebar color as the glass tint. */
+:root[data-glass-background]:not([data-maju-sidebar])
+  .maju-theme-gradient-layer {
+  background-color: var(--glass-sidebar-surface);
+}
+
+:root[data-glass-background] .maju-theme-gradient-layer-light {
   /* Maju color wash above a neutral frost wash. */
   background-image:
     linear-gradient(
@@ -653,7 +711,7 @@
   background-repeat: no-repeat, no-repeat;
 }
 
-:root[data-maju-translucent] .maju-theme-gradient-layer-dark {
+:root[data-glass-background] .maju-theme-gradient-layer-dark {
   background-image:
     linear-gradient(
       to bottom,
@@ -689,7 +747,7 @@
   background-repeat: no-repeat, no-repeat;
 }
 
-:root[data-maju-translucent]:not(.dark)
+:root[data-glass-background][data-maju-sidebar]:not(.dark)
   [data-sidebar="sidebar"][data-mobile="true"].bg-sidebar {
   background-color: transparent;
   background-image:
@@ -727,7 +785,7 @@
   background-repeat: no-repeat, no-repeat;
 }
 
-:root[data-maju-translucent].dark
+:root[data-glass-background][data-maju-sidebar].dark
   [data-sidebar="sidebar"][data-mobile="true"].bg-sidebar {
   background-color: transparent;
   background-image:
@@ -765,63 +823,85 @@
   background-repeat: no-repeat, no-repeat;
 }
 
-:root[data-maju-translucent] [data-testid="app-sidebar"],
-:root[data-maju-translucent] [data-maju-glass-inset],
-:root[data-maju-translucent] [data-maju-glass-footer-wrap],
-:root[data-maju-translucent]
+:root[data-glass-background]:not([data-maju-sidebar])
+  [data-sidebar="sidebar"][data-mobile="true"].bg-sidebar {
+  background-color: var(--glass-sidebar-surface);
+  background-image: none;
+}
+
+:root[data-glass-background] .group\/sidebar-wrapper,
+:root[data-glass-background] [data-testid="app-sidebar"],
+:root[data-glass-background] [data-testid="settings-sidebar"],
+:root[data-glass-background] [data-maju-glass-inset],
+:root[data-glass-background] [data-maju-glass-footer-wrap],
+:root[data-glass-background]
   .group\/sidebar-wrapper
   .bg-sidebar:not([data-maju-flat]),
-:root[data-maju-translucent]
+:root[data-glass-background]
   [data-testid="app-sidebar"]
   [data-testid="sidebar-pinned-header"],
-:root[data-maju-translucent]
+:root[data-glass-background]
   [data-testid="app-sidebar"]
   [data-sidebar="footer"] {
   background-color: transparent;
   background-image: none;
 }
 
+:root[data-glass-background]
+  [data-testid="settings-sidebar"]
+  [data-sidebar="sidebar"] {
+  background-color: transparent;
+  background-image: none;
+}
+
 /* Remove edge fades and stacking contexts that made header/footer look separate. */
-:root[data-maju-translucent]
+:root[data-glass-background]
   [data-testid="app-sidebar"]
   [data-testid="sidebar-pinned-header"],
-:root[data-maju-translucent] [data-maju-glass-inset],
-:root[data-maju-translucent]
+:root[data-glass-background] [data-maju-glass-inset],
+:root[data-glass-background]
   [data-testid="app-sidebar"]
   [data-maju-glass-footer-wrap],
-:root[data-maju-translucent]
+:root[data-glass-background]
   [data-testid="app-sidebar"]
   [data-sidebar="footer"] {
   isolation: auto;
   z-index: auto;
 }
 
-:root[data-maju-translucent]
+:root[data-glass-background]
   [data-testid="app-sidebar"]
   [data-testid="sidebar-pinned-header"]::before,
-:root[data-maju-translucent]
+:root[data-glass-background]
   [data-testid="app-sidebar"]
   [data-sidebar="footer"]::before {
   background: none;
 }
 
 /* Let the native transparent window show through behind the sidebar glass. */
-:root[data-maju-translucent],
-:root[data-maju-translucent] body {
+:root[data-glass-background],
+:root[data-glass-background] body,
+:root[data-glass-background] #root {
+  /* WebKit otherwise paints an opaque page canvas above native vibrancy. */
+  background: transparent;
+}
+
+/* The outer shell stays clear; the app surface owns the translucent tint. */
+:root[data-glass-background] .maju-huddle-shell {
+  background: transparent;
+}
+
+:root[data-glass-background] .maju-huddle-app-surface {
   background-color: transparent;
   background-image: none;
+  isolation: isolate;
 }
 
-/* The outer shell stays clear; the app surface owns the gradient above. */
-:root[data-maju-translucent] .maju-huddle-shell {
+:root[data-glass-background] .maju-huddle-app-surface::after {
   background: transparent;
 }
 
-:root[data-maju-translucent] .maju-huddle-app-surface::after {
-  background: transparent;
-}
-
-:root[data-maju-translucent] .maju-huddle-app-surface-open::after {
+:root[data-glass-background] .maju-huddle-app-surface-open::after {
   background: hsl(var(--maju-huddle-drawer-surface));
 }
 
@@ -833,7 +913,7 @@
   background-image: none;
 }
 
-:root[data-maju-sidebar][data-maju-translucent]
+:root[data-maju-sidebar][data-glass-background]
   .maju-huddle-shell[data-huddle-open="true"] {
   background-color: hsl(var(--maju-huddle-drawer-surface));
   background-image: none;

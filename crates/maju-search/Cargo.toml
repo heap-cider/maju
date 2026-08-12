@@ -9,9 +9,11 @@ description = "Postgres full-text search for Maju, scoped by community"
 
 [dependencies]
 maju-core   = { workspace = true }
+maju-datastore-tracing = { workspace = true }
 sqlx        = { workspace = true }
 uuid        = { workspace = true }
 thiserror   = { workspace = true }
+tracing     = { workspace = true }
 
 [dev-dependencies]
 tokio       = { workspace = true }

@@ -3,7 +3,10 @@ import test from "node:test";
 
 import {
   __linkPreviewMetadataTest,
+  fetchMajuEntityMetadata,
+  isMajuEntityPreview,
   resolveLinkPreview,
+  withEntityFallbacks,
 } from "./useResolvedLinkPreviews.ts";
 
 const preview = {
@@ -27,10 +30,24 @@ function metadata(overrides = {}) {
   };
 }
 
-test("pending metadata reserves the image treatment", () => {
+test("pending external metadata reserves the image treatment", () => {
   assert.deepEqual(resolveLinkPreview(preview, undefined), {
     ...preview,
     imageState: "pending",
+  });
+});
+
+test("pending Maju entity metadata remains image-less", () => {
+  const entityPreview = {
+    kind: "maju-repository",
+    href: `maju://repo?owner=${"cd".repeat(32)}&d=maju`,
+    provider: "Maju",
+    title: "maju",
+    typeLabel: "repo",
+  };
+  assert.deepEqual(resolveLinkPreview(entityPreview, undefined), {
+    ...entityPreview,
+    imageState: "none",
   });
 });
 
@@ -179,4 +196,239 @@ test("metadata loader coalesces fragment variants and bounds concurrency", async
 
   assert.equal(calls, 3);
   assert.equal(maxActive, 2);
+});
+
+test("withEntityFallbacks re-adds previews dropped by null metadata", () => {
+  const entityPreview = {
+    kind: "maju-pull-request",
+    href: `maju://pr?id=${"ab".repeat(32)}&owner=${"cd".repeat(32)}&d=maju`,
+    provider: "Maju",
+    title: `maju #${"ab".repeat(4)}`,
+    typeLabel: "PR",
+  };
+
+  assert.deepEqual(withEntityFallbacks([entityPreview], []), [
+    { ...entityPreview, imageState: "none" },
+  ]);
+});
+
+test("withEntityFallbacks keeps resolved previews and preserves order", () => {
+  const first = {
+    kind: "maju-repository",
+    href: `maju://repo?owner=${"cd".repeat(32)}&d=maju`,
+    provider: "Maju",
+    title: "maju",
+    typeLabel: "repo",
+  };
+  const second = {
+    kind: "maju-issue",
+    href: `maju://issue?id=${"ef".repeat(32)}&owner=${"cd".repeat(32)}&d=maju`,
+    provider: "Maju",
+    title: `maju #${"ef".repeat(4)}`,
+    typeLabel: "issue",
+  };
+  const resolvedSecond = {
+    ...second,
+    title: "Fix the preview cards",
+    imageState: "none",
+  };
+
+  assert.deepEqual(withEntityFallbacks([first, second], [resolvedSecond]), [
+    { ...first, imageState: "none" },
+    resolvedSecond,
+  ]);
+});
+
+test("entity fallback eligibility is kind-scoped", () => {
+  assert.equal(
+    isMajuEntityPreview({
+      ...preview,
+      kind: "maju-repository",
+      href: `maju://repo?owner=${"cd".repeat(32)}&d=maju`,
+    }),
+    true,
+  );
+  assert.equal(
+    isMajuEntityPreview({ ...preview, href: "maju://future?id=example" }),
+    false,
+  );
+});
+
+test("withEntityFallbacks still drops unresolved external links", () => {
+  assert.deepEqual(withEntityFallbacks([preview], []), []);
+  assert.deepEqual(
+    withEntityFallbacks([{ ...preview, href: "maju://future?id=example" }], []),
+    [],
+  );
+});
+
+function relayEvent({
+  id,
+  kind,
+  pubkey,
+  content = "",
+  tags = [],
+  createdAt = 1,
+}) {
+  return { id, kind, pubkey, created_at: createdAt, content, tags, sig: "" };
+}
+
+test("Maju PR metadata includes repository identity and trusted root context", async () => {
+  const owner = "cd".repeat(32);
+  const attacker = "ef".repeat(32);
+  const id = "ab".repeat(32);
+  const repoAddress = `30617:${owner}:maju`;
+  const commit = "1234567".padEnd(40, "0");
+  const events = [
+    relayEvent({
+      id: "01".repeat(32),
+      kind: 30617,
+      pubkey: owner,
+      tags: [
+        ["d", "maju"],
+        ["name", "Maju Desktop"],
+        ["default-branch", "main"],
+      ],
+    }),
+    relayEvent({
+      id,
+      kind: 1618,
+      pubkey: owner,
+      content: "Body",
+      tags: [
+        ["a", repoAddress],
+        ["subject", "Restore entity cards"],
+        ["branch-name", "fix/cards"],
+        ["target-branch", "release"],
+        ["c", commit],
+      ],
+    }),
+    relayEvent({
+      id: "02".repeat(32),
+      kind: 1633,
+      pubkey: attacker,
+      createdAt: 20,
+      tags: [["e", id]],
+    }),
+    relayEvent({
+      id: "03".repeat(32),
+      kind: 1630,
+      pubkey: owner,
+      createdAt: 10,
+      tags: [["e", id]],
+    }),
+    ...Array.from({ length: 25 }, (_, index) =>
+      relayEvent({
+        id: index.toString(16).padStart(64, "0"),
+        kind: 1633,
+        pubkey: owner,
+        createdAt: 100 + index,
+        tags: [["e", index.toString(16).padStart(64, "f")]],
+      }),
+    ),
+  ];
+  const fetchEvents = async (filter) =>
+    events
+      .filter(
+        (event) =>
+          (!filter.kinds || filter.kinds.includes(event.kind)) &&
+          (!filter.ids || filter.ids.includes(event.id)) &&
+          (!filter.authors || filter.authors.includes(event.pubkey)) &&
+          (!filter["#d"] ||
+            event.tags.some(
+              (tag) => tag[0] === "d" && filter["#d"].includes(tag[1]),
+            )) &&
+          (!filter["#a"] ||
+            event.tags.some(
+              (tag) => tag[0] === "a" && filter["#a"].includes(tag[1]),
+            )) &&
+          (!filter["#e"] ||
+            event.tags.some(
+              (tag) => tag[0] === "e" && filter["#e"].includes(tag[1]),
+            )),
+      )
+      .sort((left, right) => right.created_at - left.created_at)
+      .slice(0, filter.limit);
+
+  const result = await fetchMajuEntityMetadata(
+    `maju://pr?id=${id}&owner=${owner}&d=maju`,
+    fetchEvents,
+  );
+  assert.equal(result?.siteName, "Maju Desktop");
+  assert.equal(result?.title, "Restore entity cards");
+  assert.equal(result?.description, "Open · fix/cards → release · 1234567");
+  assert.equal(result?.faviconDataUrl, null);
+  assert.equal(result?.imageDataUrl, null);
+});
+
+test("Maju entity roots reject ambiguous repository tags", async () => {
+  const owner = "cd".repeat(32);
+  const attacker = "ef".repeat(32);
+  const targetAddress = `30617:${owner}:maju`;
+  const attackerAddress = `30617:${attacker}:other`;
+  const repository = relayEvent({
+    id: "01".repeat(32),
+    kind: 30617,
+    pubkey: owner,
+    tags: [
+      ["d", "maju"],
+      ["name", "Maju Desktop"],
+      ["default-branch", "main"],
+    ],
+  });
+
+  for (const [type, kind] of [
+    ["pr", 1618],
+    ["issue", 1621],
+  ]) {
+    const id = (type === "pr" ? "ab" : "bc").repeat(32);
+    const root = relayEvent({
+      id,
+      kind,
+      pubkey: attacker,
+      tags: [
+        ["a", attackerAddress],
+        ["a", targetAddress],
+        ["subject", "Misbound entity"],
+      ],
+    });
+    const result = await fetchMajuEntityMetadata(
+      `maju://${type}?id=${id}&owner=${owner}&d=maju`,
+      async (filter) =>
+        filter.kinds?.includes(30617)
+          ? [repository]
+          : filter.ids?.includes(id)
+            ? [root]
+            : [],
+    );
+    assert.equal(result, null, `${type} with multiple repository tags`);
+  }
+});
+
+test("Maju repository metadata stays image-less and exposes default branch", async () => {
+  const owner = "cd".repeat(32);
+  const result = await fetchMajuEntityMetadata(
+    `maju://repo?owner=${owner}&d=relay-tools`,
+    async () => [
+      relayEvent({
+        id: "01".repeat(32),
+        kind: 30617,
+        pubkey: owner,
+        content: "Fallback description",
+        tags: [
+          ["d", "relay-tools"],
+          ["name", "Relay Tools"],
+          ["description", "Operator tooling for relays"],
+          ["status", "active"],
+          ["default-branch", "trunk"],
+        ],
+      }),
+    ],
+  );
+  assert.equal(result?.siteName, "Relay Tools");
+  assert.equal(result?.title, "Operator tooling for relays");
+  assert.equal(result?.description, "active · default: trunk");
+  assert.equal(result?.faviconDataUrl, null);
+  assert.equal(result?.imageDataUrl, null);
+  assert.equal(result?.imageDomain, null);
 });

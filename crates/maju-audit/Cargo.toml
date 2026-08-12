@@ -9,6 +9,7 @@ description = "Hash-chain audit log for Maju"
 
 [dependencies]
 maju-core = { workspace = true }
+maju-datastore-tracing = { workspace = true }
 sqlx        = { workspace = true }
 tokio       = { workspace = true }
 serde       = { workspace = true }

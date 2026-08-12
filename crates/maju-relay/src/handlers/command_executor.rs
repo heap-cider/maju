@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use maju_core::kind::*;
 use maju_core::tenant::{CommunityId, TenantContext};
+use maju_datastore_tracing::datastore_span;
 use maju_db::workflow::{ApprovalStatus, RunStatus};
 use maju_db::DbError;
 use maju_workflow::executor::TriggerContext;
@@ -97,6 +98,7 @@ enum PersistResult {
 /// persists without the event record. On retry, the event INSERT succeeds
 /// (no conflict), and the mutation re-executes — which is safe for idempotent
 /// operations (open_dm, hide_dm, update_approval, upsert_workflow).
+#[datastore_span(name = "persist_command_event", system = "postgresql")]
 async fn persist_command_event(
     state: &Arc<AppState>,
     tenant: &TenantContext,

@@ -28,6 +28,7 @@ members = [
     "crates/maju-relay-mesh",
     "crates/maju-dev-mcp",
     "crates/maju-voice",
+    "crates/maju-datastore-tracing",
     "examples/countdown-bot",
 ]
 exclude = ["desktop/src-tauri"]
@@ -136,6 +137,7 @@ maju-media = { path = "crates/maju-media" }
 maju-sdk = { path = "crates/maju-sdk" }
 maju-ws-client = { path = "crates/maju-ws-client" }
 maju-relay-mesh = { path = "crates/maju-relay-mesh" }
+maju-datastore-tracing = { path = "crates/maju-datastore-tracing" }
 
 # CI profile — builds the relay for desktop e2e. Dependencies keep full
 # release optimization (warm from main's cache; they carry the runtime hot

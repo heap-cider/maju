@@ -39,6 +39,7 @@ import { rewriteRelayUrl } from "@/shared/lib/mediaUrl";
 import { deleteMessage } from "@/shared/api/tauri";
 import { KIND_HUDDLE_STARTED } from "@/shared/constants/kinds";
 import { Button } from "@/shared/ui/button";
+import { HashArrowIn } from "@/shared/ui/icons";
 import { DeleteMessageConfirmDialog } from "./DeleteMessageConfirmDialog";
 import {
   DropdownMenu,
@@ -65,6 +66,7 @@ function MoreActionsMenu({
   onMarkRead,
   onOpenChange,
   onRemindLater,
+  onSendToChannel,
   onUnfollowThread,
   open,
   isFollowingThread,
@@ -81,6 +83,7 @@ function MoreActionsMenu({
   onMarkRead?: (message: TimelineMessage) => void;
   onOpenChange: (open: boolean) => void;
   onRemindLater?: (message: TimelineMessage) => void;
+  onSendToChannel?: (message: TimelineMessage) => Promise<void>;
   onUnfollowThread?: (message: TimelineMessage) => void;
   open: boolean;
   isFollowingThread?: boolean;
@@ -217,6 +220,31 @@ function MoreActionsMenu({
             >
               <Clock className="h-4 w-4" />
               Remind me later
+            </DropdownMenuItem>
+          ) : null}
+
+          {onSendToChannel ? (
+            <DropdownMenuItem
+              aria-label="Send to channel"
+              data-testid={`send-to-channel-${message.id}`}
+              onClick={() => {
+                void onSendToChannel(message)
+                  .then(() => toast.success("Sent to channel"))
+                  .catch((error) => {
+                    console.error(
+                      "Failed to send thread message to channel",
+                      error,
+                    );
+                    toast.error("Couldn't send to channel");
+                  });
+              }}
+            >
+              <HashArrowIn
+                aria-hidden="true"
+                className="h-4 w-4"
+                data-testid="send-to-channel-icon"
+              />
+              Send to channel
             </DropdownMenuItem>
           ) : null}
 
@@ -378,6 +406,7 @@ export const MessageActionBar = React.memo(function MessageActionBar({
   onReactionSelect,
   onRemindLater,
   onReply,
+  onSendToChannel,
   onUnfollowThread,
   reactionErrorMessage = null,
   reactions,
@@ -397,6 +426,7 @@ export const MessageActionBar = React.memo(function MessageActionBar({
   onReactionSelect?: (emoji: string) => Promise<void>;
   onRemindLater?: (message: TimelineMessage) => void;
   onReply?: (message: TimelineMessage) => void;
+  onSendToChannel?: (message: TimelineMessage) => Promise<void>;
   onUnfollowThread?: (message: TimelineMessage) => void;
   reactionErrorMessage?: string | null;
   reactions: TimelineReaction[];
@@ -432,6 +462,7 @@ export const MessageActionBar = React.memo(function MessageActionBar({
     Boolean(onFollowThread) ||
     Boolean(onUnfollowThread) ||
     Boolean(onRemindLater) ||
+    Boolean(onSendToChannel) ||
     !message.pending;
 
   const wouldAddReaction = React.useCallback(
@@ -579,6 +610,7 @@ export const MessageActionBar = React.memo(function MessageActionBar({
               onMarkRead={onMarkRead}
               onOpenChange={setIsDropdownOpen}
               onRemindLater={onRemindLater}
+              onSendToChannel={onSendToChannel}
               onUnfollowThread={onUnfollowThread}
               open={isDropdownOpen}
               isFollowingThread={isFollowingThread}
