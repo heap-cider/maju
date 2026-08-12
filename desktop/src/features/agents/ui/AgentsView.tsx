@@ -544,6 +544,7 @@ export function AgentsView() {
           open={teamActions.teamDialogState !== null}
           personas={personas.libraryPersonas}
           submitLabel={teamActions.teamDialogState.submitLabel}
+          teams={teamActions.teams}
           title={teamActions.teamDialogState.title}
         />
       ) : null}

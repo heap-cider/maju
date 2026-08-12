@@ -16,7 +16,10 @@ import { friendlyAgentLastError } from "@/features/agents/lib/friendlyAgentLastE
 import { isManagedAgentActive } from "@/features/agents/lib/managedAgentControlActions";
 import { useUserProfileQuery } from "@/features/profile/hooks";
 import type { AgentPersona, ManagedAgent } from "@/shared/api/types";
-import { listLoggedInDevices } from "@/shared/api/tauriDevices";
+import {
+  listLoggedInDevices,
+  loggedInDevicesQueryKey,
+} from "@/shared/api/tauriDevices";
 import type { ProfilePanelOpenOptions } from "@/shared/context/ProfilePanelContext";
 import { useFeedbackToasts } from "@/shared/hooks/useToastEffect";
 import { Badge } from "@/shared/ui/badge";
@@ -106,7 +109,7 @@ export function UnifiedAgentsSection(props: UnifiedAgentsSectionProps) {
   );
   const devicesQuery = useQuery({
     enabled: agents.length > 0,
-    queryKey: ["logged-in-devices"],
+    queryKey: loggedInDevicesQueryKey,
     queryFn: listLoggedInDevices,
     refetchInterval: 15_000,
     staleTime: 5_000,

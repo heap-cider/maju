@@ -3,7 +3,9 @@ import test from "node:test";
 
 import {
   findAgentExecutionLocation,
+  hasOnlineAgentRepresentative,
   indexAgentExecutionLocations,
+  removeAgentFromCurrentDeviceSnapshot,
 } from "./agentExecutionLocations.ts";
 
 const device = (overrides = {}) => ({
@@ -68,4 +70,39 @@ test("keeps a standby snapshot useful during a short representative race", () =>
     representativeIsCurrent: false,
     currentDeviceIsStandby: true,
   });
+});
+
+test("representative check ignores standby and offline devices", () => {
+  const devices = [
+    device({ online: false, activeAgents: ["fizz"] }),
+    device({ current: true, standbyAgents: ["fizz"] }),
+  ];
+
+  assert.equal(hasOnlineAgentRepresentative(devices, "FIZZ"), false);
+});
+
+test("representative check accepts an online runner on another device", () => {
+  const devices = [
+    device({ current: true, standbyAgents: ["fizz"] }),
+    device({ deviceId: "office", activeAgents: [" FIZZ "] }),
+  ];
+
+  assert.equal(hasOnlineAgentRepresentative(devices, "fizz"), true);
+});
+
+test("stopping here clears only this device from the cached runner snapshot", () => {
+  const devices = [
+    device({
+      current: true,
+      activeAgents: ["fizz", "keep"],
+      standbyAgents: ["FIZZ"],
+    }),
+    device({ deviceId: "office", activeAgents: ["fizz"] }),
+  ];
+
+  const updated = removeAgentFromCurrentDeviceSnapshot(devices, " FIZZ ");
+
+  assert.deepEqual(updated[0].activeAgents, ["keep"]);
+  assert.deepEqual(updated[0].standbyAgents, []);
+  assert.deepEqual(updated[1].activeAgents, ["fizz"]);
 });

@@ -3,6 +3,7 @@ import * as React from "react";
 import { ProfileAvatar } from "@/features/profile/ui/ProfileAvatar";
 import type {
   AgentPersona,
+  AgentTeam,
   CreateTeamInput,
   UpdateTeamInput,
 } from "@/shared/api/types";
@@ -24,6 +25,7 @@ import {
   copySelectedPersonaIds,
   countMissingPersonaIds,
   filterAvailablePersonaIds,
+  indexOtherTeamAssignments,
   orderPersonasByInitiallySelected,
 } from "./teamDialogSelection";
 
@@ -34,6 +36,7 @@ type TeamDialogProps = {
   submitLabel: string;
   initialValues: CreateTeamInput | UpdateTeamInput | null;
   personas: AgentPersona[];
+  teams: AgentTeam[];
   error: Error | null;
   isPending: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,6 +51,7 @@ export function TeamDialog({
   submitLabel,
   initialValues,
   personas,
+  teams,
   error,
   isPending,
   onOpenChange,
@@ -66,6 +70,12 @@ export function TeamDialog({
   ] = React.useState<string[]>([]);
   const [confirmRemovalOpen, setConfirmRemovalOpen] = React.useState(false);
   const isEditMode = Boolean(initialValues && "id" in initialValues);
+  const currentTeamId =
+    initialValues && "id" in initialValues ? initialValues.id : undefined;
+  const otherTeamAssignments = React.useMemo(
+    () => indexOtherTeamAssignments(teams, currentTeamId),
+    [currentTeamId, teams],
+  );
   const missingInitialPersonaCount = React.useMemo(() => {
     if (!initialValues) {
       return 0;
@@ -228,7 +238,7 @@ export function TeamDialog({
                   disabled={isPending}
                   id="team-instructions"
                   onChange={(event) => setInstructions(event.target.value)}
-                  placeholder="Optional instructions applied to every deployed team member."
+                  placeholder="Applied to each member on its next start or restart."
                   value={instructions}
                 />
               </div>
@@ -236,7 +246,8 @@ export function TeamDialog({
               <div className="space-y-2">
                 <span className="text-sm font-medium">Agents</span>
                 <p className="text-xs text-muted-foreground">
-                  Select the agents to include in this team.
+                  Each agent can belong to one team. Agents already assigned
+                  elsewhere are unavailable.
                 </p>
                 {missingInitialPersonaCount > 0 ? (
                   <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -262,25 +273,33 @@ export function TeamDialog({
                       const isSelected = selectedPersonaIds.includes(
                         persona.id,
                       );
+                      const assignedTeam = otherTeamAssignments.get(persona.id);
+                      const isUnavailable = Boolean(assignedTeam);
 
                       return (
                         <div
-                          className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
+                          className={
+                            isUnavailable
+                              ? "flex cursor-not-allowed items-center gap-3 rounded-md px-2 py-1.5 opacity-60"
+                              : "flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
+                          }
                           key={persona.id}
                           onClick={() => {
-                            if (!isPending) {
+                            if (!isPending && !isUnavailable) {
                               togglePersona(persona.id);
                             }
                           }}
                           onKeyDown={(event) => {
                             if (
                               !isPending &&
+                              !isUnavailable &&
                               (event.key === "Enter" || event.key === " ")
                             ) {
                               event.preventDefault();
                               togglePersona(persona.id);
                             }
                           }}
+                          aria-disabled={isUnavailable}
                           role="option"
                           aria-selected={isSelected}
                           tabIndex={0}
@@ -288,7 +307,7 @@ export function TeamDialog({
                           <Checkbox
                             checked={isSelected}
                             className="pointer-events-none"
-                            disabled={isPending}
+                            disabled={isPending || isUnavailable}
                             tabIndex={-1}
                           />
                           <ProfileAvatar
@@ -299,6 +318,11 @@ export function TeamDialog({
                           <span className="text-sm">{persona.displayName}</span>
                           {persona.isBuiltIn ? (
                             <Badge variant="secondary">Built-in</Badge>
+                          ) : null}
+                          {assignedTeam ? (
+                            <Badge variant="outline">
+                              In {assignedTeam.name}
+                            </Badge>
                           ) : null}
                         </div>
                       );

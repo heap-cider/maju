@@ -49,13 +49,12 @@ export function pickPreferredManagedAgent(agents: ManagedAgent[]) {
 export function findReusablePersonaAgent(
   agents: ManagedAgent[],
   personaId: string,
-  channelMemberPubkeys: ReadonlySet<string>,
+  _channelMemberPubkeys: ReadonlySet<string>,
 ): ManagedAgent | undefined {
-  const candidates = agents.filter(
-    (agent) =>
-      agent.personaId === personaId &&
-      !channelMemberPubkeys.has(normalizePubkey(agent.pubkey)),
-  );
+  // A definition has one identity for this account and community. Reuse it
+  // even when it is already a channel member; membership writes are
+  // idempotent and must never be a reason to mint another identity.
+  const candidates = agents.filter((agent) => agent.personaId === personaId);
   return pickPreferredManagedAgent(candidates);
 }
 

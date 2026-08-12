@@ -13,7 +13,7 @@ type QuickBotDropState = {
 };
 
 /**
- * Handles creating a new managed agent from a persona with a given instance name.
+ * Attaches a definition's stable managed-agent identity to a channel.
  */
 export function useQuickBotDrop(channelId: string | null) {
   const createMutation = useCreateChannelManagedAgentMutation(channelId);

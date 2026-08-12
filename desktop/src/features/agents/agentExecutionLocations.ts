@@ -21,6 +21,7 @@ export function indexAgentExecutionLocations(
   const locations = new Map<string, AgentExecutionLocation>();
 
   for (const device of devices) {
+    if (!device.online) continue;
     for (const pubkey of device.activeAgents) {
       const key = normalizedPubkey(pubkey);
       const previous = locations.get(key);
@@ -34,7 +35,9 @@ export function indexAgentExecutionLocations(
     }
   }
 
-  const currentDevice = devices.find((device) => device.current);
+  const currentDevice = devices.find(
+    (device) => device.current && device.online,
+  );
   if (currentDevice) {
     for (const pubkey of currentDevice.standbyAgents) {
       const key = normalizedPubkey(pubkey);
@@ -48,6 +51,42 @@ export function indexAgentExecutionLocations(
   }
 
   return locations;
+}
+
+/** Whether the relay already has an online representative for this identity. */
+export function hasOnlineAgentRepresentative(
+  devices: readonly LoggedInDevice[],
+  pubkey: string,
+): boolean {
+  const expected = normalizedPubkey(pubkey);
+  return devices.some(
+    (device) =>
+      device.online &&
+      device.activeAgents.some(
+        (activePubkey) => normalizedPubkey(activePubkey) === expected,
+      ),
+  );
+}
+
+/** Optimistically remove a stopped identity from this device's relay snapshot. */
+export function removeAgentFromCurrentDeviceSnapshot(
+  devices: readonly LoggedInDevice[],
+  pubkey: string,
+): LoggedInDevice[] {
+  const expected = normalizedPubkey(pubkey);
+  return devices.map((device) =>
+    device.current
+      ? {
+          ...device,
+          activeAgents: device.activeAgents.filter(
+            (activePubkey) => normalizedPubkey(activePubkey) !== expected,
+          ),
+          standbyAgents: device.standbyAgents.filter(
+            (standbyPubkey) => normalizedPubkey(standbyPubkey) !== expected,
+          ),
+        }
+      : device,
+  );
 }
 
 export function findAgentExecutionLocation(

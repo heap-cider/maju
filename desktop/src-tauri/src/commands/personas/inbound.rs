@@ -71,7 +71,8 @@ fn reconcile_inbound_persona_event_blocking(
 ) -> Result<(), String> {
     use crate::managed_agents::{
         agent_events::managed_agent_content_from_event,
-        load_managed_agents, load_teams,
+        apply_team_membership_to_instances, deduplicate_definition_identities, load_managed_agents,
+        load_teams,
         persona_events::persona_from_event,
         retention::{open_retention_db, retain_inbound_event, InboundOutcome, RetainedEvent},
         save_managed_agents, save_teams,
@@ -185,13 +186,43 @@ fn reconcile_inbound_persona_event_blocking(
             let mut teams = load_teams(&app)?;
             apply_inbound_team(&mut teams, d_tag, team_content_from_event(&event)?);
             save_teams(&app, &teams)?;
+            let mut agents = load_managed_agents(&app)?;
+            let previous_team_ids: Vec<_> =
+                agents.iter().map(|agent| agent.team_id.clone()).collect();
+            apply_team_membership_to_instances(&mut agents, &teams);
+            if agents
+                .iter()
+                .map(|agent| &agent.team_id)
+                .ne(previous_team_ids.iter())
+            {
+                save_managed_agents(&app, &agents)?;
+            }
         }
         KIND_MANAGED_AGENT => {
             let mut agents = load_managed_agents(&app)?;
+            let was_known = agents.iter().any(|record| record.pubkey == d_tag);
             let inbound = inbound_managed_agent
                 .ok_or_else(|| "managed-agent event content was not parsed".to_string())?;
             apply_inbound_managed_agent(&mut agents, &d_tag, inbound, &owner_keys)?;
+            if !was_known {
+                let created_at = i64::try_from(event.created_at.as_secs())
+                    .ok()
+                    .and_then(|seconds| chrono::DateTime::from_timestamp(seconds, 0))
+                    .map(|timestamp| timestamp.to_rfc3339())
+                    .unwrap_or_else(now_iso);
+                if let Some(record) = agents.iter_mut().find(|record| record.pubkey == d_tag) {
+                    record.created_at = created_at.clone();
+                    record.updated_at = created_at;
+                }
+            }
+            let teams = load_teams(&app)?;
+            apply_team_membership_to_instances(&mut agents, &teams);
+            let discarded = deduplicate_definition_identities(&mut agents);
             save_managed_agents(&app, &agents)?;
+            for pubkey in discarded {
+                super::super::agents::tombstone_managed_agent_pending(&app, &state, &pubkey);
+                super::super::agents::archive_managed_agent_pending(&app, &state, &pubkey);
+            }
         }
         _ => unreachable!("kind gated above"),
     }
@@ -532,6 +563,15 @@ fn agent_owner_auth_tag(owner_keys: &nostr::Keys, agent_pubkey: &str) -> Result<
 /// symmetric to the persona path, since a team (like a persona) is a secretless
 /// definition that another device may legitimately learn about from the relay.
 fn apply_inbound_team(teams: &mut Vec<TeamRecord>, d_tag: String, inbound: TeamEventContent) {
+    // Team membership is a single-valued definition property. When a newer
+    // team event assigns definitions here, remove those definitions from any
+    // other local team before applying this record.
+    if let Some(persona_ids) = inbound.persona_ids.as_ref() {
+        for team in teams.iter_mut().filter(|team| team.id != d_tag) {
+            team.persona_ids
+                .retain(|persona_id| !persona_ids.contains(persona_id));
+        }
+    }
     match teams.iter_mut().find(|record| record.id == d_tag) {
         Some(local) => {
             local.name = inbound.name;

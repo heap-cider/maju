@@ -26,6 +26,8 @@ export type LoggedInDevice = {
   standbyAgents: string[];
 };
 
+export const loggedInDevicesQueryKey = ["logged-in-devices"] as const;
+
 function fromRaw(raw: RawDeviceStatus): LoggedInDevice {
   return {
     deviceId: raw.device_id,

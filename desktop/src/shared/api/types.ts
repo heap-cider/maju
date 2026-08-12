@@ -409,7 +409,7 @@ export type RelayMeshConfig = {
 export type CreateManagedAgentInput = {
   name: string;
   personaId?: string;
-  /** Team this instance was deployed from; controls runtime team instructions. */
+  /** Compatibility hint; the linked definition's team is authoritative. */
   teamId?: string;
   relayUrl?: string;
   acpCommand?: string;

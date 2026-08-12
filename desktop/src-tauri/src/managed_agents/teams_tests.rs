@@ -219,12 +219,11 @@ fn managed_agent(name: &str) -> ManagedAgentRecord {
     }
 }
 
-/// A new-style agent (created after the `team_id` seam landed) that links to
-/// a JSON-only team purely via `team_id` — the only kind of team that carries
-/// no `source_dir`/`persona_team_dir` at all — must still be caught, or the
-/// "team in use" delete guard silently never fires for it.
+/// A JSON team's logical membership is definition state. Deleting the team
+/// clears `team_id` from linked agents, so it must not be mistaken for a
+/// legacy filesystem dependency that blocks deletion.
 #[test]
-fn agents_referencing_team_matches_on_team_id() {
+fn agents_referencing_team_ignores_derived_team_id() {
     let t = team("json-team-1", "Json Team");
     let mut linked = managed_agent("Linked Agent");
     linked.team_id = Some("json-team-1".to_string());
@@ -233,7 +232,7 @@ fn agents_referencing_team_matches_on_team_id() {
     let agents = vec![linked, unrelated];
     let referencing = agents_referencing_team(&agents, &t);
 
-    assert_eq!(referencing, vec!["Linked Agent"]);
+    assert!(referencing.is_empty());
 }
 
 /// Legacy pack-backed agents that predate the `team_id` field record their

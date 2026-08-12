@@ -4,8 +4,10 @@ use uuid::Uuid;
 use crate::{
     app_state::AppState,
     managed_agents::{
-        delete_team_with_cascade, ensure_persona_ids_are_active, load_personas, load_teams,
-        save_teams, try_regenerate_nest, CreateTeamRequest, TeamRecord, UpdateTeamRequest,
+        apply_team_membership_to_instances, delete_team_with_cascade,
+        ensure_persona_ids_are_active, ensure_single_team_per_persona, load_managed_agents,
+        load_personas, load_teams, save_managed_agents, save_teams, try_regenerate_nest,
+        CreateTeamRequest, TeamRecord, UpdateTeamRequest,
     },
     util::now_iso,
 };
@@ -23,6 +25,44 @@ fn trim_optional(value: Option<String>) -> Option<String> {
         let trimmed = candidate.trim();
         (!trimmed.is_empty()).then(|| trimmed.to_string())
     })
+}
+
+fn normalize_persona_ids(persona_ids: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    persona_ids
+        .into_iter()
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty() && seen.insert(id.clone()))
+        .collect()
+}
+
+/// Make definition membership authoritative for existing identities too.
+/// Changed identity records are published for the owner's other devices;
+/// process state and credentials remain local to each device.
+fn sync_agent_team_assignments(
+    app: &AppHandle,
+    state: &AppState,
+    teams: &[TeamRecord],
+) -> Result<(), String> {
+    let mut agents = load_managed_agents(app)?;
+    let previous: std::collections::HashMap<_, _> = agents
+        .iter()
+        .map(|agent| (agent.pubkey.clone(), agent.team_id.clone()))
+        .collect();
+    apply_team_membership_to_instances(&mut agents, teams);
+    let changed: Vec<_> = agents
+        .iter()
+        .filter(|agent| previous.get(&agent.pubkey) != Some(&agent.team_id))
+        .cloned()
+        .collect();
+    if changed.is_empty() {
+        return Ok(());
+    }
+    save_managed_agents(app, &agents)?;
+    for agent in &changed {
+        super::agents::retain_managed_agent_pending(app, state, agent);
+    }
+    Ok(())
 }
 
 /// Retain a freshly authored team event in the local store, flagged for relay
@@ -84,7 +124,7 @@ pub(super) fn retain_team_pending(app: &AppHandle, state: &AppState, team: &Team
 /// `(5, pubkey, d_tag)` coordinate with `pending_sync = 1`. Best-effort: a
 /// failure is logged and swallowed so a retention hiccup never blocks the
 /// disk-authoritative delete.
-fn tombstone_team_pending(app: &AppHandle, state: &AppState, d_tag: &str) {
+pub(super) fn tombstone_team_pending(app: &AppHandle, state: &AppState, d_tag: &str) -> bool {
     use crate::managed_agents::{
         retention::{
             delete_retained_event, open_retention_db, retain_event, tombstone_retention_d_tag,
@@ -120,8 +160,12 @@ fn tombstone_team_pending(app: &AppHandle, state: &AppState, d_tag: &str) {
             },
         )
     })();
-    if let Err(e) = result {
-        eprintln!("maju-desktop: team-tombstone: {e}");
+    match result {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("maju-desktop: team-tombstone: {e}");
+            false
+        }
     }
 }
 
@@ -148,6 +192,7 @@ pub async fn create_team(input: CreateTeamRequest, app: AppHandle) -> Result<Tea
         let name = trim_required(&input.name, "Team name")?;
         let description = trim_optional(input.description);
         let instructions = trim_optional(input.instructions);
+        let persona_ids = normalize_persona_ids(input.persona_ids);
         let now = now_iso();
 
         let _store_guard = state
@@ -155,14 +200,15 @@ pub async fn create_team(input: CreateTeamRequest, app: AppHandle) -> Result<Tea
             .lock()
             .map_err(|error| error.to_string())?;
         let personas = load_personas(&app)?;
-        ensure_persona_ids_are_active(&personas, &input.persona_ids)?;
+        ensure_persona_ids_are_active(&personas, &persona_ids)?;
         let mut teams = load_teams(&app)?;
+        ensure_single_team_per_persona(&teams, &persona_ids, None)?;
         let team = TeamRecord {
             id: Uuid::new_v4().to_string(),
             name,
             description,
             instructions,
-            persona_ids: input.persona_ids,
+            persona_ids,
             is_builtin: false,
             source_dir: None,
             is_symlink: false,
@@ -173,8 +219,10 @@ pub async fn create_team(input: CreateTeamRequest, app: AppHandle) -> Result<Tea
         };
         teams.push(team.clone());
         save_teams(&app, &teams)?;
+        sync_agent_team_assignments(&app, &state, &teams)?;
         // Created teams are always non-builtin; publish to the relay.
         retain_team_pending(&app, &state, &team);
+        try_regenerate_nest(&app);
         Ok(team)
     })
     .await
@@ -189,14 +237,16 @@ pub async fn update_team(input: UpdateTeamRequest, app: AppHandle) -> Result<Tea
         let name = trim_required(&input.name, "Team name")?;
         let description = trim_optional(input.description);
         let instructions = trim_optional(input.instructions);
+        let persona_ids = normalize_persona_ids(input.persona_ids);
 
         let _store_guard = state
             .managed_agents_store_lock
             .lock()
             .map_err(|error| error.to_string())?;
         let personas = load_personas(&app)?;
-        ensure_persona_ids_are_active(&personas, &input.persona_ids)?;
+        ensure_persona_ids_are_active(&personas, &persona_ids)?;
         let mut teams = load_teams(&app)?;
+        ensure_single_team_per_persona(&teams, &persona_ids, Some(&input.id))?;
         let team = teams
             .iter_mut()
             .find(|record| record.id == input.id)
@@ -205,15 +255,17 @@ pub async fn update_team(input: UpdateTeamRequest, app: AppHandle) -> Result<Tea
         team.name = name;
         team.description = description;
         team.instructions = instructions;
-        team.persona_ids = input.persona_ids;
+        team.persona_ids = persona_ids;
         team.updated_at = now_iso();
 
         let updated = team.clone();
         save_teams(&app, &teams)?;
+        sync_agent_team_assignments(&app, &state, &teams)?;
         // Built-in teams are not owner-authored — never publish them.
         if !updated.is_builtin {
             retain_team_pending(&app, &state, &updated);
         }
+        try_regenerate_nest(&app);
         Ok(updated)
     })
     .await
@@ -230,6 +282,8 @@ pub async fn delete_team(id: String, app: AppHandle) -> Result<(), String> {
             .lock()
             .map_err(|error| error.to_string())?;
         let cascaded_persona_d_tags = delete_team_with_cascade(&app, &id)?;
+        let remaining_teams = load_teams(&app)?;
+        sync_agent_team_assignments(&app, &state, &remaining_teams)?;
         // delete_team_with_cascade rejects built-in teams via validate_team_deletion,
         // so reaching here means this team was owner-published — tombstone it. The
         // d_tag is the team id, captured before the record left the store.

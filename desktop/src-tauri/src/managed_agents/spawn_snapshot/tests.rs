@@ -98,6 +98,51 @@ fn persona(id: &str, runtime: Option<&str>, prompt: &str) -> AgentDefinition {
     }
 }
 
+fn team(id: &str, persona_ids: &[&str], instructions: &str) -> TeamRecord {
+    TeamRecord {
+        id: id.into(),
+        name: id.into(),
+        description: None,
+        instructions: Some(instructions.into()),
+        persona_ids: persona_ids.iter().map(|id| (*id).to_string()).collect(),
+        is_builtin: false,
+        source_dir: None,
+        is_symlink: false,
+        symlink_target: None,
+        version: None,
+        created_at: "now".into(),
+        updated_at: "now".into(),
+    }
+}
+
+#[test]
+fn linked_definition_team_membership_overrides_stale_instance_binding() {
+    let mut rec = record();
+    rec.persona_id = Some("persona-a".into());
+    rec.team_id = Some("old-team".into());
+    let teams = [
+        team("old-team", &[], "old instructions"),
+        team("new-team", &["persona-a"], "new instructions"),
+    ];
+
+    assert_eq!(
+        effective_team_instructions(&rec, &teams).as_deref(),
+        Some("new instructions")
+    );
+}
+
+#[test]
+fn removing_definition_from_team_removes_instructions_on_next_restart() {
+    let mut rec = record();
+    rec.persona_id = Some("persona-a".into());
+    rec.team_id = Some("team-a".into());
+
+    assert_eq!(
+        effective_team_instructions(&rec, &[team("team-a", &[], "instructions")]),
+        None
+    );
+}
+
 #[test]
 fn snapshot_is_deterministic() {
     let rec = record();

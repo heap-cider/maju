@@ -37,7 +37,10 @@ export function useCreateTeamMutation() {
       });
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: teamsQueryKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: teamsQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ["managed-agents"] }),
+      ]);
     },
   });
 }
@@ -48,7 +51,10 @@ export function useUpdateTeamMutation() {
   return useMutation({
     mutationFn: (input: UpdateTeamInput) => updateTeam(input),
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: teamsQueryKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: teamsQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ["managed-agents"] }),
+      ]);
     },
   });
 }
@@ -59,7 +65,10 @@ export function useDeleteTeamMutation() {
   return useMutation({
     mutationFn: (id: string) => deleteTeam(id),
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: teamsQueryKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: teamsQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ["managed-agents"] }),
+      ]);
     },
   });
 }

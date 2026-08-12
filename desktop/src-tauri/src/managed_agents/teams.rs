@@ -1,16 +1,16 @@
-use std::{fs, path::PathBuf};
+use std::{collections::HashSet, fs, path::PathBuf};
 
 use tauri::AppHandle;
 
 use crate::{
-    managed_agents::{managed_agents_base_dir, ManagedAgentRecord, TeamRecord},
+    managed_agents::{active_agent_store_dir, ManagedAgentRecord, TeamRecord},
     util::now_iso,
 };
 
 use super::team_repair::team_persona_key;
 
 pub(crate) fn teams_store_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(managed_agents_base_dir(app)?.join("teams.json"))
+    Ok(active_agent_store_dir(app)?.join("teams.json"))
 }
 
 fn sort_teams(records: &mut [TeamRecord]) {
@@ -206,10 +206,34 @@ pub fn save_teams(app: &AppHandle, records: &[TeamRecord]) -> Result<(), String>
     crate::managed_agents::storage::atomic_write_json(&path, &payload)
 }
 
-/// Names of managed agents that still reference `team` — either via the
-/// legacy `persona_team_dir` link (directory-backed teams only) or the
-/// `team_id` field (every team kind, all agents created after the team_id
-/// seam landed). Used to block team deletion while agents still depend on it.
+/// Enforce the product identity rule that one definition belongs to at most
+/// one team. `target_team_id` is ignored while editing that same team.
+pub fn ensure_single_team_per_persona(
+    teams: &[TeamRecord],
+    persona_ids: &[String],
+    target_team_id: Option<&str>,
+) -> Result<(), String> {
+    let requested: HashSet<&str> = persona_ids.iter().map(String::as_str).collect();
+    if let Some((persona_id, team)) = teams.iter().find_map(|team| {
+        if Some(team.id.as_str()) == target_team_id {
+            return None;
+        }
+        team.persona_ids
+            .iter()
+            .find(|persona_id| requested.contains(persona_id.as_str()))
+            .map(|persona_id| (persona_id, team))
+    }) {
+        return Err(format!(
+            "Agent definition {persona_id} already belongs to team \"{}\". Remove it from that team first.",
+            team.name
+        ));
+    }
+    Ok(())
+}
+
+/// Names of managed agents that still depend on a legacy directory-backed
+/// team path. Logical `team_id` membership is cleared when a normal team is
+/// deleted, so it is not a deletion blocker.
 fn agents_referencing_team<'a>(
     agents: &'a [ManagedAgentRecord],
     team: &TeamRecord,
@@ -223,7 +247,6 @@ fn agents_referencing_team<'a>(
                 .and_then(|p| p.file_name())
                 .and_then(|n| n.to_str())
                 == Some(persona_key)
-                || a.team_id.as_deref() == Some(team.id.as_str())
         })
         .map(|a| a.name.as_str())
         .collect()

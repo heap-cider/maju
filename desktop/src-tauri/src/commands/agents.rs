@@ -5,14 +5,14 @@ use crate::{
     app_state::AppState,
     managed_agents::{
         build_managed_agent_summary, current_instance_id, discover_provider_candidates,
-        ensure_persona_is_active, find_managed_agent_mut, load_managed_agents, load_personas,
-        load_teams, managed_agent_avatar_url, normalize_agent_args, provider_deploy,
-        resolve_provider_binary, save_managed_agents, start_managed_agent_process,
-        stop_managed_agent_process, stop_managed_agent_workspace_pair,
-        sync_managed_agent_processes, try_regenerate_nest, validate_provider_config, BackendKind,
-        CreateManagedAgentRequest, CreateManagedAgentResponse, ManagedAgentRecord,
-        ManagedAgentSummary, RelayMeshConfig, DEFAULT_ACP_COMMAND, DEFAULT_AGENT_PARALLELISM,
-        DEFAULT_AGENT_TURN_TIMEOUT_SECONDS,
+        ensure_definition_identity_is_unique, ensure_persona_is_active, find_managed_agent_mut,
+        load_managed_agents, load_personas, load_teams, managed_agent_avatar_url,
+        normalize_agent_args, provider_deploy, resolve_definition_team_id, resolve_provider_binary,
+        save_managed_agents, start_managed_agent_process, stop_managed_agent_process,
+        stop_managed_agent_workspace_pair, sync_managed_agent_processes, try_regenerate_nest,
+        validate_provider_config, BackendKind, CreateManagedAgentRequest,
+        CreateManagedAgentResponse, ManagedAgentRecord, ManagedAgentSummary, RelayMeshConfig,
+        DEFAULT_ACP_COMMAND, DEFAULT_AGENT_PARALLELISM, DEFAULT_AGENT_TURN_TIMEOUT_SECONDS,
     },
     relay::{relay_ws_url_with_override, sync_managed_agent_profile},
     util::now_iso,
@@ -59,22 +59,14 @@ pub(super) fn retain_managed_agent_pending(
     }
 }
 
-/// Purge a deleted agent's pending row and enqueue a NIP-09 tombstone, both
-/// inside the `managed_agents_store_lock`-held delete body and NEVER across an
-/// `.await`.
-///
-/// Mirrors `commands::personas::tombstone_persona_pending`: the agent row at
-/// `(30177, owner, agent_pubkey)` is purged first so an unpublished edit can
-/// never resurrect it after the tombstone publishes, then the kind:5 tombstone
-/// is retained at its own `(5, owner, agent_pubkey)` coordinate with
-/// `pending_sync = 1`. The `d_tag` is the agent's pubkey. Best-effort: a
-/// failure is logged and swallowed so a retention hiccup never blocks the
-/// disk-authoritative delete.
+/// Purge the pending agent head, then enqueue its NIP-09 tombstone while the
+/// store lock is held. Best-effort for normal deletes; the return value lets
+/// one-time migration repair retry after a retention failure.
 pub(super) fn tombstone_managed_agent_pending(
     app: &AppHandle,
     state: &AppState,
     agent_pubkey: &str,
-) {
+) -> bool {
     use crate::managed_agents::{
         agent_events::build_agent_delete,
         retention::{
@@ -110,8 +102,12 @@ pub(super) fn tombstone_managed_agent_pending(
             },
         )
     })();
-    if let Err(e) = result {
-        eprintln!("maju-desktop: agent-tombstone: {e}");
+    match result {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("maju-desktop: agent-tombstone: {e}");
+            false
+        }
     }
 }
 
@@ -158,8 +154,8 @@ pub(super) fn build_agent_archive_request(
     .map_err(|e| format!("failed to sign archive request: {e}"))
 }
 
-/// Enqueue a NIP-IA `kind:9035` archive request for a deleted agent, retained
-/// next to its kind:5 tombstone with `pending_sync = 1`.
+/// Enqueue a deleted agent's NIP-IA `kind:9035` archive request next to its
+/// kind:5 tombstone with `pending_sync = 1`.
 ///
 /// The tombstone removes the agent's 30177 record cross-device, but the
 /// agent's `kind:0` and channel membership keep populating member pickers and
@@ -173,7 +169,11 @@ pub(super) fn build_agent_archive_request(
 /// `managed_agents_store_lock`-held delete body, never across an `.await`,
 /// best-effort — a failure is logged and swallowed so it never blocks the
 /// disk-authoritative delete.
-pub(super) fn archive_managed_agent_pending(app: &AppHandle, state: &AppState, agent_pubkey: &str) {
+pub(super) fn archive_managed_agent_pending(
+    app: &AppHandle,
+    state: &AppState,
+    agent_pubkey: &str,
+) -> bool {
     use crate::managed_agents::retention::{open_retention_db, retain_event, RetainedEvent};
     use maju_core_pkg::kind::KIND_IA_ARCHIVE_REQUEST;
     use nostr::JsonUtil;
@@ -196,8 +196,12 @@ pub(super) fn archive_managed_agent_pending(app: &AppHandle, state: &AppState, a
             },
         )
     })();
-    if let Err(e) = result {
-        eprintln!("maju-desktop: agent-archive: {e}");
+    match result {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("maju-desktop: agent-archive: {e}");
+            false
+        }
     }
 }
 
@@ -629,6 +633,7 @@ pub async fn create_managed_agent(
             let personas = load_personas(&app)?;
             ensure_persona_is_active(&personas, persona_id)?;
         }
+        ensure_definition_identity_is_unique(&records, requested_persona_id.as_deref())?;
         let keys = Keys::generate();
         let pubkey = keys.public_key().to_hex();
         if records.iter().any(|record| record.pubkey == pubkey) {
@@ -702,6 +707,7 @@ pub async fn create_managed_agent(
         if records.iter().any(|record| record.pubkey == pubkey) {
             return Err(format!("agent {pubkey} already exists"));
         }
+        ensure_definition_identity_is_unique(&records, requested_persona_id.as_deref())?;
         // Provider config was already validated in Pre-Phase 2; cache the discovered binary path for deploy_to_provider.
         let provider_binary_path = if let BackendKind::Provider { ref id, .. } = input.backend {
             // Use resolve_provider_binary (discovered candidates only).
@@ -756,17 +762,11 @@ pub async fn create_managed_agent(
             None => String::new(),
         };
 
-        let team_id = input
-            .team_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
-        if let Some(team_id) = &team_id {
-            if !load_teams(&app)?.iter().any(|team| &team.id == team_id) {
-                return Err(format!("team {team_id} not found"));
-            }
-        }
+        let team_id = resolve_definition_team_id(
+            &load_teams(&app)?,
+            requested_persona_id.as_deref(),
+            input.team_id.as_deref(),
+        )?;
 
         // Resolve the avatar URL once at creation and persist it on the record.
         // Explicit input wins, then the persona's own avatar, then the runtime

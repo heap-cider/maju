@@ -43,16 +43,25 @@ use super::{
 pub(crate) mod diff;
 pub(crate) use diff::{eligible_restart_diff, RestartDiffEntry, TrackedSpawnState};
 
-/// Resolve the current instructions for this instance's deployment-time team binding.
-/// A deleted team deliberately degrades to no team section.
+/// Resolve the current instructions from the linked definition's team.
+///
+/// Team membership is definition state, not deployment history. Looking it up
+/// live makes a team edit take effect on the next restart and makes the running
+/// process show restart-required without another channel deployment.
 pub(crate) fn effective_team_instructions(
     record: &ManagedAgentRecord,
     teams: &[TeamRecord],
 ) -> Option<String> {
-    teams
-        .iter()
-        .find(|team| Some(team.id.as_str()) == record.team_id.as_deref())
-        .and_then(|team| team.instructions.as_deref())
+    let team = match record.persona_id.as_deref() {
+        Some(persona_id) => teams
+            .iter()
+            .find(|team| team.persona_ids.iter().any(|id| id == persona_id)),
+        None => teams
+            .iter()
+            .find(|team| Some(team.id.as_str()) == record.team_id.as_deref()),
+    }?;
+    team.instructions
+        .as_deref()
         .map(str::trim)
         .filter(|instructions| !instructions.is_empty())
         .map(str::to_string)

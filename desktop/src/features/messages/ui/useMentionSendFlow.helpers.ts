@@ -1,9 +1,14 @@
 import type { ManagedAgent } from "@/shared/api/types";
+import { hasOnlineAgentRepresentative } from "@/features/agents/agentExecutionLocations";
 import type { ImetaMedia } from "@/features/messages/lib/imetaMediaMarkdown";
 import type { QueuedMediaAttachment } from "@/features/messages/lib/backgroundMediaUploadStore";
 import type { DraftMentionRef } from "@/features/messages/lib/useDrafts";
 import { normalizePubkey } from "@/shared/lib/pubkey";
 import { MENTION_REFERENCE_TAG } from "@/shared/lib/resolveMentionNames";
+import {
+  listLoggedInDevices,
+  type LoggedInDevice,
+} from "@/shared/api/tauriDevices";
 
 export { MENTION_REFERENCE_TAG };
 
@@ -72,6 +77,39 @@ export function isManagedAgentRunning(agent: ManagedAgent) {
   return agent.status === "running" || agent.status === "deployed";
 }
 
-export function isProviderBackedAgent(agent: ManagedAgent) {
-  return agent.backend.type === "provider";
+function mentionedAgentsNeedDeviceSnapshot(
+  pubkeys: readonly string[],
+  managedAgentsByPubkey: ReadonlyMap<string, ManagedAgent>,
+  participantPubkeys: ReadonlySet<string>,
+) {
+  return pubkeys.some((pubkey) => {
+    const agent = managedAgentsByPubkey.get(pubkey);
+    return Boolean(
+      agent && participantPubkeys.has(pubkey) && !isManagedAgentRunning(agent),
+    );
+  });
+}
+
+export async function getMentionDeviceSnapshot(
+  pubkeys: readonly string[],
+  managedAgentsByPubkey: ReadonlyMap<string, ManagedAgent>,
+  participantPubkeys: ReadonlySet<string>,
+) {
+  return mentionedAgentsNeedDeviceSnapshot(
+    pubkeys,
+    managedAgentsByPubkey,
+    participantPubkeys,
+  )
+    ? listLoggedInDevices()
+    : [];
+}
+
+export function shouldStartMentionedAgentHere(
+  agent: ManagedAgent,
+  devices: readonly LoggedInDevice[],
+) {
+  return (
+    !isManagedAgentRunning(agent) &&
+    !hasOnlineAgentRepresentative(devices, agent.pubkey)
+  );
 }

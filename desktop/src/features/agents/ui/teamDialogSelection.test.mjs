@@ -5,6 +5,7 @@ import {
   copySelectedPersonaIds,
   countMissingPersonaIds,
   filterAvailablePersonaIds,
+  indexOtherTeamAssignments,
   orderPersonasByInitiallySelected,
 } from "./teamDialogSelection.ts";
 
@@ -89,4 +90,16 @@ test("orderPersonasByInitiallySelected keeps initially selected personas at top"
       "persona:raphael",
     ],
   );
+});
+
+test("indexOtherTeamAssignments excludes the team currently being edited", () => {
+  const teams = [
+    { id: "current", personaIds: ["a"] },
+    { id: "other", name: "Other", personaIds: ["b"] },
+  ];
+
+  const assignments = indexOtherTeamAssignments(teams, "current");
+
+  assert.equal(assignments.has("a"), false);
+  assert.equal(assignments.get("b")?.id, "other");
 });

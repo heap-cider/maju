@@ -4,6 +4,7 @@ import {
   findReusablePersonaAgent,
   pickPreferredManagedAgent,
 } from "@/features/agents/agentReuse";
+import { hasOnlineAgentRepresentative } from "@/features/agents/agentExecutionLocations";
 export { findReusableAgent } from "@/features/agents/agentReuse";
 import { normalizePubkey } from "@/shared/lib/pubkey";
 import { resolveManagedAgentAvatarUrl } from "@/features/agents/ui/managedAgentAvatar";
@@ -15,6 +16,7 @@ import {
   updateManagedAgent,
 } from "@/shared/api/tauri";
 import { startManagedAgent } from "@/shared/api/tauriManagedAgents";
+import { listLoggedInDevices } from "@/shared/api/tauriDevices";
 import type {
   AcpRuntime,
   ChannelRole,
@@ -58,7 +60,7 @@ export type CreateChannelManagedAgentInput = {
   systemPrompt?: string;
   avatarUrl?: string;
   personaId?: string | null;
-  /** Team this instance is deployed from; prevents cross-team reuse. */
+  /** Compatibility hint; the linked definition's team is authoritative. */
   teamId?: string | null;
   /**
    * True when `runtime` is a runtime the user deliberately picked to override
@@ -76,7 +78,7 @@ export type CreateChannelManagedAgentInput = {
   respondTo?: RespondToMode;
   /** Hex pubkeys for allowlist mode. */
   respondToAllowlist?: string[];
-  /** Skip reuse logic and always create a fresh agent instance. */
+  /** Definition-less agents may explicitly request a separate identity. */
   forceNewInstance?: boolean;
 };
 
@@ -138,17 +140,14 @@ export async function attachManagedAgentToChannel(
     // community's (agent, relay) pair, and `startManagedAgent` spawns that same
     // pair — so this ensures the pair the caller is attaching to, never
     // another community's.
-    const isRemote = input.agent.backend.type === "provider";
-    if (isRemote && input.agent.status !== "deployed") {
-      agent = await startManagedAgent(input.agent.pubkey);
-      started = true;
-    } else if (
-      !isRemote &&
-      input.agent.status !== "running" &&
-      input.agent.status !== "deployed"
-    ) {
-      agent = await startManagedAgent(input.agent.pubkey);
-      started = true;
+    const alreadyActive =
+      input.agent.status === "running" || input.agent.status === "deployed";
+    if (!alreadyActive) {
+      const devices = await listLoggedInDevices();
+      if (!hasOnlineAgentRepresentative(devices, input.agent.pubkey)) {
+        agent = await startManagedAgent(input.agent.pubkey);
+        started = true;
+      }
     }
   }
 
@@ -265,11 +264,10 @@ export async function provisionChannelManagedAgent(
     throw new Error("Agent name is required.");
   }
 
-  // Smart reuse: if a managed agent with the same personaId already exists
-  // and is not already in this channel, attach it instead of creating a new one.
+  // A definition owns one stable identity per account and community. Channel
+  // membership never changes identity, so an existing member is reused too.
   if (
     input.personaId &&
-    !input.forceNewInstance &&
     context?.managedAgents &&
     context.channelMemberPubkeys
   ) {
@@ -431,6 +429,16 @@ export async function createChannelManagedAgents(
     try {
       const result = await createChannelManagedAgent(channelId, input, context);
       successes.push(result);
+      if (
+        !managedAgents.some(
+          (agent) =>
+            normalizePubkey(agent.pubkey) ===
+            normalizePubkey(result.agent.pubkey),
+        )
+      ) {
+        managedAgents.push(result.agent);
+      }
+      channelMemberPubkeys.add(normalizePubkey(result.agent.pubkey));
     } catch (error) {
       failures.push({
         kind: input.personaId ? "persona" : "generic",

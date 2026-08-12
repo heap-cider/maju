@@ -170,11 +170,11 @@ test("findReusablePersonaAgent: finds agent with matching personaId", () => {
   assert.equal(result, agent);
 });
 
-test("findReusablePersonaAgent: excludes agent already in channel", () => {
+test("findReusablePersonaAgent: reuses agent already in channel", () => {
   const agent = makeAgent({ personaId: "persona-1", pubkey: PUB_A });
   const channelMembers = new Set([PUB_A]);
   const result = findReusablePersonaAgent([agent], "persona-1", channelMembers);
-  assert.equal(result, undefined);
+  assert.equal(result, agent);
 });
 
 test("findReusablePersonaAgent: excludes agent with different personaId", () => {
@@ -208,11 +208,11 @@ test("findReusablePersonaAgent: prefers running agent", () => {
   assert.equal(result.id, "r");
 });
 
-test("findReusablePersonaAgent: pubkey comparison is case-insensitive", () => {
+test("findReusablePersonaAgent: channel pubkey casing does not prevent reuse", () => {
   const agent = makeAgent({ personaId: "p1", pubkey: PUB_A.toUpperCase() });
   const channelMembers = new Set([PUB_A]);
   const result = findReusablePersonaAgent([agent], "p1", channelMembers);
-  assert.equal(result, undefined);
+  assert.equal(result, agent);
 });
 
 test("findReusableGenericAgent: finds agent with matching command and no persona/prompt", () => {

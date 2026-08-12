@@ -39,19 +39,44 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
 
 ## Agent identity and execution
 
-- An agent has one stable identity within its community. Moving or starting
-  that agent on another device must not create a new author identity.
-- Agent definitions and identity are synchronized for the same owning account;
-  runtime credentials, local tools, and running state remain specific to each
-  execution device.
+- Agent definitions belong to one community. They never leak into another
+  community merely because the same account or desktop app connects to both.
+- A definition available to a community member is the shared blueprint; it is
+  not another member's running agent. Each account creates or recovers its own
+  agent identity from that blueprint. Different accounts never share an agent
+  identity, credentials, or runner state.
+- For one community, definition, and owning account there is at most one stable
+  agent identity. Another device signed in as that account recovers the same
+  identity instead of creating a duplicate.
+- Definitions and teams never synchronize across community boundaries.
+  Account-owned definition projections and agent identities synchronize only
+  among that account's devices inside the community. Runtime credentials,
+  local tools, process state, and execution eligibility remain specific to each
+  device.
 - Messages and project activity from every execution instance use the stable
   agent identity, so the agent keeps authority over its earlier work.
 - The user turns an agent on wherever convenient. If the same agent is enabled
   on several online PCs, Maju automatically chooses exactly one representative
   runner and keeps the others ready as standby runners.
+- Mentioning or attaching an agent starts it on the current device only when
+  that account has no representative runner. If another device is already the
+  representative, the existing runner handles the request and Maju must not
+  create a new local standby as a side effect of the mention.
 - Users do not choose a permanent primary PC. If the representative goes
   offline, one standby takes over automatically; two devices must not answer
   the same request as the same agent.
+
+## Agent teams
+
+- An agent definition belongs to at most one team. Team membership is part of
+  the community definition, not a reason to mint another agent identity.
+- Team instructions are layered onto every member's agent instructions on the
+  next start or restart. Editing team instructions marks running members as
+  needing a restart; deploying the team again is not required to apply them.
+- **Deploy team to channel** attaches each account's existing team-member agent
+  identities to that channel. Repeating it adds only missing members and never
+  creates duplicate identities. Removing a definition from its team removes
+  that team's instructions after the member next restarts.
 
 ## Agent harness compatibility
 

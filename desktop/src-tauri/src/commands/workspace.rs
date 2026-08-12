@@ -12,26 +12,27 @@ use crate::relay;
 
 /// Adopt the pre-scoping global retention database's pending rows into `scope`.
 ///
-/// Best-effort: a failure is logged and the boot proceeds. The migration's own
-/// crash-safety guards make the next launch retry safely, and blocking the
-/// workspace apply on it would be worse than a delayed publish.
+/// A retention error stops workspace activation. Continuing would force the
+/// JSON migration to either guess a community or permanently initialize an
+/// empty scope, and neither is safe.
 fn migrate_legacy_retention_into(
     app: &AppHandle,
     scope: &crate::managed_agents::retention::RetentionScope,
-) {
-    let Ok(base_dir) = crate::managed_agents::managed_agents_base_dir(app) else {
-        return;
-    };
+) -> Result<(), String> {
+    let base_dir = crate::managed_agents::managed_agents_base_dir(app)?;
     match crate::managed_agents::retention::migrate_legacy_retention_db(
         &base_dir,
         &scope.db_path,
         &scope.owner_keys.public_key().to_hex(),
     ) {
-        Ok(0) => {}
+        Ok(0) => Ok(()),
         Ok(copied) => {
-            eprintln!("maju-desktop: adopted {copied} legacy retained event(s) into this community")
+            eprintln!(
+                "maju-desktop: adopted {copied} legacy retained event(s) into this community"
+            );
+            Ok(())
         }
-        Err(error) => eprintln!("maju-desktop: legacy retention migration failed: {error}"),
+        Err(error) => Err(format!("legacy retention migration failed: {error}")),
     }
 }
 
@@ -163,19 +164,43 @@ pub async fn apply_workspace(
             None => None,
         };
 
-        // ── Apply all state changes (nothing below can fail) ──────────────────
-        {
-            let mut override_guard = state.relay_url_override.lock().map_err(|e| e.to_string())?;
-            *override_guard = Some(relay_url);
+        // ── Apply workspace state and activate its Agent/Team store ───────────
+        // Keep the relay+owner switch and scoped Agent/Team store activation
+        // atomic with respect to every agent command.
+        let store_guard = state
+            .managed_agents_store_lock
+            .lock()
+            .map_err(|error| error.to_string())?;
+
+        // Prepare the candidate scope before changing the active relay or
+        // account. A migration failure therefore leaves the old workspace
+        // fully active instead of producing a half-switched backend.
+        let owner_keys = match parsed_keys.as_ref() {
+            Some(keys) => keys.clone(),
+            None => state.signing_keys()?,
+        };
+        let scope =
+            crate::managed_agents::retention::retention_scope(&app, &relay_url, owner_keys)?;
+        migrate_legacy_retention_into(&app, &scope)?;
+        let scope_repair: crate::managed_agents::AgentStoreScopeRepair =
+            crate::managed_agents::initialize_agent_store_scope(&app, &scope)?;
+
+        // Acquire every fallible state lock before writing either value.
+        let mut override_guard = state.relay_url_override.lock().map_err(|e| e.to_string())?;
+        let mut keys_guard = match parsed_keys.as_ref() {
+            Some(_) => Some(state.keys.lock().map_err(|e| e.to_string())?),
+            None => None,
+        };
+        *override_guard = Some(relay_url);
+        if let (Some(keys), Some(keys_guard)) = (parsed_keys, keys_guard.as_mut()) {
+            **keys_guard = keys;
         }
+        drop(keys_guard);
+        drop(override_guard);
+
         // Reset the Rust-side admission gate when switching workspace/community,
         // matching `resetRateLimitGate()` on the TS side (useCommunityInit.ts:38).
         crate::relay_admission::reset_gate_for_workspace_change();
-
-        if let Some(keys) = parsed_keys {
-            let mut keys_guard = state.keys.lock().map_err(|e| e.to_string())?;
-            *keys_guard = keys;
-        }
 
         // Keep the backend-side reconcile guard aligned with the frontend
         // experiment before launch-time restore can spawn any agents. Missing
@@ -183,6 +208,29 @@ pub async fn apply_workspace(
         state
             .managed_agent_profile_reconcile_enabled
             .store(!agent_managed_profiles.unwrap_or(false), Ordering::Release);
+
+        // Retire only records the scoped migration proved were either orphaned
+        // in this community or later copies of the same definition identity.
+        // The old flat JSON remains untouched as a recovery copy.
+        let mut repair_queued = true;
+        for pubkey in &scope_repair.agent_pubkeys {
+            repair_queued &= super::agents::tombstone_managed_agent_pending(&app, &state, pubkey);
+            repair_queued &= super::agents::archive_managed_agent_pending(&app, &state, pubkey);
+        }
+        for team_id in &scope_repair.team_ids {
+            repair_queued &= super::teams::tombstone_team_pending(&app, &state, team_id);
+        }
+        if repair_queued {
+            crate::managed_agents::complete_active_agent_store_scope_repair(&app)?;
+        }
+        drop(store_guard);
+
+        // This helper owns the same store lock, so it must run after the scope
+        // switch guard above is released.
+        if let Err(error) = crate::managed_agents::backfill_persona_snapshots(&app) {
+            eprintln!("maju-desktop: persona-snapshot backfill failed: {error}");
+        }
+        try_regenerate_nest(&app);
 
         // ── Filesystem side-effect (non-fatal) ────────────────────────────────
         // Persist the *effective* repos_dir (None when the candidate failed
@@ -204,8 +252,6 @@ pub async fn apply_workspace(
             }
         }
 
-        try_regenerate_nest(&app);
-
         Ok::<(), String>(())
     })
     .await
@@ -218,18 +264,11 @@ pub async fn apply_workspace(
     // applied. Running at process boot would target the fallback relay and
     // collapse every community into one pending-event store.
     match crate::managed_agents::retention::active_retention_scope(&restore_app, &state) {
-        Ok(scope) => {
-            // Adopt whatever the pre-scoping release left queued in the global
-            // retention database BEFORE the scoped reconcile and flush run, so
-            // stranded tombstones and archive requests publish on this boot
-            // instead of being abandoned by the storage cutover.
-            migrate_legacy_retention_into(&restore_app, &scope);
-            crate::event_sync::spawn_event_sync(
-                restore_app.clone(),
-                scope.owner_keys,
-                scope.db_path,
-            )
-        }
+        Ok(scope) => crate::event_sync::spawn_event_sync(
+            restore_app.clone(),
+            scope.owner_keys,
+            scope.db_path,
+        ),
         Err(error) => {
             eprintln!("maju-desktop: scoped event-sync unavailable after workspace apply: {error}");
         }

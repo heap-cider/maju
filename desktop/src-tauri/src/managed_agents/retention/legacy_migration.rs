@@ -48,9 +48,8 @@ pub fn legacy_retention_db_path(base_dir: &Path) -> PathBuf {
 /// database at `scope_db_path`.
 ///
 /// Returns the number of rows copied — `0` both when there is nothing to do and
-/// when another scope already claimed the legacy rows. Best-effort by design:
-/// the caller logs a failure and proceeds, and the guards make a later retry
-/// safe.
+/// when another scope already claimed the legacy rows. The workspace caller
+/// stops activation on error; the guards make its later retry safe.
 pub fn migrate_legacy_retention_db(
     base_dir: &Path,
     scope_db_path: &Path,

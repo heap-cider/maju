@@ -62,9 +62,9 @@ pub fn spawn_event_sync(
 /// write, not relay acknowledgment. Every retained row is a real signed
 /// event — there is no placeholder path.
 pub fn migrate_personas_to_events(app: &tauri::AppHandle, keys: &nostr::Keys, db_path: &Path) {
-    use crate::managed_agents::managed_agents_base_dir;
+    use crate::managed_agents::active_agent_store_dir;
 
-    let Ok(base_dir) = managed_agents_base_dir(app) else {
+    let Ok(base_dir) = active_agent_store_dir(app) else {
         return;
     };
 
@@ -220,9 +220,9 @@ fn migrate_personas_in_dir_at(
 /// Must run after the persisted identity is resolved (it signs each event with
 /// the owner's keys).
 pub fn migrate_teams_to_events(app: &tauri::AppHandle, keys: &nostr::Keys, db_path: &Path) {
-    use crate::managed_agents::managed_agents_base_dir;
+    use crate::managed_agents::active_agent_store_dir;
 
-    let Ok(base_dir) = managed_agents_base_dir(app) else {
+    let Ok(base_dir) = active_agent_store_dir(app) else {
         return;
     };
 

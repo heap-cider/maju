@@ -133,7 +133,7 @@ pub struct CreateManagedAgentRequest {
     pub name: String,
     #[serde(default)]
     pub persona_id: Option<String>,
-    /// Optional deployment-time team binding for runtime instruction layering.
+    /// Compatibility hint checked against the linked definition's team.
     #[serde(default)]
     pub team_id: Option<String>,
     pub relay_url: Option<String>,

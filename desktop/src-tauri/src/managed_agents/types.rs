@@ -32,8 +32,8 @@ pub struct AgentDefinition {
     /// falls back to auto-detection (e.g., goose config file or available credentials).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
-    /// Pool of short, thematic names for bot instances created from this persona.
-    /// When a new copy is added to a channel, a random unused name is picked from this pool.
+    /// Pool of short, thematic names used when this account first creates the
+    /// stable agent identity for this definition.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub name_pool: Vec<String>,
     #[serde(default)]
@@ -214,7 +214,7 @@ pub struct ManagedAgentRecord {
     pub name: String,
     #[serde(default)]
     pub persona_id: Option<String>,
-    /// Team this instance was deployed from. Resolves runtime team instructions.
+    /// Cached team membership derived from the linked definition.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub team_id: Option<String>,
     /// nsec private key. Held in memory but persisted to the OS keyring (keyed

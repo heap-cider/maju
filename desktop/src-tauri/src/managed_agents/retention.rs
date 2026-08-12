@@ -5,9 +5,11 @@
 //! keyed on `(kind, pubkey, d_tag)`, replacing only on a newer-or-equal
 //! `created_at` for NIP-33 latest-wins semantics.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use maju_core_pkg::kind::{KIND_MANAGED_AGENT, KIND_PERSONA, KIND_TEAM};
 use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use tauri::AppHandle;
@@ -19,10 +21,11 @@ pub use legacy_migration::migrate_legacy_retention_db;
 
 /// Durable event-retention scope for one community relay and owner identity.
 ///
-/// Persona, team, and managed-agent definitions are workspace-global, but
-/// their relay heads and pending publications are not. Keeping a separate
-/// database per `(relay_url, owner_pubkey)` prevents a pending write created in
-/// community A from being drained into community B after a workspace switch.
+/// Account-owned definition/team projections and managed-agent identities
+/// belong to one community and owner. Keeping a separate database per
+/// `(relay_url, owner_pubkey)` prevents records or pending writes from
+/// community A being read or drained into community B after a workspace
+/// switch.
 pub struct RetentionScope {
     pub db_path: PathBuf,
     pub relay_url: String,
@@ -73,9 +76,18 @@ pub fn scoped_retention_db_path(base_dir: &Path, relay_url: &str, owner_pubkey: 
 pub fn active_retention_scope(app: &AppHandle, state: &AppState) -> Result<RetentionScope, String> {
     let relay_url = crate::relay::relay_ws_url_with_override(state);
     let owner_keys = state.signing_keys()?;
+    retention_scope(app, &relay_url, owner_keys)
+}
+
+/// Resolve and create the durable event scope for a candidate workspace
+/// without first mutating the active workspace state.
+pub fn retention_scope(
+    app: &AppHandle,
+    relay_url: &str,
+    owner_keys: nostr::Keys,
+) -> Result<RetentionScope, String> {
     let base_dir = super::managed_agents_base_dir(app)?;
-    let db_path =
-        scoped_retention_db_path(&base_dir, &relay_url, &owner_keys.public_key().to_hex());
+    let db_path = scoped_retention_db_path(&base_dir, relay_url, &owner_keys.public_key().to_hex());
     let parent = db_path
         .parent()
         .ok_or_else(|| "retention scope path has no parent".to_string())?;
@@ -83,7 +95,7 @@ pub fn active_retention_scope(app: &AppHandle, state: &AppState) -> Result<Reten
         .map_err(|error| format!("failed to create retention scope directory: {error}"))?;
     Ok(RetentionScope {
         db_path,
-        relay_url,
+        relay_url: relay_url.to_string(),
         owner_keys,
     })
 }
@@ -371,6 +383,45 @@ pub fn get_pending_sync(conn: &Connection) -> Result<Vec<RetainedEvent>, String>
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("failed to read pending sync row: {e}"))
+}
+
+/// Return every live retained coordinate for one owner and event kind.
+///
+/// The scoped agent-store migration uses this to recover only the definitions,
+/// teams, and identities that already belong to the active relay+owner scope.
+/// Tombstones have kind 5 and are therefore never returned here.
+pub fn get_retained_d_tags(
+    conn: &Connection,
+    kind: u32,
+    pubkey: &str,
+) -> Result<HashSet<String>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT d_tag FROM persona_events
+             WHERE kind = ?1 AND pubkey = ?2",
+        )
+        .map_err(|e| format!("failed to prepare retained-coordinate query: {e}"))?;
+    let rows = stmt
+        .query_map(params![kind, pubkey], |row| row.get::<_, String>(0))
+        .map_err(|e| format!("failed to query retained coordinates: {e}"))?;
+    rows.collect::<Result<HashSet<_>, _>>()
+        .map_err(|e| format!("failed to read retained coordinate: {e}"))
+}
+
+/// Whether this database contains any live agent-domain head for any owner.
+///
+/// An empty pre-scoping installation may safely claim the legacy global JSON
+/// once. Once any scoped database has real heads, an empty newly-added
+/// community must start empty instead of inheriting that global file.
+pub fn has_any_agent_domain_heads(conn: &Connection) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM persona_events WHERE kind IN (?1, ?2, ?3)
+         )",
+        params![KIND_PERSONA, KIND_TEAM, KIND_MANAGED_AGENT],
+        |row| row.get(0),
+    )
+    .map_err(|e| format!("failed to check retained agent-domain heads: {e}"))
 }
 
 /// Clear the `pending_sync` flag for an event the relay just confirmed.

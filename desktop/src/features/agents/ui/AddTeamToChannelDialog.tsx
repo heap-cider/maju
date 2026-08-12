@@ -148,8 +148,6 @@ export function AddTeamToChannelDialog({
           model: persona.model ?? undefined,
           personaId: persona.id,
           teamId: team.id,
-          // One persona can be deployed under multiple teams with different instructions.
-          forceNewInstance: true,
           role,
         };
       });
@@ -169,9 +167,9 @@ export function AddTeamToChannelDialog({
           <DialogHeader className="shrink-0 border-b border-border/60 px-6 py-5 pr-14">
             <DialogTitle>Deploy team to channel</DialogTitle>
             <DialogDescription>
-              Create and attach one agent per member of{" "}
+              Attach any missing agents from{" "}
               <strong>{team?.name ?? "this team"}</strong> to the selected
-              channel.
+              channel. Repeating this does not create copies.
             </DialogDescription>
           </DialogHeader>
 

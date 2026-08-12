@@ -43,7 +43,17 @@ pub fn managed_agents_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 pub(crate) fn managed_agents_store_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(managed_agents_base_dir(app)?.join("managed-agents.json"))
+    Ok(super::active_agent_store_dir(app)?.join("managed-agents.json"))
+}
+
+pub(crate) fn read_agent_records(path: &Path) -> Result<Vec<ManagedAgentRecord>, String> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let content = fs::read_to_string(path)
+        .map_err(|error| format!("failed to read legacy agent store: {error}"))?;
+    serde_json::from_str(&content)
+        .map_err(|error| format!("failed to parse legacy agent store: {error}"))
 }
 
 fn managed_agents_logs_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -465,7 +475,17 @@ pub fn migrate_agent_keys_to_dev_service(app: &tauri::AppHandle) {
     // Read the JSON store for pubkeys only — we want every instance
     // record without running hydrate_keys (which would try the dev
     // keyring that is empty, and log noisy "has no key" warnings).
-    let records = match load_agent_store(app) {
+    // This migration runs before the frontend applies a community scope. Read
+    // the preserved pre-scoping file explicitly; active scoped stores use the
+    // same pubkey-keyed keyring entries and need no per-scope key copy.
+    let legacy_path = match managed_agents_base_dir(app) {
+        Ok(dir) => dir.join("managed-agents.json"),
+        Err(e) => {
+            eprintln!("maju-desktop: keyring-dev-migration: cannot resolve agent store: {e}");
+            return;
+        }
+    };
+    let records = match read_agent_records(&legacy_path) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("maju-desktop: keyring-dev-migration: cannot read agent store: {e}");

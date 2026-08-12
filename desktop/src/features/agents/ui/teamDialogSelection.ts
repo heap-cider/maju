@@ -1,4 +1,4 @@
-import type { AgentPersona } from "@/shared/api/types";
+import type { AgentPersona, AgentTeam } from "@/shared/api/types";
 
 function getAvailablePersonaIds(personas: AgentPersona[]): Set<string> {
   return new Set(personas.map((persona) => persona.id));
@@ -42,4 +42,18 @@ export function orderPersonasByInitiallySelected(
   }
 
   return [...selected, ...unselected];
+}
+
+export function indexOtherTeamAssignments(
+  teams: readonly AgentTeam[],
+  currentTeamId?: string,
+): ReadonlyMap<string, AgentTeam> {
+  const assignments = new Map<string, AgentTeam>();
+  for (const team of teams) {
+    if (team.id === currentTeamId) continue;
+    for (const personaId of team.personaIds) {
+      assignments.set(personaId, team);
+    }
+  }
+  return assignments;
 }

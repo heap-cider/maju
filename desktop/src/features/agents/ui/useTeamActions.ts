@@ -180,12 +180,14 @@ export function useTeamActions(
     actions.setActionErrorMessage(null);
     setTeamDialogState({
       title: `Duplicate ${team.name}`,
-      description: "Create a new team by copying this one.",
+      description:
+        "Copy the setup into a new team, then choose unassigned agents.",
       submitLabel: "Create team",
       initialValues: {
         name: `${team.name} copy`,
         description: team.description ?? "",
-        personaIds: [...team.personaIds],
+        instructions: team.instructions ?? undefined,
+        personaIds: [],
       },
     });
   }

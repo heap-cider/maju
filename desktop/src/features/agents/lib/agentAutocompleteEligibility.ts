@@ -189,10 +189,17 @@ function agentIdentityKey<T extends AgentAutocompleteCandidate>(candidate: T) {
     return null;
   }
 
-  // Pubkeys—not persona metadata or a display name—are agent identities.
-  // A persona may be installed more than once, and an owner may intentionally
-  // create multiple same-named agents. Collapsing either case makes one agent
-  // impossible to choose from autocomplete.
+  const personaId = candidate.personaId?.trim();
+  const ownerPubkey = candidate.ownerPubkey?.trim();
+  if (personaId && ownerPubkey) {
+    // Product identity is (community, definition, owner). A legacy duplicate
+    // may have a different agent pubkey, but it must not occupy another row in
+    // autocomplete when both coordinates prove it is the same identity.
+    return `definition:${normalizePubkey(ownerPubkey)}:${personaId}`;
+  }
+
+  // Without both coordinates, pubkey is the only safe identity key. Display
+  // names are not unique and must never merge agents from different accounts.
   return `pubkey:${normalizePubkey(candidate.pubkey)}`;
 }
 

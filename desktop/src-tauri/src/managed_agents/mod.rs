@@ -1,12 +1,18 @@
 pub(crate) mod access_policy;
 mod agent_env;
 pub(crate) mod agent_events;
+mod agent_identity;
 pub(crate) mod agent_snapshot;
 pub(crate) mod agent_snapshot_envelope;
+mod agent_store_scope;
 pub(crate) mod team_snapshot;
 pub(crate) use access_policy::{owner_only, owner_only_access_build, projected_access_with_policy};
 pub(crate) use agent_env::{
     baked_build_env, build_maju_agent_provider_defaults, discovery_env_with_baked_floor,
+};
+pub use agent_identity::{
+    deduplicate_definition_identities, ensure_definition_identity_is_unique,
+    resolve_definition_team_id,
 };
 mod backend;
 pub(crate) mod config_bridge;
@@ -50,6 +56,10 @@ pub(crate) fn lock_path_mutex() -> std::sync::MutexGuard<'static, ()> {
     PATH_MUTEX.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+pub(crate) use agent_store_scope::{
+    active_agent_store_dir, apply_team_membership_to_instances,
+    complete_active_agent_store_scope_repair, initialize_agent_store_scope, AgentStoreScopeRepair,
+};
 pub use backend::*;
 pub use discovery::*;
 pub use env_vars::*;

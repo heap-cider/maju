@@ -336,12 +336,32 @@ test("shouldHideAgentFromMentions: normalizes the pubkey before lookup", () => {
   );
 });
 
-test("coalesceAgentAutocompleteCandidates: keeps agents with the same persona id distinct", () => {
-  const first = makeAgent({ pubkey: PUB_A, personaId: "pinky" });
+test("coalesceAgentAutocompleteCandidates: coalesces one owner's duplicate definition identities", () => {
+  const first = makeAgent({
+    pubkey: PUB_A,
+    personaId: "pinky",
+    ownerPubkey: OWNER_PUBKEY,
+  });
   const second = makeAgent({
     pubkey: PUB_B,
     personaId: "pinky",
+    ownerPubkey: OWNER_PUBKEY,
     isMember: true,
+  });
+
+  assert.deepEqual(coalesce([first, second]), [second]);
+});
+
+test("coalesceAgentAutocompleteCandidates: keeps the same definition separate across accounts", () => {
+  const first = makeAgent({
+    pubkey: PUB_A,
+    personaId: "pinky",
+    ownerPubkey: OWNER_PUBKEY,
+  });
+  const second = makeAgent({
+    pubkey: PUB_B,
+    personaId: "pinky",
+    ownerPubkey: OTHER_OWNER_PUBKEY,
   });
 
   assert.deepEqual(coalesce([first, second]), [first, second]);

@@ -39,10 +39,10 @@ import { normalizePubkey, truncatePubkey } from "@/shared/lib/pubkey";
 import { buildCustomEmojiTags } from "@/shared/lib/customEmojiTags";
 import {
   getErrorMessage,
-  isManagedAgentRunning,
-  isProviderBackedAgent,
+  getMentionDeviceSnapshot,
   MENTION_REFERENCE_TAG,
   mergeOutgoingTagsWithReferenceMentions,
+  shouldStartMentionedAgentHere,
   type PendingNonMemberMentionSend,
   type SendMessageWithMentionFlowInput,
   uniqueNormalizedPubkeys,
@@ -195,20 +195,22 @@ export function useMentionSendFlow({
         ...mentions.memberPubkeys,
         ...preparedParticipantPubkeys.map(normalizePubkey),
       ]);
+      const normalizedMentionPubkeys = uniqueNormalizedPubkeys(mentionPubkeys);
+      const devices = await getMentionDeviceSnapshot(
+        normalizedMentionPubkeys,
+        managedAgentsByPubkey,
+        participantPubkeys,
+      );
       const errors: string[] = [];
       const pubkeys: string[] = [];
-      for (const pubkey of uniqueNormalizedPubkeys(mentionPubkeys)) {
+      for (const pubkey of normalizedMentionPubkeys) {
         const agent = managedAgentsByPubkey.get(pubkey);
         if (!agent) {
           continue;
         }
         try {
           if (participantPubkeys.has(pubkey)) {
-            if (isProviderBackedAgent(agent)) {
-              if (agent.status !== "deployed") {
-                await startAgentMutation.mutateAsync(agent.pubkey);
-              }
-            } else if (!isManagedAgentRunning(agent)) {
+            if (shouldStartMentionedAgentHere(agent, devices)) {
               await startAgentMutation.mutateAsync(agent.pubkey);
             }
           } else {

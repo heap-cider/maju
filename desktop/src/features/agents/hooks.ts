@@ -49,7 +49,12 @@ import {
   startManagedAgent,
   stopManagedAgent,
 } from "@/shared/api/tauriManagedAgents";
+import { loggedInDevicesQueryKey } from "@/shared/api/tauriDevices";
 import { bootstrapManagedAgentRuntimePairs } from "@/features/agents/managedAgentRuntimeHooks";
+import {
+  removeCachedCurrentDeviceAgent,
+  updateCachedManagedAgent,
+} from "@/features/agents/managedAgentQueryCache";
 import {
   createPersona,
   deletePersona,
@@ -195,6 +200,7 @@ function invalidateManagedAgentQueriesInBackground(
     Promise.all([
       queryClient.invalidateQueries({ queryKey: managedAgentsQueryKey }),
       queryClient.invalidateQueries({ queryKey: relayAgentsQueryKey }),
+      queryClient.invalidateQueries({ queryKey: loggedInDevicesQueryKey }),
     ]),
   );
 }
@@ -555,19 +561,9 @@ export function useStartManagedAgentMutation() {
   return useMutation({
     mutationFn: (pubkey: string) => startManagedAgent(pubkey),
     onSuccess: (updated) => {
-      queryClient.setQueryData<ManagedAgent[]>(
-        managedAgentsQueryKey,
-        (current) => {
-          if (!current) return current;
-          return current.map((agent) =>
-            agent.pubkey === updated.pubkey ? updated : agent,
-          );
-        },
-      );
+      updateCachedManagedAgent(queryClient, managedAgentsQueryKey, updated);
     },
-    onSettled: () => {
-      invalidateManagedAgentQueriesInBackground(queryClient);
-    },
+    onSettled: () => invalidateManagedAgentQueriesInBackground(queryClient),
   });
 }
 
@@ -576,9 +572,15 @@ export function useStopManagedAgentMutation() {
 
   return useMutation({
     mutationFn: (pubkey: string) => stopManagedAgent(pubkey),
-    onSettled: () => {
-      invalidateManagedAgentQueriesInBackground(queryClient);
+    onSuccess: (updated) => {
+      updateCachedManagedAgent(queryClient, managedAgentsQueryKey, updated);
+      removeCachedCurrentDeviceAgent(
+        queryClient,
+        loggedInDevicesQueryKey,
+        updated.pubkey,
+      );
     },
+    onSettled: () => invalidateManagedAgentQueriesInBackground(queryClient),
   });
 }
 

@@ -67,10 +67,9 @@ use huddle::{
 };
 use initial_window::*;
 use managed_agents::{
-    backfill_persona_snapshots, ensure_nest, list_managed_agent_runtimes,
-    put_managed_agent_runtime_lifecycle, reconcile_managed_agent_runtimes,
-    restart_managed_agent_runtime, start_managed_agent_runtime, stop_managed_agent_runtime,
-    try_regenerate_nest,
+    ensure_nest, list_managed_agent_runtimes, put_managed_agent_runtime_lifecycle,
+    reconcile_managed_agent_runtimes, restart_managed_agent_runtime, start_managed_agent_runtime,
+    stop_managed_agent_runtime,
 };
 #[cfg(not(feature = "mesh-llm"))]
 use mesh_llm_stubs::*;
@@ -375,16 +374,6 @@ pub fn run() {
                 .load(std::sync::atomic::Ordering::Acquire);
             let recovery_mode = identity_lost || keyring_locked;
 
-            // Backfill the pinned persona snapshot for any pre-existing agent
-            // that predates the record-authoritative-spawn cutover (persona_id
-            // set but no source_version). Must run before
-            // restore_managed_agents_on_launch so no agent spawns from an empty
-            // snapshot. Synchronous and best-effort — a failure here must not
-            // block launch, but a missing persona is logged loudly inside.
-            if let Err(e) = backfill_persona_snapshots(&app_handle) {
-                eprintln!("maju-desktop: persona-snapshot backfill failed: {e}");
-            }
-
             // Warm the loaded-harness registry BEFORE restore so cold-launch
             // agent spawns can resolve custom/preset runtime ids without
             // waiting for the frontend's discover_acp_providers call.  This is
@@ -503,8 +492,6 @@ pub fn run() {
                     }
                 }
             }
-
-            try_regenerate_nest(&app_handle);
 
             if let Some(mgr) = huddle::models::global_model_manager() {
                 mgr.start_stt_download(state.http_client.clone());
