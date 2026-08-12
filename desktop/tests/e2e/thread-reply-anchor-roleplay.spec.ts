@@ -125,6 +125,9 @@ async function setupRoleplayChannel(page: import("@playwright/test").Page) {
   });
   await page.goto("/");
   await page.getByTestId("channel-general").click();
+  // Leave the sidebar channel row before live messages arrive. Otherwise its
+  // delayed activity hover card can cover the thread summary under test.
+  await page.mouse.move(800, 64);
   await expect(page.getByTestId("chat-title")).toHaveText(CHANNEL);
   await waitForMockLiveSubscription(page, CHANNEL);
 }
