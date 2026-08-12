@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.18
+
+- Adopt Buzz desktop-v0.5.10 while preserving Maju's **내 기기**, self-hosted onboarding, community moderation, stable agent identities, and Antigravity/ACP behavior.
+- Add the Glass appearance controls and reorganized settings, plus scoped search and a way to send a thread reply back to its channel.
+- Make YouTube, Maju entity, and freshly resolved link previews render and send reliably, including rapid-send and attachment edge cases.
+- Reduce channel, timeline, read-state, and focus-return work so large communities stay responsive without discarding fresh messages.
+- Upgrade Mesh LLM to 0.75.1, simplify model routing, add PostgreSQL tracing spans, and prevent project reactions from crashing relay ingest workers.
+
 ## v0.2.17
 
 - Add a first-party Antigravity ACP adapter that uses the installed `agy` CLI and exposes its live model and reasoning choices directly in Maju.
