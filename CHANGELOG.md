@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.19
+
+- Keep agent definitions, identities, and teams inside their community and owning account, while safely quarantining legacy cross-community duplicates.
+- Reuse one stable agent identity and one representative runner across an account's devices, so mentioning an already-running agent does not start a standby copy on another PC.
+- Make team membership unique, team deployment idempotent, and team instructions take effect on each member's next start or restart.
+
 ## v0.2.18
 
 - Adopt Buzz desktop-v0.5.10 while preserving Maju's **내 기기**, self-hosted onboarding, community moderation, stable agent identities, and Antigravity/ACP behavior.
