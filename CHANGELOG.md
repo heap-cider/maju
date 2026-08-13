@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.20
+
+- Adopt Buzz desktop-v0.5.11 while preserving Maju's self-hosted community, agent identity, release, and deployment decisions.
+- Make whole-community deletion durable and safe with an exact frozen inventory, write fence, drain, purge, and permanent tombstone.
+- Add Databricks OAuth discovery, channel descriptions in agent prompts, standard ACP usage reporting, larger first-party agent output, and stronger recovery.
+- Refresh channel and profile surfaces, preserve live timelines and mention spacing, proxy sent link-preview media, and improve mobile reply and keyboard behavior.
+- Reduce observer, thread-activity, snapshot, and foreground-resume work, and update the browser opener dependency to address RUSTSEC-2026-0257.
+
 ## v0.2.19
 
 - Keep agent definitions, identities, and teams inside their community and owning account, while safely quarantining legacy cross-community duplicates.
