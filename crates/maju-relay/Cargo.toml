@@ -19,6 +19,7 @@ maju-core = { workspace = true }
 maju-conformance = { workspace = true }
 maju-db = { workspace = true }
 maju-datastore-tracing = { workspace = true }
+maju-deletion = { workspace = true }
 maju-auth = { workspace = true }
 maju-pubsub = { workspace = true }
 maju-audit = { workspace = true }

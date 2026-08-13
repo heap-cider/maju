@@ -1910,6 +1910,7 @@ test("one share level selector drives both the link and send paths", async ({
   });
   const catalogAccess = shareDialog.getByLabel("Share to catalog");
   const recipientField = page.getByTestId("persona-share-recipient-field");
+  await waitForAnimations(page);
   const emptyRecipientFieldBox = await recipientField.boundingBox();
   await expect(shareDialog.getByTestId("persona-share-send")).toHaveCount(0);
   await expect(shareLevel).toHaveText("Agent only");
@@ -2042,11 +2043,9 @@ test("one share level selector drives both the link and send paths", async ({
   await expect(recipientInputRegion).toHaveCSS("flex-wrap", "wrap");
   const sendButton = shareDialog.getByTestId("persona-share-send");
   await expect(sendButton).toBeVisible();
-  await waitForAnimations(page);
-  const resizedRecipientFieldBox = await recipientField.boundingBox();
-  expect(resizedRecipientFieldBox?.width).toBeLessThan(
-    emptyRecipientFieldBox?.width ?? 0,
-  );
+  await expect
+    .poll(async () => (await recipientField.boundingBox())?.width ?? 0)
+    .toBeLessThan(emptyRecipientFieldBox?.width ?? 0);
   await expect
     .poll(async () => {
       const [sendButtonBox, currentCopyLinkButtonBox] = await Promise.all([
@@ -2492,7 +2491,7 @@ test("start pill morphs into the running dot without remounting the avatar", asy
     }> = [];
     const startedAt = performance.now();
 
-    while (performance.now() - startedAt < 440) {
+    while (performance.now() - startedAt < 800) {
       const bounds = element.getBoundingClientRect();
       samples.push({
         backgroundColor: getComputedStyle(element).backgroundColor,
@@ -2580,12 +2579,20 @@ test("duplicate instances move from the agents gallery into the agent profile", 
   ).toHaveCount(0);
 
   await page.getByTestId(`persona-agent-row-${personaId}`).click();
+  await page.getByTestId("user-profile-tab-runtime").click();
   await page.getByTestId("user-profile-instances").click();
   await page.getByTestId(`user-profile-instance-${additionalPubkey}`).click();
 
   await expect(page.getByTestId("user-profile-panel")).toBeVisible();
-  await page.getByTestId("user-profile-settings-menu-trigger").click();
+  await expect(page.getByTestId("user-profile-delete-agent-row")).toBeVisible();
+  await expect(
+    page.getByTestId("user-profile-settings-menu-trigger"),
+  ).toHaveCount(0);
+  await expect(
+    page.getByTestId("user-profile-duplicate-agent-row"),
+  ).toBeVisible();
+  await expect(page.getByTestId("user-profile-export-agent-row")).toBeVisible();
   await expect(
     page.getByTestId(`user-profile-agent-delete-${additionalPubkey}`),
-  ).toBeVisible();
+  ).toHaveCount(0);
 });

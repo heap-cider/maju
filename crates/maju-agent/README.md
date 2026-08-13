@@ -153,7 +153,8 @@ Everything is environment variables. No flags, no config files. (We are a subpro
 | `MAJU_AGENT_SYSTEM_PROMPT` | built-in | Inline system prompt. |
 | `MAJU_AGENT_SYSTEM_PROMPT_FILE` | — | File path. Mutually exclusive with the above. |
 | `MAJU_AGENT_MAX_ROUNDS` | `0` | Tool-loop iteration cap. 0 = unlimited. |
-| `MAJU_AGENT_MAX_OUTPUT_TOKENS` | `32768` | Per LLM call. Headroom for large tool-call inputs (e.g. file writes via heredoc); Sonnet 4 / Opus 4 cap at 64K. |
+| `MAJU_AGENT_MAX_OUTPUT_TOKENS` | `65536` | Desired per-call ceiling. Set this at or below the served model's output limit for each agent deployment. Proactive handoff is independently based on 90% of `MAJU_AGENT_MAX_CONTEXT_TOKENS`. |
+| `MAJU_AGENT_MAX_TOKEN_RECOVERIES` | `3` | Retries after a successful response is truncated at the output-token limit. `0` disables recovery; the finite value and `MAJU_AGENT_MAX_ROUNDS` prevent infinite retries. |
 | `MAJU_AGENT_MAX_CONTEXT_TOKENS` | `200000` | Provider context window used by the handoff gate. |
 | `MAJU_AGENT_MAX_HANDOFFS` | `10` | Max context handoffs per session before falling back to truncation. |
 | `MAJU_AGENT_LLM_TIMEOUT_SECS` | `240` | Max seconds with no response bytes before abandoning an LLM call (per-read inactivity, not wall-clock). |

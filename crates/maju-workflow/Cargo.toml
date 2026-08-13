@@ -10,6 +10,7 @@ description = "YAML-as-code workflow engine for Maju"
 [dependencies]
 maju-core = { workspace = true }
 maju-db   = { workspace = true }
+maju-deletion = { workspace = true }
 hex         = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }

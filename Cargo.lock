@@ -4108,6 +4108,7 @@ dependencies = [
  "maju-auth",
  "maju-core",
  "maju-db",
+ "maju-deletion",
  "maju-media",
  "maju-pubsub",
  "maju-search",
@@ -4301,6 +4302,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "maju-deletion"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "deadpool-redis",
+ "hex",
+ "maju-core",
+ "maju-db",
+ "maju-media",
+ "redis",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.19",
+ "tokio",
+ "tokio-util",
+ "uuid",
+]
+
+[[package]]
 name = "maju-dev-mcp"
 version = "0.1.0"
 dependencies = [
@@ -4485,6 +4508,7 @@ dependencies = [
  "maju-core",
  "maju-datastore-tracing",
  "maju-db",
+ "maju-deletion",
  "maju-media",
  "maju-pubsub",
  "maju-relay-mesh",
@@ -4638,6 +4662,7 @@ dependencies = [
  "hex",
  "maju-core",
  "maju-db",
+ "maju-deletion",
  "moka",
  "nostr 0.44.8",
  "reqwest 0.13.4",

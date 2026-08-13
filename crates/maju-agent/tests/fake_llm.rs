@@ -378,7 +378,7 @@ async fn unsupported_image_response_recovers_without_replaying_image() {
         .send(
             "session/new",
             json!({
-                "cwd": "/tmp",
+                "cwd": session_cwd(),
                 "mcpServers": [{
                     "name": "fake",
                     "command": env!("CARGO_BIN_EXE_fake-mcp"),
@@ -472,7 +472,10 @@ async fn unsupported_image_without_image_in_history_fails_instead_of_looping() {
     .await;
     let _ = h.recv().await;
     let session_id = h
-        .send("session/new", json!({ "cwd": "/tmp", "mcpServers": [] }))
+        .send(
+            "session/new",
+            json!({ "cwd": session_cwd(), "mcpServers": [] }),
+        )
         .await;
     let session = h.recv_until(|v| v["id"] == json!(session_id)).await;
     let sid = session["result"]["sessionId"].as_str().unwrap();

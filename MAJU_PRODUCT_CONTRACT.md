@@ -36,6 +36,16 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
   user to choose a hosting provider, community type, or community role.
 - A relay URL is the community boundary. Additional communities may be added
   later, but each is another explicitly configured self-hosted relay.
+- Whole-community deletion is an explicit relay-operator action, not a routine
+  desktop or mobile control. The operator must freeze an inventory of the
+  community's data and separately approve that exact inventory before deletion
+  may begin.
+- Deletion stops new community writes, drains work already in flight, removes
+  community-owned data from every backing store, and leaves a permanent
+  tombstone so the same community cannot be silently reused or resurrected.
+  An operator may restore the community only while the request is still in its
+  reversible approved or fenced stage; once object deletion begins there is no
+  undo path.
 
 ## Agent identity and execution
 

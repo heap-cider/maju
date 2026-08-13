@@ -540,11 +540,23 @@ impl AgentHarness {
         }
     }
 
-    fn oauth_home(&self) -> &std::path::Path {
-        self._home
-            .as_ref()
-            .expect("harness was not started in OAuth mode")
-            .path()
+    fn oauth_home(&self) -> std::path::PathBuf {
+        #[cfg(windows)]
+        {
+            // `dirs::home_dir()` uses the Windows profile known folder and
+            // deliberately ignores a child process's `HOME` override. The
+            // randomized stub host still gives this test a unique cache file;
+            // `CachedOauthToken` removes that file when the test finishes.
+            dirs::home_dir().expect("resolve Windows profile directory")
+        }
+        #[cfg(not(windows))]
+        {
+            self._home
+                .as_ref()
+                .expect("harness was not started in OAuth mode")
+                .path()
+                .to_path_buf()
+        }
     }
 
     async fn send(&mut self, method: &str, params: serde_json::Value) -> i64 {
@@ -1073,11 +1085,23 @@ fn databricks_oauth_cache_path(home: &std::path::Path, host: &str) -> std::path:
         .join(format!("{hash}.json"))
 }
 
-fn write_cached_oauth_token(home: &std::path::Path, host: &str, access_token: &str) {
+struct CachedOauthToken(std::path::PathBuf);
+
+impl Drop for CachedOauthToken {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+fn write_cached_oauth_token(
+    home: &std::path::Path,
+    host: &str,
+    access_token: &str,
+) -> CachedOauthToken {
     let path = databricks_oauth_cache_path(home, host);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(
-        path,
+        &path,
         serde_json::to_vec(&json!({
             "access_token": access_token,
             "refresh_token": null,
@@ -1090,6 +1114,7 @@ fn write_cached_oauth_token(home: &std::path::Path, host: &str, access_token: &s
         .unwrap(),
     )
     .unwrap();
+    CachedOauthToken(path)
 }
 
 #[tokio::test]
@@ -1143,7 +1168,8 @@ async fn oauth_missing_token_uses_configured_model_then_retries_discovery() {
     );
     assert_eq!(attempts.load(Ordering::SeqCst), 0);
 
-    write_cached_oauth_token(h.oauth_home(), &host, "cached-bearer");
+    let oauth_home = h.oauth_home();
+    let _cached_oauth_token = write_cached_oauth_token(&oauth_home, &host, "cached-bearer");
 
     let second = h
         .send(

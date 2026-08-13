@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 maju-db = { workspace = true }
+maju-deletion = { workspace = true }
 maju-core = { workspace = true }
 maju-auth = { workspace = true }
 maju-pubsub = { workspace = true }

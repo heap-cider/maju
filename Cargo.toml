@@ -16,6 +16,7 @@ members = [
     "crates/maju-test-client",
     "crates/maju-ws-client",
     "crates/maju-admin",
+    "crates/maju-deletion",
     "crates/maju-workflow",
     "crates/maju-media",
     "crates/maju-cli",
@@ -128,6 +129,7 @@ schemars = { version = "1", default-features = false }
 maju-core = { path = "crates/maju-core" }
 maju-conformance = { path = "crates/maju-conformance" }
 maju-db = { path = "crates/maju-db" }
+maju-deletion = { path = "crates/maju-deletion" }
 maju-auth = { path = "crates/maju-auth" }
 maju-pubsub = { path = "crates/maju-pubsub" }
 maju-search = { path = "crates/maju-search" }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tauri::AppHandle;
 
-use super::agent_env::build_maju_agent_provider_defaults;
+use super::agent_env::{build_maju_agent_provider_defaults, idle_pool_sleep_env};
 
 use crate::{
     managed_agents::{
@@ -530,6 +530,7 @@ pub fn spawn_agent_child(
     command.env("MAJU_RELAY_URL", &effective_relay_url);
     crate::device_session::apply_agent_env(app, &mut command)?;
     command.env("MAJU_ACP_LAZY_POOL", if lazy { "true" } else { "false" });
+    command.env("MAJU_ACP_IDLE_POOL_SLEEP", idle_pool_sleep_env(lazy));
     command.env("MAJU_ACP_AGENT_COMMAND", &resolved_agent_command);
     command.env("MAJU_ACP_AGENT_ARGS", agent_args.join(","));
     match &resolved_mcp_command {

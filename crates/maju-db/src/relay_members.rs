@@ -998,8 +998,8 @@ mod tests {
         let owner = test_pubkey();
         let transferee = test_pubkey();
 
-        // Give the transferee 3 communities (the max).
-        for _ in 0..3 {
+        // Give the transferee the configured default maximum.
+        for _ in 0..MAX_COMMUNITIES_PER_OWNER {
             let c = make_test_community(&pool).await;
             bootstrap_owner(&pool, c, &transferee)
                 .await

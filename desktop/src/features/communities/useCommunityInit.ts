@@ -28,6 +28,7 @@ import {
 } from "@/features/agents/activeAgentTurnsStore";
 import { resetAgentWorkingSignal } from "@/features/agents/agentWorkingSignal";
 import { resetAgentObserverStore } from "@/features/agents/observerRelayStore";
+import { resetChannelSnapshotCache } from "@/features/channels/channelSnapshot";
 import { resetAvatarPresentations } from "@/features/profile/avatarPresentationStore";
 import { resetAvatarProfileSync } from "@/features/profile/avatarProfileSync";
 import { resetSidebarRelayConnectionCardState } from "@/features/sidebar/ui/useSidebarRelayConnectionCard";
@@ -56,6 +57,7 @@ function resetCommunityState({
   resetRateLimitGate();
   clearAllDrafts();
   resetAgentObserverStore();
+  resetChannelSnapshotCache();
   resetActiveAgentTurnsStore();
   resetAgentWorkingSignal();
   if (isTauri() && isMacPlatform()) {
