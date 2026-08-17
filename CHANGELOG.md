@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.21
+
+- Adopt Buzz desktop-v0.5.12 through desktop-v0.5.14 while preserving Maju's self-hosted identity, release, deployment, and empty-project creation decisions.
+- Add Projects v3 with richer issue and pull-request views, assignees, discussion channels, share links, repository management, NIP-MP events, and project CLI commands.
+- Strengthen managed-agent definition checks, profile and persona consistency, mention revalidation, observer retention, and owner-aware agent presentation.
+- Add workflow read APIs and richer Maju deep links, then make link previews, background uploads, timestamps, and empty-edit deletion more reliable.
+- Refresh desktop and mobile invitations, profiles, status, settings, avatars, read state, and large-channel behavior, while improving huddle streaming and latency.
+
 ## v0.2.20
 
 - Adopt Buzz desktop-v0.5.11 while preserving Maju's self-hosted community, agent identity, release, and deployment decisions.
