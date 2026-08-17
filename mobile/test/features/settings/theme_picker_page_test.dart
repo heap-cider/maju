@@ -174,6 +174,7 @@ void main() {
         tester,
         SettingsPage(
           profileHeader: const SizedBox.shrink(),
+          invitePageBuilder: (_) => const SizedBox.shrink(),
           identityRecoveryPageBuilder: (_) => const SizedBox.shrink(),
         ),
         prefs: {'maju_color_scheme': 'maju', 'maju_accent_color': 4},
@@ -189,6 +190,7 @@ void main() {
         tester,
         SettingsPage(
           profileHeader: const SizedBox.shrink(),
+          invitePageBuilder: (_) => const SizedBox.shrink(),
           identityRecoveryPageBuilder: (_) => const SizedBox.shrink(),
         ),
         prefs: {

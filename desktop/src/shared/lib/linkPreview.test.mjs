@@ -209,15 +209,40 @@ test("parseSupportedLinkPreview parses maju:// PR and issue deep links", () => {
   );
 });
 
+test("parseSupportedLinkPreview parses maju:// project deep links", () => {
+  assert.deepEqual(
+    parseSupportedLinkPreview(
+      `maju://project?owner=${MAJU_OWNER}&d=maju-world`,
+    ),
+    {
+      kind: "maju-project",
+      href: `maju://project?owner=${MAJU_OWNER}&d=maju-world`,
+      provider: "Maju",
+      title: "maju-world",
+      typeLabel: "project",
+    },
+  );
+});
+
 test("parseSupportedLinkPreview rejects malformed maju:// entity links", () => {
   for (const href of [
     `maju://pr?owner=${MAJU_OWNER}&d=maju-world`,
     `maju://pr?id=short&owner=${MAJU_OWNER}&d=maju-world`,
     `maju://issue?id=${MAJU_EVENT_ID}&owner=nope&d=maju-world`,
     `maju://repo?owner=${MAJU_OWNER}&d=.hidden`,
+    `maju://project?owner=${MAJU_OWNER}&d=.hidden`,
   ]) {
     assert.equal(parseSupportedLinkPreview(href), null, href);
   }
+});
+
+test("extractSupportedLinkPreviews picks up maju:// project links in prose", () => {
+  assert.deepEqual(
+    extractSupportedLinkPreviews(
+      `tracking here: maju://project?owner=${MAJU_OWNER}&d=maju-world`,
+    ).map((preview) => [preview.kind, preview.typeLabel, preview.title]),
+    [["maju-project", "project", "maju-world"]],
+  );
 });
 
 test("extractSupportedLinkPreviews picks up maju:// links in prose", () => {

@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 import {
+  ComposerMessageLinkNode,
   registerComposerMessageLinkMarkdownIt,
   resolveComposerMessageLinkAttributes,
 } from "./composerMessageLinkNode.ts";
@@ -13,6 +14,13 @@ const MarkdownIt = requireFromTiptap("markdown-it");
 const CHANNEL_ID = "9a1657ac-f7aa-5db0-b632-d8bbeb6dfb50";
 const MESSAGE_ID = "root-event";
 const HREF = `maju://message?channel=${CHANNEL_ID}&id=${MESSAGE_ID}`;
+const CHANNEL_HREF = `maju://channel/${CHANNEL_ID}`;
+const CHANNEL_MESSAGE_ID = "a".repeat(64);
+const CHANNEL_MESSAGE_HREF = `maju://channel/${CHANNEL_ID}/${CHANNEL_MESSAGE_ID}`;
+const OWNER = "a".repeat(64);
+const REPO_HREF = `maju://repo?owner=${OWNER}&d=maju-world`;
+const ISSUE_ID = "b".repeat(64);
+const ISSUE_HREF = `maju://issue?id=${ISSUE_ID}&owner=${OWNER}&d=maju-world`;
 
 test("resolves a composer preview and canonicalizes the underlying href", () => {
   assert.deepEqual(
@@ -31,6 +39,32 @@ test("rejects malformed message links", () => {
       () => "general",
     ),
     null,
+  );
+});
+
+test("resolves channel and entity links as composer chips", () => {
+  assert.deepEqual(
+    resolveComposerMessageLinkAttributes(CHANNEL_HREF, (channelId) =>
+      channelId === CHANNEL_ID ? "general" : undefined,
+    ),
+    { channelName: "general", href: CHANNEL_HREF },
+  );
+  assert.deepEqual(
+    resolveComposerMessageLinkAttributes(CHANNEL_MESSAGE_HREF, (channelId) =>
+      channelId === CHANNEL_ID ? "general" : undefined,
+    ),
+    {
+      channelName: "general",
+      href: `maju://message?channel=${CHANNEL_ID}&id=${CHANNEL_MESSAGE_ID}`,
+    },
+  );
+  assert.deepEqual(
+    resolveComposerMessageLinkAttributes(REPO_HREF, () => undefined),
+    { channelName: "", href: REPO_HREF },
+  );
+  assert.deepEqual(
+    resolveComposerMessageLinkAttributes(ISSUE_HREF, () => undefined),
+    { channelName: "", href: ISSUE_HREF },
   );
 });
 
@@ -84,9 +118,36 @@ test("real markdown-it parsing materializes a restored message link", () => {
   });
 
   const html = md.renderInline(`See ${HREF}.`);
-  assert.match(html, /See <span data-composer-message-link=""/);
+  assert.match(html, /See <span data-composer-maju-link=""/);
   assert.match(html, /data-channel-name="general"/);
   assert.match(html, /data-href="maju:\/\/message\?channel=.*&amp;id=/);
+});
+
+test("real markdown-it parsing materializes mixed Maju permalink chips", () => {
+  const md = new MarkdownIt();
+  registerComposerMessageLinkMarkdownIt(md, {
+    resolveChannelName: (channelId) =>
+      channelId === CHANNEL_ID ? "general" : undefined,
+  });
+
+  const html = md.renderInline(`${HREF} ${CHANNEL_HREF} ${REPO_HREF}`);
+  assert.equal((html.match(/data-composer-maju-link=""/g) ?? []).length, 3);
+  assert.match(html, /data-href="maju:\/\/channel\/9a1657ac/);
+  assert.match(html, /data-href="maju:\/\/repo\?owner=a{64}&amp;d=maju-world/);
+});
+
+test("real markdown-it parsing preserves underscores in restored entity links", () => {
+  const md = new MarkdownIt();
+  registerComposerMessageLinkMarkdownIt(md, {
+    resolveChannelName: () => undefined,
+  });
+  const href = `maju://repo?owner=${OWNER}&d=my_repo`;
+
+  const html = md.renderInline(href);
+
+  assert.equal((html.match(/data-composer-maju-link=""/g) ?? []).length, 1);
+  assert.match(html, /data-href="maju:\/\/repo\?owner=a{64}&amp;d=my_repo"/);
+  assert.doesNotMatch(html, /<\/span>_repo/);
 });
 
 test("markdown parsing resumes after markdown-it consumes the maju prefix", () => {
@@ -125,12 +186,62 @@ test("markdown parsing stops message links before emphasis delimiters", () => {
   assert.deepEqual(token.meta, { channelName: "general", href: HREF });
 });
 
+test("composer node uses the sent-message chip presentation", () => {
+  const node = {
+    attrs: { channelName: "general", href: HREF },
+  };
+  const rendered = globalThis.structuredClone(
+    // TipTap invokes renderHTML with the extension instance as `this`.
+    // Exercise the production renderer directly so the composer and message
+    // list cannot silently drift back to separate visual languages.
+    ComposerMessageLinkNode.config.renderHTML.call(
+      { options: { resolveChannelName: () => "general" } },
+      { HTMLAttributes: {}, node },
+    ),
+  );
+
+  assert.equal(rendered[0], "span");
+  assert.match(rendered[1].class, /mention-chip/);
+  assert.match(rendered[1].class, /inline-chip-with-icon/);
+  assert.match(rendered[1].class, /inline-chip-icon-message/);
+  assert.equal(rendered[1]["data-maju-link"], "");
+  assert.equal(rendered[2], "general · root-eve");
+});
+
+test("composer node renders channel and entity chip presentations", () => {
+  const render = (href) =>
+    globalThis.structuredClone(
+      ComposerMessageLinkNode.config.renderHTML.call(
+        { options: { resolveChannelName: () => "general" } },
+        {
+          HTMLAttributes: {},
+          node: { attrs: { channelName: "general", href } },
+        },
+      ),
+    );
+
+  const channel = render(CHANNEL_HREF);
+  assert.equal(channel[1]["data-channel-deep-link"], "");
+  assert.match(channel[1].class, /inline-chip-icon-channel/);
+  assert.equal(channel[2], "general");
+
+  const repo = render(REPO_HREF);
+  assert.equal(repo[1]["data-maju-link-kind"], "repo");
+  assert.match(repo[1].class, /inline-chip-icon-repo/);
+  assert.equal(repo[2], "maju-world");
+
+  const issue = render(ISSUE_HREF);
+  assert.equal(issue[1]["data-maju-link-kind"], "issue");
+  assert.match(issue[1].class, /inline-chip-icon-issue/);
+  assert.equal(issue[2], "maju-world · bbbbbbbb");
+});
+
 test("markdown rendering stores identity in attributes, not visible id text", () => {
   const { md } = captureMarkdownRule();
   const render = md.renderer.rules.maju_composer_message_link;
   const html = render([{ meta: { channelName: "general", href: HREF } }], 0);
 
-  assert.match(html, /data-composer-message-link=""/);
+  assert.match(html, /data-composer-maju-link=""/);
   assert.match(html, /data-channel-name="general"/);
   assert.match(html, /data-href="maju:\/\/message\?channel=.*&amp;id=/);
   assert.doesNotMatch(html, />[^<]*root-event/);

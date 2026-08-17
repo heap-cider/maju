@@ -215,7 +215,8 @@ pub async fn apply_workspace(
         let mut repair_queued = true;
         for pubkey in &scope_repair.agent_pubkeys {
             repair_queued &= super::agents::tombstone_managed_agent_pending(&app, &state, pubkey);
-            repair_queued &= super::agents::archive_managed_agent_pending(&app, &state, pubkey);
+            repair_queued &=
+                super::agents::archive_managed_agent_pending(&app, &state, pubkey, None);
         }
         for team_id in &scope_repair.team_ids {
             repair_queued &= super::teams::tombstone_team_pending(&app, &state, team_id);

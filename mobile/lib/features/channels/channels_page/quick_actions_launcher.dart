@@ -87,6 +87,7 @@ class ChannelQuickActionsLauncher extends HookConsumerWidget {
         case _QuickAction.createChannel:
           final created = await showMajuModalBottomSheet<Channel>(
             context: context,
+            title: 'Create a new channel',
             constraints: _quickActionSheetConstraints(context),
             isScrollControlled: true,
             showDragHandle: true,
@@ -98,6 +99,7 @@ class ChannelQuickActionsLauncher extends HookConsumerWidget {
         case _QuickAction.newDm:
           final opened = await showMajuModalBottomSheet<Channel>(
             context: context,
+            title: 'New message',
             constraints: _quickActionSheetConstraints(context),
             isScrollControlled: true,
             showDragHandle: true,

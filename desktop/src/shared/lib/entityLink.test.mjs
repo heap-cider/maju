@@ -1,35 +1,53 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
   buildIssueLink,
+  buildProjectLink,
   buildPullRequestLink,
   buildRepoLink,
   entityLinkProjectRouteId,
+  ENTITY_LINK_TABS,
   isEntityLink,
+  isLinkableCoordinate,
   parseEntityLink,
 } from "./entityLink.ts";
 
-const OWNER =
-  "71d67180ba17e749ee825fc8819c9c6ee7003617e1c126504f9b658070ab9224";
-const EVENT_ID =
-  "c3b589fa5713ba25bad6dc095e2de00a4ac8f50050fdea00fc6444e603be1dd1";
+const GOLDEN = JSON.parse(
+  readFileSync(
+    new URL("../../../../test-fixtures/entity-links.json", import.meta.url),
+    "utf8",
+  ),
+);
+const OWNER = GOLDEN.owner;
+const EVENT_ID = GOLDEN.eventId;
 
-// Golden format strings — must match the Rust builder in
-// crates/maju-cli/src/links.rs (`golden_format_matches_desktop` test).
+// This fixture is also consumed by maju-cli and the Tauri deep-link validator.
 test("builders emit the canonical cross-language link format", () => {
   assert.equal(
-    buildPullRequestLink({ id: EVENT_ID, owner: OWNER, dtag: "maju-world" }),
-    `maju://pr?id=${EVENT_ID}&owner=${OWNER}&d=maju-world`,
+    buildPullRequestLink({ id: EVENT_ID, owner: OWNER, dtag: GOLDEN.dtag }),
+    GOLDEN.links.pullRequest,
   );
   assert.equal(
-    buildIssueLink({ id: EVENT_ID, owner: OWNER, dtag: "maju-world" }),
-    `maju://issue?id=${EVENT_ID}&owner=${OWNER}&d=maju-world`,
+    buildIssueLink({ id: EVENT_ID, owner: OWNER, dtag: GOLDEN.dtag }),
+    GOLDEN.links.issue,
   );
   assert.equal(
-    buildRepoLink({ owner: OWNER, dtag: "maju-world" }),
-    `maju://repo?owner=${OWNER}&d=maju-world`,
+    buildRepoLink({ owner: OWNER, dtag: GOLDEN.dtag }),
+    GOLDEN.links.repository,
   );
+  assert.equal(
+    buildProjectLink({ owner: OWNER, dtag: GOLDEN.dtag }),
+    GOLDEN.links.project,
+  );
+  assert.deepEqual(ENTITY_LINK_TABS, GOLDEN.tabs);
+  for (const dtag of GOLDEN.validDtags) {
+    assert.equal(isLinkableCoordinate(OWNER, dtag), true);
+  }
+  for (const dtag of GOLDEN.invalidDtags) {
+    assert.equal(isLinkableCoordinate(OWNER, dtag), false);
+  }
 });
 
 test("builders reject invalid identifiers", () => {
@@ -58,6 +76,12 @@ test("parseEntityLink round-trips built links", () => {
   assert.deepEqual(parseEntityLink(repoLink), {
     ok: true,
     value: { type: "repo", owner: OWNER, dtag: "maju-world" },
+  });
+
+  const projectLink = buildProjectLink({ owner: OWNER, dtag: "maju-world" });
+  assert.deepEqual(parseEntityLink(projectLink), {
+    ok: true,
+    value: { type: "project", owner: OWNER, dtag: "maju-world" },
   });
 });
 
@@ -91,6 +115,7 @@ test("isEntityLink matches entity hosts and excludes message links", () => {
   assert.equal(isEntityLink(`maju://pr?id=${EVENT_ID}`), true);
   assert.equal(isEntityLink(`maju://issue?id=${EVENT_ID}`), true);
   assert.equal(isEntityLink(`maju://repo?owner=${OWNER}`), true);
+  assert.equal(isEntityLink(`maju://project?owner=${OWNER}`), true);
   assert.equal(isEntityLink("maju://message?channel=x&id=y"), false);
   assert.equal(isEntityLink("https://github.com/heap-cider/maju"), false);
   assert.equal(isEntityLink(null), false);
@@ -105,6 +130,70 @@ test("entityLinkProjectRouteId emits the canonical 30617 coordinate route id", (
     entityLinkProjectRouteId(parsed.value),
     `30617:${OWNER}:maju-world`,
   );
+});
+
+test("entityLinkProjectRouteId routes project links to the 30621 coordinate", () => {
+  const parsed = parseEntityLink(
+    buildProjectLink({ owner: OWNER, dtag: "maju-world" }),
+  );
+  assert.ok(parsed.ok);
+  assert.equal(
+    entityLinkProjectRouteId(parsed.value),
+    `30621:${OWNER}:maju-world`,
+  );
+});
+
+test("coordinate links carry an optional workspace tab", () => {
+  const link = buildProjectLink({
+    owner: OWNER,
+    dtag: "maju-world",
+    tab: "prs",
+  });
+  assert.equal(link, `maju://project?owner=${OWNER}&d=maju-world&tab=prs`);
+  assert.deepEqual(parseEntityLink(link), {
+    ok: true,
+    value: { type: "project", owner: OWNER, dtag: "maju-world", tab: "prs" },
+  });
+
+  const repoLink = buildRepoLink({
+    owner: OWNER,
+    dtag: "maju-world",
+    tab: "issues",
+  });
+  assert.deepEqual(parseEntityLink(repoLink), {
+    ok: true,
+    value: { type: "repo", owner: OWNER, dtag: "maju-world", tab: "issues" },
+  });
+
+  // The default overview has no tab spelling; unknown values are rejected
+  // rather than silently dropped, and event links accept no tab at all.
+  assert.throws(() =>
+    buildRepoLink({ owner: OWNER, dtag: "maju-world", tab: "overview" }),
+  );
+  assert.deepEqual(
+    parseEntityLink(`maju://repo?owner=${OWNER}&d=maju-world&tab=overview`),
+    { ok: false, reason: "invalid-tab" },
+  );
+  assert.deepEqual(
+    parseEntityLink(`maju://repo?owner=${OWNER}&d=maju-world&tab=`),
+    { ok: false, reason: "invalid-tab" },
+  );
+  assert.deepEqual(
+    parseEntityLink(
+      `maju://pr?id=${EVENT_ID}&owner=${OWNER}&d=maju-world&tab=prs`,
+    ),
+    { ok: false, reason: "unknown-param" },
+  );
+});
+
+test("isLinkableCoordinate gates coordinates the link format cannot express", () => {
+  assert.equal(isLinkableCoordinate(OWNER, "maju-world"), true);
+  assert.equal(isLinkableCoordinate(OWNER, "a".repeat(64)), true);
+  // Addressable d-tags allow far more than the link charset does.
+  assert.equal(isLinkableCoordinate(OWNER, "a".repeat(65)), false);
+  assert.equal(isLinkableCoordinate(OWNER, "has space"), false);
+  assert.equal(isLinkableCoordinate(OWNER, ".hidden"), false);
+  assert.equal(isLinkableCoordinate("not-a-pubkey", "maju-world"), false);
 });
 
 test("parseEntityLink rejects noncanonical extras", () => {

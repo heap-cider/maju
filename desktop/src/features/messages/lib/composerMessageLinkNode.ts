@@ -3,12 +3,20 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 
-import { MENTION_CHIP_BASE_CLASSES } from "@/shared/ui/mentionChip";
 import {
-  getMessageLinkChannelLabel,
-  getMessageLinkLabel,
-  MESSAGE_LINK_PREFIX,
-} from "./messageLinkLabel";
+  buildIssueLink,
+  buildProjectLink,
+  buildPullRequestLink,
+  buildRepoLink,
+  parseEntityLink,
+} from "@/shared/lib/entityLink";
+import {
+  inlineChipIconClasses,
+  type InlineChipIconKind,
+  MENTION_CHIP_BASE_CLASSES,
+} from "@/shared/ui/mentionChip";
+import { buildChannelLink, parseChannelLink } from "./channelLink";
+import { getMessageLinkLabel } from "./messageLinkLabel";
 import { buildMessageLink, parseMessageLink } from "./messageLink";
 
 export const COMPOSER_MESSAGE_LINK_NODE_NAME = "composerMessageLink";
@@ -22,10 +30,13 @@ export type ComposerMessageLinkAttributes = {
   href: string;
 };
 
-const BARE_MESSAGE_LINK_AT_START = /^(?:maju):\/\/message\?[^\s<>"')\]}*_]+/i;
+const BARE_MAJU_LINK_AT_START =
+  /^maju:\/\/(?:message\?|channel\/|(?:pr|issue|repo|project)\?)[^\s<>"')\]}*]+/i;
+const MAJU_LINK_SUFFIX_AT_START =
+  /^:\/\/(?:message\?|channel\/|(?:pr|issue|repo|project)\?)[^\s<>"')\]}*]+/i;
 const TRAILING_PUNCTUATION = /[.,;:!?]+$/;
 
-function trimBareMessageLink(value: string): string {
+function trimBareMajuLink(value: string): string {
   let trimmed = value.replace(TRAILING_PUNCTUATION, "");
   while (/[)\]]$/.test(trimmed)) {
     const closing = trimmed.at(-1) ?? "";
@@ -40,23 +51,66 @@ export function resolveComposerMessageLinkAttributes(
   href: string,
   resolveChannelName: ComposerMessageLinkNodeOptions["resolveChannelName"],
 ): ComposerMessageLinkAttributes | null {
-  const parsed = parseMessageLink(href);
-  if (!parsed.ok) return null;
-  return {
-    channelName: resolveChannelName(parsed.value.channelId) ?? "",
-    href: buildMessageLink({
-      channelId: parsed.value.channelId,
-      messageId: parsed.value.messageId,
-      threadRootId: parsed.value.threadRootId,
-    }),
-  };
+  const message = parseMessageLink(href);
+  if (message.ok) {
+    return {
+      channelName: resolveChannelName(message.value.channelId) ?? "",
+      href: buildMessageLink({
+        channelId: message.value.channelId,
+        messageId: message.value.messageId,
+        threadRootId: message.value.threadRootId,
+      }),
+    };
+  }
+
+  const channel = parseChannelLink(href);
+  if (channel.ok) {
+    return {
+      channelName: resolveChannelName(channel.value.channelId) ?? "",
+      href: channel.value.messageId
+        ? buildMessageLink({
+            channelId: channel.value.channelId,
+            messageId: channel.value.messageId,
+          })
+        : buildChannelLink(channel.value.channelId),
+    };
+  }
+
+  const entity = parseEntityLink(href);
+  if (!entity.ok) return null;
+  switch (entity.value.type) {
+    case "repo":
+      return {
+        channelName: "",
+        href: buildRepoLink(entity.value),
+      };
+    case "project":
+      return {
+        channelName: "",
+        href: buildProjectLink(entity.value),
+      };
+    case "pr":
+      return {
+        channelName: "",
+        href: buildPullRequestLink(entity.value),
+      };
+    case "issue":
+      return {
+        channelName: "",
+        href: buildIssueLink(entity.value),
+      };
+  }
 }
 
-function unwrapExactMessageLink(text: string): string | null {
+function unwrapExactMajuLink(text: string): string | null {
   const href =
     text.startsWith("<") && text.endsWith(">") ? text.slice(1, -1) : text;
   if (!href || /\s/.test(href)) return null;
-  return parseMessageLink(href).ok ? href : null;
+  return parseMessageLink(href).ok ||
+    parseChannelLink(href).ok ||
+    parseEntityLink(href).ok
+    ? href
+    : null;
 }
 
 function unwrapExactHttpLink(text: string): string | null {
@@ -83,16 +137,16 @@ export function createComposerLinkPasteHandler(
 ) {
   return (view: EditorView, event: ClipboardEvent): boolean => {
     const text = event.clipboardData?.getData("text/plain") ?? "";
-    const messageHref = unwrapExactMessageLink(text);
-    const messageLinkType =
+    const majuHref = unwrapExactMajuLink(text);
+    const majuLinkType =
       view.state.schema.nodes[COMPOSER_MESSAGE_LINK_NODE_NAME];
-    if (messageHref && messageLinkType) {
+    if (majuHref && majuLinkType) {
       const attrs = resolveComposerMessageLinkAttributes(
-        messageHref,
+        majuHref,
         resolveChannelName,
       );
       if (attrs) {
-        replaceSelectionWithNode(view, messageLinkType.create(attrs));
+        replaceSelectionWithNode(view, majuLinkType.create(attrs));
         event.preventDefault();
         return true;
       }
@@ -122,14 +176,14 @@ export function registerComposerMessageLinkMarkdownIt(
   // biome-ignore lint/suspicious/noExplicitAny: markdown-it state/silent
   const rule = (state: any, silent: boolean): boolean => {
     const remaining = state.src.slice(state.pos);
-    const fullMatch = BARE_MESSAGE_LINK_AT_START.exec(remaining);
-    const suffixMatch = /^:\/\/message\?[^\s<>"')\]}*_]+/i.exec(remaining);
+    const fullMatch = BARE_MAJU_LINK_AT_START.exec(remaining);
+    const suffixMatch = MAJU_LINK_SUFFIX_AT_START.exec(remaining);
     const resumesTextToken =
       !fullMatch && suffixMatch && /maju$/i.test(state.pending ?? "");
     const rawHref =
       fullMatch?.[0] ?? (resumesTextToken ? `maju${suffixMatch[0]}` : null);
     if (!rawHref) return false;
-    const href = trimBareMessageLink(rawHref);
+    const href = trimBareMajuLink(rawHref);
     const attrs = resolveComposerMessageLinkAttributes(
       href,
       options.resolveChannelName,
@@ -149,7 +203,83 @@ export function registerComposerMessageLinkMarkdownIt(
   md.renderer.rules[tokenType] = (tokens: any[], index: number): string => {
     const attrs = tokens[index].meta as ComposerMessageLinkAttributes;
     const escapeHtml = md.utils.escapeHtml;
-    return `<span data-composer-message-link="" data-channel-name="${escapeHtml(attrs.channelName)}" data-href="${escapeHtml(attrs.href)}"></span>`;
+    return `<span data-composer-maju-link="" data-channel-name="${escapeHtml(attrs.channelName)}" data-href="${escapeHtml(attrs.href)}"></span>`;
+  };
+}
+
+type ComposerLinkPresentation = {
+  ariaLabel: string;
+  channelName: string;
+  dataAttributes: Record<string, string>;
+  icon: InlineChipIconKind;
+  label: string;
+};
+
+function composerLinkPresentation(
+  href: string,
+  channelName: string,
+  resolveChannelName: ComposerMessageLinkNodeOptions["resolveChannelName"],
+): ComposerLinkPresentation {
+  const message = parseMessageLink(href);
+  if (message.ok) {
+    const resolvedChannelName =
+      resolveChannelName(message.value.channelId) || channelName || "channel";
+    return {
+      ariaLabel: getMessageLinkLabel({ channelName: resolvedChannelName }),
+      channelName: resolvedChannelName,
+      dataAttributes: {
+        "data-composer-message-link": "",
+        "data-message-link": "",
+      },
+      icon: "message",
+      label: `${resolvedChannelName} · ${message.value.messageId.slice(0, 8)}`,
+    };
+  }
+
+  const channel = parseChannelLink(href);
+  if (channel.ok) {
+    const resolvedChannelName =
+      resolveChannelName(channel.value.channelId) ||
+      channelName ||
+      channel.value.channelId.slice(0, 8);
+    return {
+      ariaLabel: `Open channel ${resolvedChannelName}`,
+      channelName: resolvedChannelName,
+      dataAttributes: { "data-channel-deep-link": "" },
+      icon: "channel",
+      label: resolvedChannelName,
+    };
+  }
+
+  const entity = parseEntityLink(href);
+  if (!entity.ok) {
+    return {
+      ariaLabel: "Maju link",
+      channelName: "",
+      dataAttributes: {},
+      icon: "message",
+      label: "Maju link",
+    };
+  }
+
+  const shortId =
+    entity.value.type === "repo" || entity.value.type === "project"
+      ? ""
+      : entity.value.id.slice(0, 8);
+  return {
+    ariaLabel:
+      entity.value.type === "repo"
+        ? `Open repository ${entity.value.dtag}`
+        : entity.value.type === "project"
+          ? `Open project ${entity.value.dtag}`
+          : `Open ${entity.value.type === "pr" ? "pull request" : "issue"} ${shortId} in repository ${entity.value.dtag}`,
+    channelName: "",
+    dataAttributes: { "data-maju-link-kind": entity.value.type },
+    icon: entity.value.type,
+    label:
+      entity.value.type === "repo" || entity.value.type === "project"
+        ? entity.value.dtag
+        : `${entity.value.dtag} · ${shortId}`,
   };
 }
 
@@ -183,39 +313,32 @@ export const ComposerMessageLinkNode =
     },
 
     parseHTML() {
-      return [{ tag: "span[data-composer-message-link]" }];
+      return [
+        { tag: "span[data-composer-maju-link]" },
+        { tag: "span[data-composer-message-link]" },
+      ];
     },
 
     renderHTML({ node, HTMLAttributes }) {
       const href = String(node.attrs.href ?? "");
-      const parsed = parseMessageLink(href);
-      const channelName = parsed.ok
-        ? (this.options.resolveChannelName(parsed.value.channelId) ??
-          (String(node.attrs.channelName ?? "") || "channel"))
-        : "channel";
-      const label = getMessageLinkLabel({ channelName });
-      const channelLinkLabel = getMessageLinkChannelLabel(channelName);
+      const presentation = composerLinkPresentation(
+        href,
+        String(node.attrs.channelName ?? ""),
+        this.options.resolveChannelName,
+      );
       return [
         "span",
         mergeAttributes(HTMLAttributes, {
-          "aria-label": label,
-          class:
-            "inline-flex min-w-0 max-w-80 items-center gap-1.5 align-baseline",
-          "data-channel-name": channelName,
-          "data-composer-message-link": "",
+          "aria-label": presentation.ariaLabel,
+          class: `${MENTION_CHIP_BASE_CLASSES} ${inlineChipIconClasses(presentation.icon)} cursor-text`,
+          "data-maju-link": "",
+          "data-channel-name": presentation.channelName,
+          "data-composer-maju-link": "",
           "data-href": href,
-          "data-message-link": "",
-          title: label,
+          ...presentation.dataAttributes,
+          title: presentation.ariaLabel,
         }),
-        ["span", { class: "shrink-0" }, MESSAGE_LINK_PREFIX],
-        [
-          "span",
-          {
-            class: `${MENTION_CHIP_BASE_CLASSES} min-w-0 max-w-full truncate`,
-            "data-channel-link": "",
-          },
-          channelLinkLabel,
-        ],
+        presentation.label,
       ];
     },
 

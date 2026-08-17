@@ -102,6 +102,23 @@ export function useChannelLinks() {
 
       if (debounceTimerRef.current !== null) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+
+      // Close stale suggestions immediately when the live editor no longer
+      // contains a channel query. Waiting for the positive-query debounce here
+      // lets a quick Enter consume the previous suggestion after the user has
+      // already cleared or replaced the text, instead of submitting the edit.
+      const currentChannel = detectPrefixQuery(
+        "#",
+        value,
+        cursorPosition,
+        knownNamesLowerRef.current,
+      );
+      if (!currentChannel) {
+        setChannelQuery(null);
+        setChannelSelectedIndex(0);
+        return;
       }
 
       debounceTimerRef.current = setTimeout(() => {

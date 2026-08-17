@@ -200,6 +200,7 @@ class ChannelActionsSheet extends ConsumerWidget {
                   onTap: () async {
                     final shouldClose = await showMajuModalBottomSheet<bool>(
                       context: context,
+                      title: 'Manage channel',
                       isScrollControlled: true,
                       showDragHandle: true,
                       constraints: BoxConstraints(

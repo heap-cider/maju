@@ -213,6 +213,9 @@ enum Cmd {
     /// Announce and discover git repositories (NIP-34)
     #[command(subcommand)]
     Repos(ReposCmd),
+    /// Create and manage multi-repo projects (NIP-MP)
+    #[command(subcommand)]
+    Projects(ProjectsCmd),
     /// Send, get, list, and set status on git patches (NIP-34)
     #[command(subcommand)]
     Patches(PatchesCmd),
@@ -1253,6 +1256,124 @@ pub enum RepoPushRole {
     Member,
 }
 
+/// Visibility of a multi-repo project listing.
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum ProjectVisibility {
+    /// Project appears in public listings (default).
+    Listed,
+    /// Project is hidden from public listings.
+    Unlisted,
+}
+
+impl ProjectVisibility {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ProjectVisibility::Listed => "listed",
+            ProjectVisibility::Unlisted => "unlisted",
+        }
+    }
+}
+
+#[derive(Subcommand)]
+pub enum ProjectsCmd {
+    /// Create a new multi-repo project (NIP-MP kind:30621).
+    ///
+    /// The initial repository must already be announced with `maju repos create`,
+    /// where optional clone and web URLs are recorded. Project creation requires
+    /// its display name and repository access channel.
+    Create {
+        /// Project identifier (slug), up to 1024 bytes.
+        slug: String,
+        /// Member repository coordinate: bare Maju repo id (e.g. `maju`) or full
+        /// `30617:<owner-hex>:<repo-d>` for cross-owner or colon-bearing repo ids.
+        /// At least one --repo is required.
+        #[arg(long = "repo", required = true)]
+        repo: Vec<String>,
+        /// Display name (≤256 bytes).
+        #[arg(long)]
+        name: String,
+        /// Description (≤2048 bytes).
+        #[arg(long)]
+        description: Option<String>,
+        /// Repository access channel UUID.
+        #[arg(long)]
+        channel: String,
+        /// Visibility: `listed` (default) or `unlisted`.
+        #[arg(long)]
+        visibility: Option<ProjectVisibility>,
+    },
+    /// Get a project by slug.
+    Get {
+        /// Project slug.
+        slug: String,
+        /// Owner pubkey (64-char hex). Defaults to the current identity.
+        #[arg(long)]
+        owner: Option<String>,
+    },
+    /// List projects.
+    List {
+        /// Owner pubkey (64-char hex). Defaults to the current identity.
+        #[arg(long)]
+        owner: Option<String>,
+        /// Maximum number of results.
+        #[arg(long)]
+        limit: Option<u32>,
+    },
+    /// Add one or more member repositories to a project.
+    #[command(name = "add-repo")]
+    AddRepo {
+        /// Project slug.
+        slug: String,
+        /// Member repository coordinate (bare id or full `30617:<owner-hex>:<repo-d>`).
+        #[arg(long = "repo", required = true)]
+        repo: Vec<String>,
+    },
+    /// Remove one or more member repositories from a project.
+    #[command(name = "remove-repo")]
+    RemoveRepo {
+        /// Project slug.
+        slug: String,
+        /// Member repository coordinate to remove (bare id or full `30617:<owner-hex>:<repo-d>`).
+        #[arg(long = "repo", required = true)]
+        repo: Vec<String>,
+    },
+    /// Update project metadata (at least one setter or clearer required).
+    #[command(group = clap::ArgGroup::new("mutation").required(true).multiple(true))]
+    Update {
+        /// Project slug.
+        slug: String,
+        /// Set the display name.
+        #[arg(long, group = "mutation")]
+        name: Option<String>,
+        /// Remove the display name.
+        #[arg(long, group = "mutation", conflicts_with = "name")]
+        clear_name: bool,
+        /// Set the description.
+        #[arg(long, group = "mutation")]
+        description: Option<String>,
+        /// Remove the description.
+        #[arg(long, group = "mutation", conflicts_with = "description")]
+        clear_description: bool,
+        /// Set the associated Maju channel UUID.
+        #[arg(long, group = "mutation")]
+        channel: Option<String>,
+        /// Remove the associated channel.
+        #[arg(long, group = "mutation", conflicts_with = "channel")]
+        clear_channel: bool,
+        /// Set visibility: `listed` or `unlisted`.
+        #[arg(long, group = "mutation")]
+        visibility: Option<ProjectVisibility>,
+        /// Remove the visibility tag (absence defaults to `listed`).
+        #[arg(long, group = "mutation", conflicts_with = "visibility")]
+        clear_visibility: bool,
+    },
+    /// Delete a project (head-based tombstone; verified after submit).
+    Delete {
+        /// Project slug.
+        slug: String,
+    },
+}
+
 #[derive(Subcommand)]
 pub enum PatchesCmd {
     /// Send a git patch (NIP-34 kind:1617)
@@ -1576,6 +1697,47 @@ pub enum IssuesCmd {
         #[arg(long = "to")]
         to: Vec<String>,
     },
+    /// Assign an issue to one or more people or agents. Only assignments
+    /// signed by the issue author or repo owner are trusted by clients;
+    /// anyone may assign themselves (sole assignee = your own pubkey).
+    Assign {
+        /// Issue event id (64-char hex)
+        #[arg(long)]
+        issue: String,
+        /// Repo owner pubkey (64-char hex)
+        #[arg(long)]
+        repo_owner: String,
+        /// Repo identifier (d-tag)
+        #[arg(long)]
+        repo_id: String,
+        /// Assignee pubkey (64-char hex) — can be specified multiple times
+        #[arg(long = "assignee", required = true)]
+        assignee: Vec<String>,
+        /// Human-readable assignee name(s) for the note body, e.g. "Thomas".
+        /// Defaults to the truncated assignee pubkeys.
+        #[arg(long)]
+        label: Option<String>,
+    },
+    /// Remove one or more assignees from an issue. Issue authors and repo
+    /// owners may remove anyone; other users may remove only themselves.
+    Unassign {
+        /// Issue event id (64-char hex)
+        #[arg(long)]
+        issue: String,
+        /// Repo owner pubkey (64-char hex)
+        #[arg(long)]
+        repo_owner: String,
+        /// Repo identifier (d-tag)
+        #[arg(long)]
+        repo_id: String,
+        /// Assignee pubkey to remove — can be specified multiple times
+        #[arg(long = "assignee", required = true)]
+        assignee: Vec<String>,
+        /// Human-readable assignee name(s) for the note body.
+        /// Defaults to the truncated assignee pubkeys.
+        #[arg(long)]
+        label: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1891,6 +2053,7 @@ async fn run(cli: Cli) -> Result<(), CliError> {
         Cmd::Social(sub) => commands::social::dispatch(sub, &client).await,
         Cmd::Notes(sub) => commands::notes::dispatch(sub, &client).await,
         Cmd::Repos(sub) => commands::repos::dispatch(sub, &client).await,
+        Cmd::Projects(sub) => commands::projects::dispatch(sub, &client).await,
         Cmd::Patches(sub) => commands::patches::dispatch(sub, &client).await,
         Cmd::Issues(sub) => commands::issues::dispatch(sub, &client).await,
         Cmd::Pr(sub) => commands::pr::dispatch(sub, &client).await,
@@ -2000,6 +2163,7 @@ mod tests {
             "pack",
             "patches",
             "pr",
+            "projects",
             "reactions",
             "repos",
             "social",
@@ -2156,8 +2320,20 @@ mod tests {
             vec!["get", "list", "send", "status"]
         );
         assert_eq!(
+            names(&cmd, "projects"),
+            vec![
+                "add-repo",
+                "create",
+                "delete",
+                "get",
+                "list",
+                "remove-repo",
+                "update"
+            ]
+        );
+        assert_eq!(
             names(&cmd, "issues"),
-            vec!["create", "get", "list", "status"]
+            vec!["assign", "create", "get", "list", "status", "unassign"]
         );
         assert_eq!(names(&cmd, "media"), vec!["get"]);
         assert_eq!(names(&cmd, "upload"), vec!["file"]);
@@ -2186,12 +2362,13 @@ mod tests {
             ("dms", 4),
             ("emoji", 5),
             ("feed", 1),
-            ("issues", 4),
+            ("issues", 6),
             ("media", 1),
             ("messages", 8),
             ("pack", 2),
             ("patches", 4),
             ("pr", 5),
+            ("projects", 7),
             ("reactions", 3),
             ("repos", 5),
             ("social", 7),
@@ -2216,6 +2393,43 @@ mod tests {
                 group_name, expected_count, actual_count
             );
         }
+    }
+
+    #[test]
+    fn projects_create_requires_name_and_channel() {
+        assert!(Cli::try_parse_from([
+            "maju", "projects", "create", "my-slug", "--repo", "my-repo",
+        ])
+        .is_err());
+        assert!(Cli::try_parse_from([
+            "maju",
+            "projects",
+            "create",
+            "my-slug",
+            "--repo",
+            "my-repo",
+            "--name",
+            "My project",
+            "--channel",
+            "9a1657ac-f7aa-5db0-b632-d8bbeb6dfb50",
+        ])
+        .is_ok());
+    }
+
+    #[test]
+    fn projects_update_accepts_multiple_fields() {
+        assert!(Cli::try_parse_from([
+            "maju",
+            "projects",
+            "update",
+            "my-slug",
+            "--name",
+            "X",
+            "--description",
+            "Y",
+        ])
+        .is_ok());
+        assert!(Cli::try_parse_from(["maju", "projects", "update", "my-slug",]).is_err());
     }
 
     /// Collect all args (recursing into subcommands) whose env var name looks

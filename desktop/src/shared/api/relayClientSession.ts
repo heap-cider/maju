@@ -372,10 +372,6 @@ export class RelayClient {
     );
   }
 
-  async subscribeToPresenceUpdates(onEvent: (event: RelayEvent) => void) {
-    return this.subscribe({ kinds: [20001], limit: 0 }, onEvent);
-  }
-
   async publishUserStatus(text: string, emoji: string): Promise<void> {
     await this.ensureConnected();
     const tags: string[][] = [["d", "general"]];
@@ -408,8 +404,9 @@ export class RelayClient {
     filter: RelaySubscriptionFilter,
     onEvent: (event: RelayEvent) => void,
     onReady?: (readiness: LiveSubscriptionReadiness) => void,
+    readinessTimeoutMs?: number,
   ) {
-    return this.subscribe(filter, onEvent, onReady);
+    return this.subscribe(filter, onEvent, onReady, readinessTimeoutMs);
   }
   async subscribeToChannelMentionEvents(
     channelId: string,
@@ -594,6 +591,7 @@ export class RelayClient {
     filter: RelaySubscriptionFilter,
     onEvent: (event: RelayEvent) => void,
     onReady?: (readiness: LiveSubscriptionReadiness) => void,
+    readinessTimeoutMs = 250,
   ) {
     await this.ensureConnected();
 
@@ -608,7 +606,7 @@ export class RelayClient {
     });
     const fallbackTimeout = window.setTimeout(
       () => resolveReady("timeout"),
-      250,
+      readinessTimeoutMs,
     );
 
     this.subscriptions.set(subId, {
