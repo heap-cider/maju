@@ -251,6 +251,9 @@ pub enum InboundOutcome {
     /// The inbound event was applied (no row, or it was strictly newer than a
     /// non-conflicting local row). The caller patches the local record store.
     Applied,
+    /// The exact relay-confirmed head was already retained. The caller reapplies
+    /// it to repair a missing or stale JSON projection without rewriting SQLite.
+    Reapply,
     /// The inbound event was NOT applied: either it is older than the retained
     /// row, or it collides at the same `created_at` with a pending local edit.
     /// The local record store is left untouched and the pending edit republishes.
@@ -267,11 +270,10 @@ pub enum InboundOutcome {
 /// - No local row, or inbound strictly newer (`created_at >`): apply the
 ///   inbound event, clearing `pending_sync`. Inbound wins; a stale local edit
 ///   the relay already superseded stops republishing instead of looping.
-/// - Equal `created_at`: skip. Nostr time is seconds-granularity, so a pending
-///   local edit and an inbound event can share a timestamp; applying here would
-///   clear `pending_sync` and drop the local publish. Skipping leaves the
-///   pending row intact so the flush republishes and the relay resolves
-///   last-writer-wins. (A re-received echo at equal time is also a no-op.)
+/// - Equal `created_at`: reapply only when it is the exact already-confirmed
+///   event. This repairs a missing JSON projection (or missing decrypted agent
+///   key) after a reinstall/recovery. A different event at the same second, or
+///   any pending local row, is skipped so the local publish is never dropped.
 /// - Inbound older: skip — nothing to change.
 pub fn retain_inbound_event(
     conn: &Connection,
@@ -279,16 +281,19 @@ pub fn retain_inbound_event(
 ) -> Result<InboundOutcome, String> {
     let existing = get_retained_event(conn, event.kind, &event.pubkey, &event.d_tag)?;
 
-    let apply = match &existing {
-        None => true,
-        Some(row) if event.created_at > row.created_at => true,
-        // Equal or older: skip. Equal time may collide with a pending local
-        // edit, so we never clear its `pending_sync`; older is stale.
-        Some(_) => false,
-    };
-
-    if !apply {
-        return Ok(InboundOutcome::Skipped);
+    match &existing {
+        None => {}
+        Some(row) if event.created_at > row.created_at => {}
+        Some(row)
+            if event.created_at == row.created_at
+                && !row.pending_sync
+                && event.raw_event == row.raw_event =>
+        {
+            return Ok(InboundOutcome::Reapply);
+        }
+        // Equal-but-different or older: skip. Equal time may collide with a
+        // pending local edit, so we never clear its `pending_sync`.
+        Some(_) => return Ok(InboundOutcome::Skipped),
     }
 
     // Inbound is strictly newer (or there was no row): overwrite and clear
@@ -983,3 +988,7 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+#[path = "retention/reapply_tests.rs"]
+mod reapply_tests;

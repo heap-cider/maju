@@ -1,44 +1,66 @@
-use std::sync::atomic::Ordering;
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::atomic::Ordering,
+};
 
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::{
-    agent_readiness, append_log_marker, current_instance_id, find_managed_agent_mut,
-    load_global_agent_config, load_managed_agents, load_personas, managed_agent_runtime_log_path,
-    process_is_running, record_agent_command, resolve_effective_agent_env, save_managed_agents,
-    spawn_agent_child, terminate_process, terminate_untracked_pair_runtime,
-    write_agent_runtime_receipt, AgentReadiness, BackendKind, ManagedAgentPairRuntime,
-    ManagedAgentRuntimeKey, ManagedAgentRuntimeLifecycle, ManagedAgentRuntimeReceipt,
-    ManagedAgentRuntimeStatus,
+    agent_readiness, agent_store_dir_for_relay, append_log_marker, current_instance_id,
+    find_managed_agent_mut, load_global_agent_config, load_managed_agents_from_path,
+    load_personas_from_agent_store_path, load_teams_readonly, managed_agent_runtime_log_path,
+    process_is_running, record_agent_command, resolve_effective_agent_env,
+    save_managed_agents_to_path, spawn_agent_child_with_context, terminate_process,
+    terminate_untracked_pair_runtime, write_agent_runtime_receipt, AgentReadiness, BackendKind,
+    ManagedAgentPairRuntime, ManagedAgentRuntimeKey, ManagedAgentRuntimeLifecycle,
+    ManagedAgentRuntimeReceipt, ManagedAgentRuntimeStatus,
 };
 use crate::app_state::AppState;
 
 const STATUS_EVENT: &str = "managed-agent-runtime-status";
 
-fn status_for(
+#[derive(Clone)]
+struct RuntimeStorePaths {
+    agents: PathBuf,
+    teams: PathBuf,
+}
+
+struct RuntimeScopeData {
+    paths: RuntimeStorePaths,
+    records: Vec<super::ManagedAgentRecord>,
+    personas: Vec<super::AgentDefinition>,
+    teams: Vec<super::TeamRecord>,
+}
+
+fn runtime_store_paths(
     app: &AppHandle,
-    record: &super::ManagedAgentRecord,
-    key: &ManagedAgentRuntimeKey,
-    runtime: Option<&ManagedAgentPairRuntime>,
-    requested_relay_url: Option<String>,
-) -> ManagedAgentRuntimeStatus {
-    let personas = load_personas(app).unwrap_or_default();
-    let global = load_global_agent_config(app).unwrap_or_default();
-    status_for_with(
-        app,
-        record,
-        key,
-        runtime,
-        requested_relay_url,
-        StatusInputs {
-            personas: &personas,
-            global: &global,
-        },
-    )
+    state: &AppState,
+    relay_url: &str,
+) -> Result<RuntimeStorePaths, String> {
+    let dir = agent_store_dir_for_relay(app, state, relay_url)?;
+    Ok(RuntimeStorePaths {
+        agents: dir.join("managed-agents.json"),
+        teams: dir.join("teams.json"),
+    })
+}
+
+fn load_runtime_scope(
+    app: &AppHandle,
+    state: &AppState,
+    relay_url: &str,
+) -> Result<RuntimeScopeData, String> {
+    let paths = runtime_store_paths(app, state, relay_url)?;
+    Ok(RuntimeScopeData {
+        records: load_managed_agents_from_path(&paths.agents)?,
+        personas: load_personas_from_agent_store_path(&paths.agents)?,
+        teams: load_teams_readonly(&paths.teams)?,
+        paths,
+    })
 }
 
 /// Preloaded per-call-site inputs for [`status_for_with`], so multi-row
-/// callers (list, reconcile) hit disk once instead of once per row.
+/// callers use definitions from the runtime pair's own community store.
 struct StatusInputs<'a> {
     personas: &'a [super::AgentDefinition],
     global: &'a super::GlobalAgentConfig,
@@ -107,8 +129,13 @@ pub fn put_managed_agent_runtime_lifecycle(
 ) -> Result<ManagedAgentRuntimeStatus, String> {
     let key = observer_lifecycle_key(&outer_pubkey, &payload)?;
     let state = app.state::<AppState>();
-    let records = load_managed_agents(&app)?;
-    let record = records
+    let _store = state
+        .managed_agents_store_lock
+        .lock()
+        .map_err(|e| e.to_string())?;
+    let scope = load_runtime_scope(&app, &state, &key.relay_url)?;
+    let record = scope
+        .records
         .iter()
         .find(|record| record.pubkey.eq_ignore_ascii_case(&key.pubkey))
         .ok_or_else(|| format!("agent {} not found", key.pubkey))?;
@@ -132,7 +159,18 @@ pub fn put_managed_agent_runtime_lifecycle(
     }
     runtime.lifecycle = payload.lifecycle;
     runtime.error = payload.error;
-    let status = status_for(&app, record, &key, Some(runtime), None);
+    let global = load_global_agent_config(&app).unwrap_or_default();
+    let status = status_for_with(
+        &app,
+        record,
+        &key,
+        Some(runtime),
+        None,
+        StatusInputs {
+            personas: &scope.personas,
+            global: &global,
+        },
+    );
     emit_status(&app, &status);
     Ok(status)
 }
@@ -141,10 +179,6 @@ pub fn put_managed_agent_runtime_lifecycle(
 pub fn list_managed_agent_runtimes(
     app: AppHandle,
 ) -> Result<Vec<ManagedAgentRuntimeStatus>, String> {
-    // This command is polled whenever the members sidebar opens and refetched
-    // on every status event — load the per-row status inputs once, outside
-    // the locks, instead of hitting disk per row while holding them.
-    let personas = load_personas(&app).unwrap_or_default();
     let global = load_global_agent_config(&app).unwrap_or_default();
     let state = app.state::<AppState>();
     let _transition = state
@@ -155,7 +189,6 @@ pub fn list_managed_agent_runtimes(
         .managed_agents_store_lock
         .lock()
         .map_err(|e| e.to_string())?;
-    let mut records = load_managed_agents(&app)?;
     let mut runtimes = state
         .managed_agent_processes
         .lock()
@@ -167,18 +200,34 @@ pub fn list_managed_agent_runtimes(
             Ok(None) => None,
         })
         .collect();
-    let records_changed = !exited_keys.is_empty();
+    let runtime_keys: Vec<_> = runtimes.keys().cloned().collect();
+    let mut scopes = HashMap::new();
+    for key in runtime_keys.iter().chain(exited_keys.iter()) {
+        if !scopes.contains_key(&key.relay_url) {
+            scopes.insert(
+                key.relay_url.clone(),
+                load_runtime_scope(&app, &state, &key.relay_url)?,
+            );
+        }
+    }
+
+    let mut changed_scopes = HashSet::new();
     let mut statuses = Vec::new();
     for key in exited_keys {
         runtimes.remove(&key);
         super::remove_agent_runtime_receipt(&app, &key);
         state.clear_agent_session_cache(&key);
-        if let Some(record) = records
+        let Some(scope) = scopes.get_mut(&key.relay_url) else {
+            continue;
+        };
+        if let Some(record) = scope
+            .records
             .iter_mut()
             .find(|record| record.pubkey.eq_ignore_ascii_case(&key.pubkey))
         {
             record.updated_at = crate::util::now_iso();
             record.last_stopped_at = Some(record.updated_at.clone());
+            changed_scopes.insert(key.relay_url.clone());
             let status = status_for_with(
                 &app,
                 record,
@@ -186,7 +235,7 @@ pub fn list_managed_agent_runtimes(
                 None,
                 None,
                 StatusInputs {
-                    personas: &personas,
+                    personas: &scope.personas,
                     global: &global,
                 },
             );
@@ -194,27 +243,34 @@ pub fn list_managed_agent_runtimes(
             statuses.push(status);
         }
     }
-    statuses.extend(runtimes.iter().filter_map(|(key, runtime)| {
-        let record = records
+    for (key, runtime) in runtimes.iter() {
+        let Some(scope) = scopes.get(&key.relay_url) else {
+            continue;
+        };
+        let Some(record) = scope
+            .records
             .iter()
-            .find(|record| record.pubkey.eq_ignore_ascii_case(&key.pubkey))?;
-        Some(status_for_with(
+            .find(|record| record.pubkey.eq_ignore_ascii_case(&key.pubkey))
+        else {
+            continue;
+        };
+        statuses.push(status_for_with(
             &app,
             record,
             key,
             Some(runtime),
             None,
             StatusInputs {
-                personas: &personas,
+                personas: &scope.personas,
                 global: &global,
             },
-        ))
-    }));
+        ));
+    }
     drop(runtimes);
-    // Records are only mutated above when a runtime exited — skip the store
-    // rewrite on the common nothing-changed poll.
-    if records_changed {
-        save_managed_agents(&app, &records)?;
+    for relay_url in changed_scopes {
+        if let Some(scope) = scopes.get(&relay_url) {
+            save_managed_agents_to_path(&scope.paths.agents, &scope.records)?;
+        }
     }
     Ok(statuses)
 }
@@ -255,7 +311,12 @@ fn start_pair(
         .managed_agents_store_lock
         .lock()
         .map_err(|e| e.to_string())?;
-    let mut records = load_managed_agents(&app)?;
+    let RuntimeScopeData {
+        paths,
+        mut records,
+        personas,
+        teams,
+    } = load_runtime_scope(&app, &state, &relay_url)?;
     let record = find_managed_agent_mut(&mut records, &pubkey)?;
     if record.backend != BackendKind::Local {
         return Err("managed runtime pairs require a local agent".into());
@@ -272,7 +333,18 @@ fn start_pair(
         .get_mut(&key)
         .is_some_and(|runtime| runtime.child.try_wait().ok().flatten().is_none())
     {
-        let status = status_for(&app, record, &key, runtimes.get(&key), None);
+        let global = load_global_agent_config(&app).unwrap_or_default();
+        let status = status_for_with(
+            &app,
+            record,
+            &key,
+            runtimes.get(&key),
+            None,
+            StatusInputs {
+                personas: &personas,
+                global: &global,
+            },
+        );
         return Ok(status);
     }
     runtimes.remove(&key);
@@ -283,7 +355,15 @@ fn start_pair(
         .lock()
         .ok()
         .map(|keys| keys.public_key().to_hex());
-    let mut process = spawn_agent_child(&app, record, &key.relay_url, lazy, owner.as_deref())?;
+    let mut process = spawn_agent_child_with_context(
+        &app,
+        record,
+        &key.relay_url,
+        lazy,
+        owner.as_deref(),
+        &personas,
+        &teams,
+    )?;
     let now = crate::util::now_iso();
     let receipt = ManagedAgentRuntimeReceipt {
         key: key.clone(),
@@ -302,9 +382,20 @@ fn start_pair(
     record.last_stopped_at = None;
     record.last_error = None;
     runtimes.insert(key.clone(), ManagedAgentPairRuntime::starting(process));
-    let status = status_for(&app, record, &key, runtimes.get(&key), None);
+    let global = load_global_agent_config(&app).unwrap_or_default();
+    let status = status_for_with(
+        &app,
+        record,
+        &key,
+        runtimes.get(&key),
+        None,
+        StatusInputs {
+            personas: &personas,
+            global: &global,
+        },
+    );
     drop(runtimes);
-    save_managed_agents(&app, &records)?;
+    save_managed_agents_to_path(&paths.agents, &records)?;
     emit_status(&app, &status);
     Ok(status)
 }
@@ -324,7 +415,12 @@ pub fn stop_managed_agent_runtime(
         .managed_agents_store_lock
         .lock()
         .map_err(|e| e.to_string())?;
-    let mut records = load_managed_agents(&app)?;
+    let RuntimeScopeData {
+        paths,
+        mut records,
+        personas,
+        ..
+    } = load_runtime_scope(&app, &state, &relay_url)?;
     let record = find_managed_agent_mut(&mut records, &pubkey)?;
     let key = ManagedAgentRuntimeKey::new(pubkey, &relay_url)?;
     let mut runtimes = state
@@ -369,9 +465,20 @@ pub fn stop_managed_agent_runtime(
     record.runtime_pid = None;
     record.updated_at = crate::util::now_iso();
     record.last_stopped_at = Some(record.updated_at.clone());
-    let status = status_for(&app, record, &key, None, None);
+    let global = load_global_agent_config(&app).unwrap_or_default();
+    let status = status_for_with(
+        &app,
+        record,
+        &key,
+        None,
+        None,
+        StatusInputs {
+            personas: &personas,
+            global: &global,
+        },
+    );
     drop(runtimes);
-    save_managed_agents(&app, &records)?;
+    save_managed_agents_to_path(&paths.agents, &records)?;
     emit_status(&app, &status);
     Ok(status)
 }
@@ -446,16 +553,26 @@ fn unkeyable_failed_status(
     }
 }
 
-/// Spawn a lazy harness pair for every eligible (agent, community) pair.
+fn runtime_reconcile_jobs_for_scope(
+    records: Vec<super::ManagedAgentRecord>,
+    relay_url: &str,
+) -> Vec<(super::ManagedAgentRecord, String)> {
+    records
+        .into_iter()
+        .filter(|record| record.start_on_app_launch && record.backend == BackendKind::Local)
+        .map(|record| (record, relay_url.to_string()))
+        .collect()
+}
+
+/// Spawn a lazy harness pair for every eligible agent in each community's own
+/// relay+owner store.
 ///
 /// Eligibility is deliberately gated on `start_on_app_launch`: auto-start is
-/// the *proactive fan-out* policy — "keep this agent warm in every community" —
-/// not a correctness prerequisite. A manual-start agent still works on demand
-/// everywhere: attaching it to a channel ensures its pair, an @mention wakes a
-/// pair, the members sidebar and Settings controls start pairs, and restore
-/// preserves running pairs across relaunch. Fanning out warm-socket pairs for
-/// agents the user chose *not* to auto-start would contradict that choice, so
-/// reconcile leaves them alone until something explicitly asks for them.
+/// the proactive policy for that definition's community, not permission to run
+/// one community's identities on every configured relay. A manual-start agent
+/// still works on demand in its own community: attaching it to a channel
+/// ensures its pair, an @mention wakes a pair, and restore preserves running
+/// pairs across relaunch.
 #[tauri::command]
 pub async fn reconcile_managed_agent_runtimes(
     communities: Vec<super::ManagedAgentCommunityTarget>,
@@ -463,19 +580,22 @@ pub async fn reconcile_managed_agent_runtimes(
 ) -> Result<Vec<ManagedAgentRuntimeStatus>, String> {
     use futures_util::{stream, StreamExt};
 
-    let records = load_managed_agents(&app)?;
+    let state = app.state::<AppState>();
+    let _store = state
+        .managed_agents_store_lock
+        .lock()
+        .map_err(|e| e.to_string())?;
     let mut jobs = Vec::new();
     for community in communities {
-        for record in records
-            .iter()
-            .filter(|record| record.start_on_app_launch && record.backend == BackendKind::Local)
-        // The legacy per-record relay pin is deliberately ignored here — see
-        // `effective_agent_relay_url`. Every local auto-start agent fans out
-        // to every configured community.
-        {
-            jobs.push((record.clone(), community.relay_url.clone()));
-        }
+        let scope = load_runtime_scope(&app, &state, &community.relay_url)?;
+        // The legacy per-record relay pin is deliberately ignored — the
+        // containing store is the community boundary.
+        jobs.extend(runtime_reconcile_jobs_for_scope(
+            scope.records,
+            &community.relay_url,
+        ));
     }
+    drop(_store);
     let probes: Vec<_> = stream::iter(jobs)
         .map(|(record, requested)| {
             let state = app.state::<AppState>();
@@ -496,15 +616,15 @@ pub async fn reconcile_managed_agent_runtimes(
     // so run the post-probe start loop off the async workers, matching the
     // restart flows.
     tokio::task::spawn_blocking(move || {
-        let personas = load_personas(&app).unwrap_or_default();
         let global = load_global_agent_config(&app).unwrap_or_default();
+        let state = app.state::<AppState>();
         let mut rows = Vec::new();
         for probe in probes {
             match probe {
                 Ok((record, key, requested)) => {
                     match start_pair(
                         record.pubkey.clone(),
-                        key.relay_url.clone(),
+                        requested.clone(),
                         true,
                         Some(&record.updated_at),
                         app.clone(),
@@ -514,6 +634,11 @@ pub async fn reconcile_managed_agent_runtimes(
                             rows.push(status);
                         }
                         Err(error) => {
+                            let personas = runtime_store_paths(&app, &state, &requested)
+                                .and_then(|paths| {
+                                    load_personas_from_agent_store_path(&paths.agents)
+                                })
+                                .unwrap_or_default();
                             let mut status = status_for_with(
                                 &app,
                                 &record,
@@ -536,6 +661,9 @@ pub async fn reconcile_managed_agent_runtimes(
                     // form a pair key gets a Failed row (with the raw
                     // requested URL) like any other probe failure, instead of
                     // aborting every other community's row.
+                    let personas = runtime_store_paths(&app, &state, &requested)
+                        .and_then(|paths| load_personas_from_agent_store_path(&paths.agents))
+                        .unwrap_or_default();
                     let status =
                         match ManagedAgentRuntimeKey::new(record.pubkey.clone(), &requested) {
                             Ok(key) => {
@@ -607,19 +735,20 @@ mod tests {
     }
 
     #[test]
-    fn legacy_relay_pin_is_ignored_for_fan_out() {
-        // Zero-touch cutover (#2122): a record carrying a creation-era
-        // `relay_url` pin must fan out exactly like an unpinned one — the
-        // stored field is parsed but never consulted. See
-        // `effective_agent_relay_url`.
-        let unpinned = record_with_relay("");
-        let pinned = record_with_relay("wss://one.example");
-        for record in [&unpinned, &pinned] {
-            assert_eq!(
-                crate::relay::effective_agent_relay_url(&record.relay_url, "wss://two.example"),
-                "wss://two.example"
-            );
-        }
+    fn reconcile_jobs_stay_in_their_community_store() {
+        let first = record_with_relay("wss://legacy-pin.example");
+        let mut second = record_with_relay("");
+        second.pubkey = "bb".repeat(32);
+
+        let first_jobs = runtime_reconcile_jobs_for_scope(vec![first], "wss://one.example");
+        let second_jobs = runtime_reconcile_jobs_for_scope(vec![second], "wss://two.example");
+
+        assert_eq!(first_jobs.len(), 1);
+        assert_eq!(first_jobs[0].0.pubkey, "aa".repeat(32));
+        assert_eq!(first_jobs[0].1, "wss://one.example");
+        assert_eq!(second_jobs.len(), 1);
+        assert_eq!(second_jobs[0].0.pubkey, "bb".repeat(32));
+        assert_eq!(second_jobs[0].1, "wss://two.example");
     }
 
     #[test]

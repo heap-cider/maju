@@ -38,10 +38,10 @@ mod inbound_tests;
 /// its d-tag as the id and a re-received event stays idempotent (no duplicate).
 ///
 /// The retention store decides whether the inbound event wins over a pending
-/// local edit (`retain_inbound_event`): `personas.json` is only patched when the
-/// retain reports [`InboundOutcome::Applied`], so an equal-second collision with
-/// a pending local edit leaves the local record — and its queued publish —
-/// untouched.
+/// local edit (`retain_inbound_event`): `personas.json` is patched for a newer
+/// [`InboundOutcome::Applied`] head or an exact retained
+/// [`InboundOutcome::Reapply`] echo. Reapply heals a missing projection; an
+/// equal-second collision with a pending local edit remains untouched.
 ///
 /// `arrival_relay_url` is the relay the calling subscription is bound to. The
 /// retention store this event belongs to is decided by the community that

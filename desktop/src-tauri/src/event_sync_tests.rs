@@ -47,6 +47,29 @@ fn migrate_personas_writes_signed_retention_rows() {
 }
 
 #[test]
+fn run_event_sync_reads_only_the_captured_store_directory() {
+    use crate::managed_agents::retention::{get_retained_personas, open_retention_db};
+
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    write_base_personas(first.path(), &one_persona());
+    let mut other = one_persona();
+    other.as_array_mut().unwrap()[0]["id"] = serde_json::json!("other-community");
+    other.as_array_mut().unwrap()[0]["display_name"] = serde_json::json!("Other Community");
+    write_base_personas(second.path(), &other);
+
+    let keys = nostr::Keys::generate();
+    let db_path = first.path().join("captured.db");
+    run_event_sync(&keys, &db_path, first.path());
+
+    let conn = open_retention_db(&db_path).unwrap();
+    let rows = get_retained_personas(&conn, &keys.public_key().to_hex()).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].d_tag, "code-reviewer");
+    assert!(!rows.iter().any(|row| row.d_tag == "other-community"));
+}
+
+#[test]
 fn migrate_personas_skips_builtins() {
     use crate::managed_agents::retention::{get_retained_personas, open_retention_db};
 

@@ -18,6 +18,9 @@ mod path;
 pub(in crate::managed_agents) use path::build_augmented_path;
 pub(crate) use path::{compose_path_entries, should_skip_claude_executable, should_use_inherited};
 
+mod active_spawn;
+pub use active_spawn::spawn_agent_child;
+
 pub(crate) use super::access_policy::{build_respond_to_env_with_policy, RespondToEnv};
 mod metadata;
 pub(crate) use metadata::{
@@ -393,18 +396,17 @@ pub(crate) fn configure_runtime_cli(
     }
 }
 
-/// Spawn an agent process without holding any locks on records or runtimes.
-/// Returns the child process and log path on success. The caller is responsible
-/// for updating `ManagedAgentRecord` fields and inserting into the runtimes map.
-///
-/// `owner_hex`: the workspace owner's pubkey, used as a fallback for legacy
-/// records that have no NIP-OA `auth_tag`. See `build_respond_to_env`.
-pub fn spawn_agent_child(
+/// Spawn against definitions and teams loaded from the runtime pair's own
+/// community scope. Inactive-community pairs must not resolve configuration
+/// through the process-global active store.
+pub(crate) fn spawn_agent_child_with_context(
     app: &AppHandle,
     record: &ManagedAgentRecord,
     relay_url: &str,
     lazy: bool,
     owner_hex: Option<&str>,
+    personas: &[super::AgentDefinition],
+    teams: &[super::TeamRecord],
 ) -> Result<crate::managed_agents::ManagedAgentProcess, String> {
     if let Some(error) = spawn_key_refusal(record) {
         return Err(error);
@@ -415,8 +417,6 @@ pub fn spawn_agent_child(
     // override wins. `agent_args` and `mcp_command` are pure derivations of the
     // command, so we recompute them from the effective value rather than the
     // frozen record snapshot. Mirrors the model resolution below.
-    let personas = super::load_personas(app).unwrap_or_default();
-    let teams = super::load_teams(app).unwrap_or_default();
     // Load global config once; used for runtime_metadata_env_vars (model/provider fallback)
     // and for the env-var merge at spawn time.
     let global = crate::managed_agents::load_global_agent_config(app).unwrap_or_default();
@@ -433,7 +433,7 @@ pub fn spawn_agent_child(
     // directly. Checked before any side effect (log marker, log file, process
     // spawn) so a refused spawn leaves no trace.
     let effective_cfg = crate::managed_agents::effective_config::resolve_effective_config(
-        record, &personas, &global,
+        record, personas, &global,
     )
     .require_resolved()?;
 
@@ -445,7 +445,7 @@ pub fn spawn_agent_child(
     // Like the orphan refusal above, this runs before any side effect so a refused
     // spawn leaves no trace.
     let descriptor =
-        crate::managed_agents::resolve_effective_harness_descriptor(record, &personas, &global)
+        crate::managed_agents::resolve_effective_harness_descriptor(record, personas, &global)
             .map_err(|e| {
                 format!(
                     "cannot spawn agent {}: {}",
@@ -685,7 +685,7 @@ pub fn spawn_agent_child(
             }
         }
     }
-    let team_instructions = super::spawn_snapshot::effective_team_instructions(record, &teams);
+    let team_instructions = super::spawn_snapshot::effective_team_instructions(record, teams);
     if let Some(instructions) = &team_instructions {
         command.env("MAJU_ACP_TEAM_INSTRUCTIONS", instructions);
     } else {

@@ -265,11 +265,18 @@ pub async fn apply_workspace(
     // applied. Running at process boot would target the fallback relay and
     // collapse every community into one pending-event store.
     match crate::managed_agents::retention::active_retention_scope(&restore_app, &state) {
-        Ok(scope) => crate::event_sync::spawn_event_sync(
-            restore_app.clone(),
-            scope.owner_keys,
-            scope.db_path,
-        ),
+        Ok(scope) => match crate::managed_agents::agent_store_dir_for_relay(
+            &restore_app,
+            &state,
+            &scope.relay_url,
+        ) {
+            Ok(store_dir) => {
+                crate::event_sync::spawn_event_sync(scope.owner_keys, scope.db_path, store_dir)
+            }
+            Err(error) => {
+                eprintln!("maju-desktop: scoped event-sync store unavailable: {error}");
+            }
+        },
         Err(error) => {
             eprintln!("maju-desktop: scoped event-sync unavailable after workspace apply: {error}");
         }

@@ -11,7 +11,6 @@ use tauri::AppHandle;
 #[cfg(not(test))]
 use tauri::Manager;
 
-#[cfg(not(test))]
 use crate::app_state::AppState;
 
 use super::{
@@ -66,6 +65,29 @@ pub(crate) fn scoped_agent_store_dir(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| "retention scope path has no usable scope id".to_string())?;
     Ok(base_dir.join("scopes").join(scope_id))
+}
+
+/// Resolve an already-initialized agent store for one relay+owner pair without
+/// changing the active workspace.
+///
+/// Managed runtime pairs can stay alive for inactive communities. Pair-scoped
+/// commands therefore derive the store from the pair's relay URL instead of
+/// consulting the process-global active relay.
+pub(crate) fn agent_store_dir_for_relay(
+    app: &AppHandle,
+    state: &AppState,
+    relay_url: &str,
+) -> Result<PathBuf, String> {
+    let base_dir = managed_agents_base_dir(app)?;
+    let owner_pubkey = state.signing_keys()?.public_key().to_hex();
+    let db_path = retention::scoped_retention_db_path(&base_dir, relay_url, &owner_pubkey);
+    let dir = scoped_agent_store_dir(&base_dir, &db_path)?;
+    if !dir.join("scope.json").exists() {
+        return Err(format!(
+            "agent store for community {relay_url} has not been initialized"
+        ));
+    }
+    Ok(dir)
 }
 
 /// Unit tests historically use a bare Tauri app without applying a workspace,

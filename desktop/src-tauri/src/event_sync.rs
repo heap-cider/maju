@@ -13,10 +13,14 @@ use std::path::Path;
 /// `sync_team_personas` wrote in [`crate::migration::run_boot_migrations`]
 /// (see its `# Ordering` guard). Event signing needs the resolved owner keys,
 /// so this runs after identity resolution, not in the boot migrations.
-pub fn run_event_sync(app: &tauri::AppHandle, owner_keys: &nostr::Keys, db_path: &Path) {
-    migrate_personas_to_events(app, owner_keys, db_path);
-    migrate_teams_to_events(app, owner_keys, db_path);
-    crate::managed_agents::reconcile::reconcile_agents_to_events(app, owner_keys, db_path);
+pub fn run_event_sync(owner_keys: &nostr::Keys, db_path: &Path, store_dir: &Path) {
+    migrate_personas_to_events(store_dir, owner_keys, db_path);
+    migrate_teams_to_events(store_dir, owner_keys, db_path);
+    crate::managed_agents::reconcile::reconcile_agents_to_events(
+        &store_dir.join("managed-agents.json"),
+        owner_keys,
+        db_path,
+    );
 }
 
 /// Spawn the best-effort event reconcile off the synchronous Tauri setup path.
@@ -26,13 +30,13 @@ pub fn run_event_sync(app: &tauri::AppHandle, owner_keys: &nostr::Keys, db_path:
 /// SQLite, and signing work, so it runs on the blocking pool rather than an
 /// async worker.
 pub fn spawn_event_sync(
-    app: tauri::AppHandle,
     owner_keys: nostr::Keys,
     db_path: std::path::PathBuf,
+    store_dir: std::path::PathBuf,
 ) {
     tauri::async_runtime::spawn(async move {
         if let Err(e) = tauri::async_runtime::spawn_blocking(move || {
-            run_event_sync(&app, &owner_keys, &db_path);
+            run_event_sync(&owner_keys, &db_path, &store_dir);
         })
         .await
         {
@@ -61,14 +65,8 @@ pub fn spawn_event_sync(
 /// `pending_sync = 1` for later relay publish. Migration succeeds on local
 /// write, not relay acknowledgment. Every retained row is a real signed
 /// event — there is no placeholder path.
-pub fn migrate_personas_to_events(app: &tauri::AppHandle, keys: &nostr::Keys, db_path: &Path) {
-    use crate::managed_agents::active_agent_store_dir;
-
-    let Ok(base_dir) = active_agent_store_dir(app) else {
-        return;
-    };
-
-    match migrate_personas_in_dir_at(&base_dir, keys, db_path) {
+pub fn migrate_personas_to_events(base_dir: &Path, keys: &nostr::Keys, db_path: &Path) {
+    match migrate_personas_in_dir_at(base_dir, keys, db_path) {
         Ok(0) => {}
         Ok(migrated) => {
             eprintln!(
@@ -219,14 +217,8 @@ fn migrate_personas_in_dir_at(
 ///
 /// Must run after the persisted identity is resolved (it signs each event with
 /// the owner's keys).
-pub fn migrate_teams_to_events(app: &tauri::AppHandle, keys: &nostr::Keys, db_path: &Path) {
-    use crate::managed_agents::active_agent_store_dir;
-
-    let Ok(base_dir) = active_agent_store_dir(app) else {
-        return;
-    };
-
-    match migrate_teams_in_dir_at(&base_dir, keys, db_path) {
+pub fn migrate_teams_to_events(base_dir: &Path, keys: &nostr::Keys, db_path: &Path) {
+    match migrate_teams_in_dir_at(base_dir, keys, db_path) {
         Ok(0) => {}
         Ok(migrated) => {
             eprintln!("maju-desktop: team-event-migration: {migrated} teams migrated to retention");

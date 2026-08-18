@@ -32,17 +32,13 @@ use nostr::JsonUtil;
 /// Reconcile `managed-agents.json` into kind:30177 events in the retention
 /// store. Boot-time entry point, called from `event_sync::run_event_sync`
 /// after the persona and team legs.
-pub(crate) fn reconcile_agents_to_events(
-    app: &tauri::AppHandle,
-    keys: &nostr::Keys,
-    db_path: &Path,
-) {
+pub(crate) fn reconcile_agents_to_events(store_path: &Path, keys: &nostr::Keys, db_path: &Path) {
     // Unlike the test/disk seam below, the real boot path hydrates nsecs from
     // the OS keyring. That lets pre-envelope agents publish their encrypted
     // identity once after upgrade; reading raw JSON would see an empty key in
     // the normal keyring-backed case and leave those agents device-bound.
     let result = (|| -> Result<u32, String> {
-        let records = super::load_managed_agents(app)?;
+        let records = super::load_managed_agents_from_path(store_path)?;
         if records.is_empty() {
             return Ok(0);
         }

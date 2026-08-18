@@ -345,6 +345,19 @@ pub fn load_personas(app: &AppHandle) -> Result<Vec<AgentDefinition>, String> {
     Ok(records)
 }
 
+/// Read persona definitions from an explicit community+owner agent store.
+/// Built-ins are merged in memory, but the scoped store is not rewritten.
+pub(crate) fn load_personas_from_agent_store_path(
+    path: &std::path::Path,
+) -> Result<Vec<AgentDefinition>, String> {
+    let now = now_iso();
+    let records = crate::managed_agents::storage::load_agent_definitions_from_path(path)?
+        .iter()
+        .filter_map(|record| record.to_definition_view())
+        .collect();
+    Ok(merge_personas(records, &now).0)
+}
+
 /// Read the raw persona records at `path` — no built-in merge, no write-back.
 /// The single disk-read seam for persona definitions: `load_personas` layers
 /// the built-in merge on top, and the boot-time readers that need raw records
