@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.22
+
+- Keep managed-agent definitions, identities, teams, and runtime configuration bound to their own community while background runners stay active.
+- Capture each event-sync JSON store together with its matching retention database so rapid community switches cannot cross-publish agent data.
+- Reapply exact relay-confirmed events to repair stale local projections and recover encrypted agent identities after migration or reinstall.
+
 ## v0.2.21
 
 - Adopt Buzz desktop-v0.5.12 through desktop-v0.5.14 while preserving Maju's self-hosted identity, release, deployment, and empty-project creation decisions.
