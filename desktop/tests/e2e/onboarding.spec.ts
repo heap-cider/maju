@@ -2771,7 +2771,7 @@ test("first-run onboarding posts the live Fizz kickoff", async ({ page }) => {
     "Hi Morty QA, I'm Fizz. Welcome to Maju.",
   );
   await expect(page.getByTestId("message-timeline")).toContainText(
-    "Honey and Bumble, introduce yourselves",
+    "Honey and Pollen, introduce yourselves",
   );
 });
 
