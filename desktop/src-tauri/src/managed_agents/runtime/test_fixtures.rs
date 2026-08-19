@@ -62,6 +62,7 @@ pub(super) fn fixture(
         runtime_pid: None,
         backend: Default::default(),
         backend_agent_id: None,
+        provider_policy_pending: false,
         provider_binary_path: None,
         team_id: None,
         persona_team_dir: None,
@@ -90,4 +91,68 @@ pub(super) fn fixture(
         definition_parallelism: None,
         relay_mesh: None,
     }
+}
+
+pub(super) fn minimal_record(pubkey: &str) -> ManagedAgentRecord {
+    serde_json::from_str(&format!(
+        r#"{{
+            "pubkey": "{pubkey}",
+            "name": "test",
+            "private_key_nsec": "nsec1fake",
+            "relay_url": "",
+            "acp_command": "maju-acp",
+            "agent_command": "maju-agent",
+            "agent_args": [],
+            "mcp_command": "",
+            "turn_timeout_seconds": 320,
+            "system_prompt": null,
+            "model": null,
+            "provider": null,
+            "env_vars": {{}},
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "last_started_at": null,
+            "last_stopped_at": null,
+            "last_exit_code": null,
+            "last_error": null
+        }}"#
+    ))
+    .expect("minimal_record fixture")
+}
+
+pub(super) fn make_pair_runtime_placeholder() -> crate::managed_agents::ManagedAgentPairRuntime {
+    use std::process::{Command, Stdio};
+
+    // The absolute Unix path avoids races with tests that temporarily replace PATH.
+    #[cfg(unix)]
+    let program = std::ffi::OsString::from("/usr/bin/true");
+    #[cfg(windows)]
+    let program = std::env::var_os("COMSPEC").expect("COMSPEC must name cmd.exe");
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    command.args(["/D", "/C", "exit 0"]);
+    let child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn successful placeholder command");
+    let process = crate::managed_agents::ManagedAgentProcess {
+        child,
+        log_path: Default::default(),
+        spawn_config: crate::managed_agents::spawn_snapshot::prospective_spawn_config_snapshot(
+            &minimal_record(&"cc".repeat(32)),
+            &[],
+            &[],
+            "wss://relay.example",
+            &Default::default(),
+            false,
+        ),
+        setup_mode: false,
+        adapter_availability: None,
+        start_nonce: "test-nonce".to_string(),
+        #[cfg(windows)]
+        job: None,
+    };
+    crate::managed_agents::ManagedAgentPairRuntime::starting(process)
 }

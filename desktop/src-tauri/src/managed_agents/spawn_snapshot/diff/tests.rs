@@ -426,10 +426,15 @@ fn no_sentinel_reaches_the_owning_process_debug_output() {
     // `ManagedAgentProcess` derives `Debug` and delegates to the snapshot's
     // manual impl — this pins that the derive can never become the leak path.
     #[cfg(unix)]
-    let program = "/usr/bin/true";
+    let mut command = std::process::Command::new("/usr/bin/true");
     #[cfg(windows)]
-    let program = "true";
-    let child = std::process::Command::new(program)
+    let mut command = {
+        let program = std::env::var_os("COMSPEC").unwrap_or_else(|| "cmd.exe".into());
+        let mut command = std::process::Command::new(program);
+        command.args(["/C", "exit", "0"]);
+        command
+    };
+    let child = command
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

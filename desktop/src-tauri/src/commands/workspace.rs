@@ -265,20 +265,45 @@ pub async fn apply_workspace(
     // applied. Running at process boot would target the fallback relay and
     // collapse every community into one pending-event store.
     match crate::managed_agents::retention::active_retention_scope(&restore_app, &state) {
-        Ok(scope) => match crate::managed_agents::agent_store_dir_for_relay(
-            &restore_app,
-            &state,
-            &scope.relay_url,
-        ) {
-            Ok(store_dir) => {
-                crate::event_sync::spawn_event_sync(scope.owner_keys, scope.db_path, store_dir)
-            }
-            Err(error) => {
-                eprintln!("maju-desktop: scoped event-sync store unavailable: {error}");
-            }
-        },
+        Ok(scope) => {
+            // Adopt whatever the pre-scoping release left queued in the global
+            // retention database BEFORE the scoped reconcile and flush run, so
+            // stranded tombstones and archive requests publish on this boot
+            // instead of being abandoned by the storage cutover. Best-effort:
+            // it is not a prerequisite for the superseding head — the team leg
+            // below builds the repaired roster's head fresh from disk with a
+            // monotonic `created_at` regardless of what the legacy copy left.
+            migrate_legacy_retention_into(&restore_app, &scope)?;
+            // Await the reconcile to completion — do NOT spawn it — and
+            // propagate its failure. The boot migration may have repaired team
+            // membership on disk; the frontend starts inbound history replay
+            // the moment `useCommunityInit` observes the applied workspace, and
+            // an old relay team head could otherwise win that race and overwrite
+            // the repaired `persona_ids`. The team leg is fatal (see
+            // `run_event_sync`): only its success durably retains the corrected
+            // head with a superseding `monotonic_created_at`, so
+            // `retain_inbound_event`'s equal/older guard rejects the stale head.
+            // On failure we return `Err` — the command reports failure,
+            // `useCommunityInit` never exposes the community, and inbound replay
+            // never starts against an un-superseded disk state.
+            let store_dir = crate::managed_agents::agent_store_dir_for_relay(
+                &restore_app,
+                &state,
+                &scope.relay_url,
+            )
+            .map_err(|error| format!("scoped event-sync store unavailable: {error}"))?;
+            crate::event_sync::run_event_sync_blocking(scope.owner_keys, scope.db_path, store_dir)
+                .await?;
+        }
         Err(error) => {
-            eprintln!("maju-desktop: scoped event-sync unavailable after workspace apply: {error}");
+            // Scope resolution is a prerequisite for establishing the
+            // superseding head, so its failure is fatal for the same reason:
+            // without a scope we cannot retain the repaired roster ahead of an
+            // inbound replay. Fail the command rather than silently opening the
+            // inbound lane.
+            return Err(format!(
+                "scoped event-sync unavailable after workspace apply: {error}"
+            ));
         }
     }
 

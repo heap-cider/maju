@@ -16,7 +16,10 @@ use tauri::AppHandle;
 
 use crate::app_state::AppState;
 
+mod inbound;
 mod legacy_migration;
+
+pub use inbound::{inbound_event_outcome, retain_inbound_event, InboundOutcome};
 pub use legacy_migration::migrate_legacy_retention_db;
 
 /// Durable event-retention scope for one community relay and owner identity.
@@ -242,83 +245,6 @@ pub fn retain_event(conn: &Connection, event: &RetainedEvent) -> Result<(), Stri
     .map_err(|e| format!("failed to retain event: {e}"))?;
 
     Ok(())
-}
-
-/// Outcome of an inbound retain — whether the local store now reflects the
-/// inbound event, so the caller knows whether to patch `personas.json`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InboundOutcome {
-    /// The inbound event was applied (no row, or it was strictly newer than a
-    /// non-conflicting local row). The caller patches the local record store.
-    Applied,
-    /// The exact relay-confirmed head was already retained. The caller reapplies
-    /// it to repair a missing or stale JSON projection without rewriting SQLite.
-    Reapply,
-    /// The inbound event was NOT applied: either it is older than the retained
-    /// row, or it collides at the same `created_at` with a pending local edit.
-    /// The local record store is left untouched and the pending edit republishes.
-    Skipped,
-}
-
-/// Retain an event arriving FROM the relay, resolving it against any local row.
-///
-/// Inbound events are already on the relay, so they are retained with
-/// `pending_sync = 0`. The resolution is deliberately narrower than
-/// [`retain_event`]'s blind newer-or-equal upsert, which would clobber a
-/// pending local edit's `pending_sync` flag and silently drop its publish:
-///
-/// - No local row, or inbound strictly newer (`created_at >`): apply the
-///   inbound event, clearing `pending_sync`. Inbound wins; a stale local edit
-///   the relay already superseded stops republishing instead of looping.
-/// - Equal `created_at`: reapply only when it is the exact already-confirmed
-///   event. This repairs a missing JSON projection (or missing decrypted agent
-///   key) after a reinstall/recovery. A different event at the same second, or
-///   any pending local row, is skipped so the local publish is never dropped.
-/// - Inbound older: skip — nothing to change.
-pub fn retain_inbound_event(
-    conn: &Connection,
-    event: &RetainedEvent,
-) -> Result<InboundOutcome, String> {
-    let existing = get_retained_event(conn, event.kind, &event.pubkey, &event.d_tag)?;
-
-    match &existing {
-        None => {}
-        Some(row) if event.created_at > row.created_at => {}
-        Some(row)
-            if event.created_at == row.created_at
-                && !row.pending_sync
-                && event.raw_event == row.raw_event =>
-        {
-            return Ok(InboundOutcome::Reapply);
-        }
-        // Equal-but-different or older: skip. Equal time may collide with a
-        // pending local edit, so we never clear its `pending_sync`.
-        Some(_) => return Ok(InboundOutcome::Skipped),
-    }
-
-    // Inbound is strictly newer (or there was no row): overwrite and clear
-    // `pending_sync`. No upsert guard is needed — the Rust check above already
-    // established that this event wins.
-    conn.execute(
-        "INSERT INTO persona_events (kind, pubkey, d_tag, content, created_at, raw_event, pending_sync)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)
-         ON CONFLICT (kind, pubkey, d_tag) DO UPDATE SET
-            content = excluded.content,
-            created_at = excluded.created_at,
-            raw_event = excluded.raw_event,
-            pending_sync = 0",
-        params![
-            event.kind,
-            event.pubkey,
-            event.d_tag,
-            event.content,
-            event.created_at,
-            event.raw_event,
-        ],
-    )
-    .map_err(|e| format!("failed to retain inbound event: {e}"))?;
-
-    Ok(InboundOutcome::Applied)
 }
 
 /// Load all retained persona events for a given pubkey.
@@ -607,6 +533,37 @@ mod tests {
             raw_event: r#"{"id":"..."}"#.to_string(),
             pending_sync: true,
         }
+    }
+
+    #[test]
+    fn inbound_preflight_does_not_consume_event_before_commit() {
+        let conn = test_db();
+        let mut inbound = sample_event();
+        inbound.pending_sync = false;
+
+        assert_eq!(
+            inbound_event_outcome(&conn, &inbound).unwrap(),
+            InboundOutcome::Applied
+        );
+        assert!(
+            get_retained_event(&conn, inbound.kind, &inbound.pubkey, &inbound.d_tag)
+                .unwrap()
+                .is_none()
+        );
+        // A failed store/runtime apply can replay the same head because the
+        // preflight did not advance retention.
+        assert_eq!(
+            inbound_event_outcome(&conn, &inbound).unwrap(),
+            InboundOutcome::Applied
+        );
+        assert_eq!(
+            retain_inbound_event(&conn, &inbound).unwrap(),
+            InboundOutcome::Applied
+        );
+        assert_eq!(
+            inbound_event_outcome(&conn, &inbound).unwrap(),
+            InboundOutcome::Reapply
+        );
     }
 
     #[test]

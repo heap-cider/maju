@@ -117,7 +117,9 @@ fn unknown_command_returns_none() {
 
 // ── build_respond_to_env tests ───────────────────────────────────────
 
-use super::test_fixtures::{expected_mode, expected_owner_only, fixture};
+use super::test_fixtures::{
+    expected_mode, expected_owner_only, fixture, make_pair_runtime_placeholder, minimal_record,
+};
 use super::{build_respond_to_env, build_respond_to_env_with_policy};
 use crate::managed_agents::types::{ManagedAgentRecord, RespondTo};
 
@@ -1204,68 +1206,4 @@ fn receipt_invalid_when_process_not_running() {
         !valid,
         "non-running process must not be valid regardless of marker"
     );
-}
-
-// ── Test helpers ────────────────────────────────────────────────────────────
-
-fn minimal_record(pubkey: &str) -> crate::managed_agents::ManagedAgentRecord {
-    serde_json::from_str(&format!(
-        r#"{{
-            "pubkey": "{pubkey}",
-            "name": "test",
-            "private_key_nsec": "nsec1fake",
-            "relay_url": "",
-            "acp_command": "maju-acp",
-            "agent_command": "maju-agent",
-            "agent_args": [],
-            "mcp_command": "",
-            "turn_timeout_seconds": 320,
-            "system_prompt": null,
-            "model": null,
-            "provider": null,
-            "env_vars": {{}},
-            "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z",
-            "last_started_at": null,
-            "last_stopped_at": null,
-            "last_exit_code": null,
-            "last_error": null
-        }}"#
-    ))
-    .expect("minimal_record fixture")
-}
-
-fn make_pair_runtime_placeholder() -> crate::managed_agents::ManagedAgentPairRuntime {
-    use std::process::{Command, Stdio};
-    // Spawn a child that exits immediately; only its `Child` handle is needed.
-    #[cfg(unix)]
-    let program = std::ffi::OsString::from("/usr/bin/true");
-    #[cfg(windows)]
-    let program = std::env::var_os("COMSPEC").expect("COMSPEC must name cmd.exe");
-    let mut command = Command::new(program);
-    #[cfg(windows)]
-    command.args(["/D", "/C", "exit 0"]);
-    let child = command
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn successful placeholder command");
-    let process = crate::managed_agents::ManagedAgentProcess {
-        child,
-        log_path: std::path::PathBuf::new(),
-        spawn_config: crate::managed_agents::spawn_snapshot::prospective_spawn_config_snapshot(
-            &minimal_record(&"cc".repeat(32)),
-            &[],
-            &[],
-            "wss://relay.example",
-            &Default::default(),
-        ),
-        setup_mode: false,
-        adapter_availability: None,
-        start_nonce: "test-nonce".to_string(),
-        #[cfg(windows)]
-        job: None,
-    };
-    crate::managed_agents::ManagedAgentPairRuntime::starting(process)
 }

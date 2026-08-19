@@ -17,6 +17,21 @@ use crate::{
 #[cfg(test)]
 mod inbound_tests;
 
+#[derive(Debug)]
+enum InboundRuntimeRefresh {
+    Local {
+        pubkey: String,
+        relay_urls: Vec<String>,
+    },
+    Provider {
+        pubkey: String,
+        provider_id: String,
+        config: serde_json::Value,
+        cached_binary_path: Option<String>,
+        agent_json: Result<serde_json::Value, String>,
+    },
+}
+
 /// Apply an inbound kind:30175 persona event from the relay onto the local
 /// store. The frontend's live subscription invokes this per event for our own
 /// authored coordinate so Device B inherits Device A's edits.
@@ -57,24 +72,85 @@ pub async fn reconcile_inbound_persona_event(
     arrival_relay_url: String,
     app: AppHandle,
 ) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || {
-        reconcile_inbound_persona_event_blocking(event_json, arrival_relay_url, app)
+    let blocking_app = app.clone();
+    let restart = tokio::task::spawn_blocking(move || {
+        reconcile_inbound_persona_event_blocking(event_json, arrival_relay_url, blocking_app)
     })
     .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
+
+    match restart {
+        Some(InboundRuntimeRefresh::Local { pubkey, relay_urls }) => {
+            let state = app.state::<AppState>();
+            super::super::agents::start_local_agent_pairs_with_preflight(
+                &app,
+                &state,
+                &pubkey,
+                &relay_urls,
+            )
+            .await
+            .map_err(|error| {
+                format!(
+                    "Inbound agent access was saved, but its runtime failed to restart with the new policy: {error}"
+                )
+            })?;
+        }
+        Some(InboundRuntimeRefresh::Provider {
+            pubkey,
+            provider_id,
+            config,
+            cached_binary_path,
+            agent_json,
+        }) => {
+            let state = app.state::<AppState>();
+            let agent_json = match agent_json {
+                Ok(agent_json) => agent_json,
+                Err(error) => {
+                    let message = format!(
+                        "Inbound agent access was saved, but its provider deployment could not be refreshed safely: {error}"
+                    );
+                    super::super::agents::provider_access::persist_failure(
+                        &app, &state, &pubkey, &message,
+                    )?;
+                    let _ = app.emit("agents-data-changed", ());
+                    return Err(message);
+                }
+            };
+            super::super::agents::deploy_to_provider(
+                &app,
+                &state,
+                &pubkey,
+                &provider_id,
+                &config,
+                agent_json,
+                cached_binary_path.as_deref(),
+            )
+            .await
+            .map_err(|error| {
+                format!(
+                    "Inbound agent access was saved, but its provider deployment failed to refresh with the new policy: {error}"
+                )
+            })?;
+        }
+        None => {}
+    }
+    Ok(())
 }
 
 fn reconcile_inbound_persona_event_blocking(
     event_json: String,
     arrival_relay_url: String,
     app: AppHandle,
-) -> Result<(), String> {
+) -> Result<Option<InboundRuntimeRefresh>, String> {
     use crate::managed_agents::{
         agent_events::managed_agent_content_from_event,
         apply_team_membership_to_instances, deduplicate_definition_identities, load_managed_agents,
         load_teams,
         persona_events::persona_from_event,
-        retention::{open_retention_db, retain_inbound_event, InboundOutcome, RetainedEvent},
+        retention::{
+            inbound_event_outcome, open_retention_db, retain_inbound_event, InboundOutcome,
+            RetainedEvent,
+        },
         save_managed_agents, save_teams,
         team_events::team_content_from_event,
     };
@@ -94,11 +170,12 @@ fn reconcile_inbound_persona_event_blocking(
     // in its `a` tag (`<target_kind>:<owner>:<d_tag>`). Handled before the
     // upsert dispatch because its coordinate and retention key differ.
     if kind == KIND_DELETION {
-        return reconcile_inbound_tombstone(&event, &arrival_relay_url, &app, &state);
+        reconcile_inbound_tombstone(&event, &arrival_relay_url, &app, &state)?;
+        return Ok(None);
     }
 
     if !matches!(kind, KIND_PERSONA | KIND_TEAM | KIND_MANAGED_AGENT) {
-        return Ok(());
+        return Ok(None);
     }
 
     // The d-tag identifies the record within its kind. Persona derives it from
@@ -159,25 +236,35 @@ fn reconcile_inbound_persona_event_blocking(
         &arrival_relay_url,
     )?
     else {
-        return Ok(());
+        return Ok(None);
     };
     let conn = open_retention_db(&scope.db_path)?;
-    let outcome = retain_inbound_event(
-        &conn,
-        &RetainedEvent {
-            kind,
-            pubkey: event.pubkey.to_hex(),
-            d_tag: d_tag.clone(),
-            content: event.content.to_string(),
-            created_at: event.created_at.as_secs() as i64,
-            raw_event: event.as_json(),
-            pending_sync: false,
-        },
-    )?;
-    if outcome == InboundOutcome::Skipped {
-        return Ok(());
+    let inbound_retained_event = RetainedEvent {
+        kind,
+        pubkey: event.pubkey.to_hex(),
+        d_tag: d_tag.clone(),
+        content: event.content.to_string(),
+        created_at: event.created_at.as_secs() as i64,
+        raw_event: event.as_json(),
+        pending_sync: false,
+    };
+    // Managed-agent access changes can fail while stopping a runtime. Preflight
+    // the retention decision now, but do not advance the durable head until the
+    // local store has been saved; otherwise replay sees the failed revocation as
+    // already consumed and can never retry it. Persona/team paths retain first
+    // as before because they have no fallible runtime transition.
+    if kind == KIND_MANAGED_AGENT
+        && inbound_event_outcome(&conn, &inbound_retained_event)? == InboundOutcome::Skipped
+    {
+        return Ok(None);
+    }
+    if kind != KIND_MANAGED_AGENT
+        && retain_inbound_event(&conn, &inbound_retained_event)? == InboundOutcome::Skipped
+    {
+        return Ok(None);
     }
 
+    let mut runtime_refresh = None;
     match kind {
         KIND_PERSONA => {
             let mut personas = load_personas(&app)?;
@@ -190,19 +277,14 @@ fn reconcile_inbound_persona_event_blocking(
         }
         KIND_TEAM => {
             let mut teams = load_teams(&app)?;
-            apply_inbound_team(&mut teams, d_tag, team_content_from_event(&event)?);
-            save_teams(&app, &teams)?;
-            let mut agents = load_managed_agents(&app)?;
-            let previous_team_ids: Vec<_> =
-                agents.iter().map(|agent| agent.team_id.clone()).collect();
-            apply_team_membership_to_instances(&mut agents, &teams);
-            if agents
-                .iter()
-                .map(|agent| &agent.team_id)
-                .ne(previous_team_ids.iter())
-            {
-                save_managed_agents(&app, &agents)?;
-            }
+            commit_inbound_team(
+                &mut teams,
+                d_tag,
+                team_content_from_event(&event)?,
+                |teams| save_teams(&app, teams),
+                || load_managed_agents(&app),
+                |records| save_managed_agents(&app, records),
+            )?;
         }
         KIND_MANAGED_AGENT => {
             let mut agents = load_managed_agents(&app)?;
@@ -210,7 +292,8 @@ fn reconcile_inbound_persona_event_blocking(
             let inbound = inbound_managed_agent.ok_or_else(|| {
                 "managed-agent content was not parsed before retention".to_string()
             })?;
-            apply_inbound_managed_agent(&mut agents, &d_tag, inbound, &owner_keys)?;
+            let access_changed =
+                apply_inbound_managed_agent(&mut agents, &d_tag, inbound, &owner_keys)?;
             if !was_known {
                 let created_at = i64::try_from(event.created_at.as_secs())
                     .ok()
@@ -225,11 +308,68 @@ fn reconcile_inbound_persona_event_blocking(
             let teams = load_teams(&app)?;
             apply_team_membership_to_instances(&mut agents, &teams);
             let discarded = deduplicate_definition_identities(&mut agents);
+            if access_changed {
+                let record = agents
+                    .iter_mut()
+                    .find(|record| record.pubkey == d_tag)
+                    .ok_or_else(|| format!("agent {d_tag} disappeared during inbound apply"))?;
+                match &record.backend {
+                    crate::managed_agents::BackendKind::Local => {
+                        let mut runtimes = state
+                            .managed_agent_processes
+                            .lock()
+                            .map_err(|error| error.to_string())?;
+                        let mut relay_urls =
+                            crate::managed_agents::managed_agent_runtime_keys(&runtimes, &d_tag)
+                                .into_iter()
+                                .map(|key| key.relay_url)
+                                .collect::<Vec<_>>();
+                        if relay_urls.is_empty() && record.runtime_pid.is_some() {
+                            relay_urls.push(crate::relay::effective_agent_relay_url(
+                                &record.relay_url,
+                                &crate::relay::relay_ws_url_with_override(&state),
+                            ));
+                        }
+                        if !relay_urls.is_empty() {
+                            crate::managed_agents::stop_managed_agent_process(
+                                &app,
+                                record,
+                                &mut runtimes,
+                            )?;
+                            runtime_refresh = Some(InboundRuntimeRefresh::Local {
+                                pubkey: d_tag.clone(),
+                                relay_urls,
+                            });
+                        }
+                    }
+                    crate::managed_agents::BackendKind::Provider { id, config }
+                        if record.backend_agent_id.is_some() =>
+                    {
+                        // Persist the unacknowledged policy transition in the
+                        // same write as the narrowed policy. If the process
+                        // exits before or during deployment, workspace apply
+                        // can still recover it in every build.
+                        record.provider_policy_pending = true;
+                        runtime_refresh = Some(InboundRuntimeRefresh::Provider {
+                            pubkey: d_tag.clone(),
+                            provider_id: id.clone(),
+                            config: config.clone(),
+                            cached_binary_path: record.provider_binary_path.clone(),
+                            agent_json: super::super::agents::build_deploy_payload(
+                                &app, &state, record,
+                            ),
+                        });
+                    }
+                    crate::managed_agents::BackendKind::Provider { .. } => {}
+                }
+            }
             save_managed_agents(&app, &agents)?;
             for pubkey in discarded {
                 super::super::agents::tombstone_managed_agent_pending(&app, &state, &pubkey);
                 super::super::agents::archive_managed_agent_pending(&app, &state, &pubkey, None);
             }
+            let outcome = retain_inbound_event(&conn, &inbound_retained_event)?;
+            debug_assert_ne!(outcome, InboundOutcome::Skipped);
         }
         _ => unreachable!("kind gated above"),
     }
@@ -239,7 +379,7 @@ fn reconcile_inbound_persona_event_blocking(
     // land on disk silently, leaving the Agents tab stale until restart.
     let _ = app.emit("agents-data-changed", ());
 
-    Ok(())
+    Ok(runtime_refresh)
 }
 
 fn validate_inbound_persona_definition(persona: &AgentDefinition) -> Result<(), String> {
@@ -461,7 +601,7 @@ fn apply_inbound_managed_agent(
     d_tag: &str,
     inbound: ManagedAgentEventContent,
     owner_keys: &nostr::Keys,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let recovered_nsec = inbound
         .identity_key_envelope
         .as_deref()
@@ -473,6 +613,8 @@ fn apply_inbound_managed_agent(
         .transpose()?;
 
     if let Some(local) = agents.iter_mut().find(|record| record.pubkey == d_tag) {
+        let previous_mode = local.respond_to;
+        let previous_allowlist = local.respond_to_allowlist.clone();
         local.name = inbound.name;
         // Mirror of the slimmed writer (agent_event_content): a
         // definition-linked event omits the definition quad because those
@@ -502,11 +644,19 @@ fn apply_inbound_managed_agent(
                 local.auth_tag = Some(agent_owner_auth_tag(owner_keys, d_tag)?);
             }
         }
-        return Ok(());
+        return Ok(
+            super::super::agent_models::managed_agent_access_policy_changed(
+                previous_mode,
+                &previous_allowlist,
+                local.respond_to,
+                &local.respond_to_allowlist,
+                crate::managed_agents::owner_only_access_build(),
+            ),
+        );
     }
 
     let Some(private_key_nsec) = recovered_nsec else {
-        return Ok(());
+        return Ok(false);
     };
     let now = now_iso();
     agents.push(ManagedAgentRecord {
@@ -540,6 +690,7 @@ fn apply_inbound_managed_agent(
         backend: crate::managed_agents::BackendKind::Local,
         backend_agent_id: None,
         provider_binary_path: None,
+        provider_policy_pending: false,
         persona_team_dir: None,
         persona_name_in_team: None,
         created_at: now.clone(),
@@ -566,7 +717,7 @@ fn apply_inbound_managed_agent(
         definition_parallelism: None,
         relay_mesh: None,
     });
-    Ok(())
+    Ok(false)
 }
 
 fn agent_owner_auth_tag(owner_keys: &nostr::Keys, agent_pubkey: &str) -> Result<String, String> {
@@ -576,6 +727,53 @@ fn agent_owner_auth_tag(owner_keys: &nostr::Keys, agent_pubkey: &str) -> Result<
         .map_err(|e| format!("failed to bridge agent pubkey: {e}"))?;
     maju_sdk_pkg::nip_oa::compute_auth_tag(&compat_owner, &compat_agent, "")
         .map_err(|e| format!("failed to compute NIP-OA auth tag: {e}"))
+}
+
+/// In-memory core of the inbound `KIND_TEAM` reconcile: capture the matched
+/// team's roster *before* applying the inbound projection, apply it, persist
+/// teams authoritatively, then propagate the prior→current membership delta to
+/// live instances best-effort — the same binding semantics the local
+/// create/update commands use. Without this, a 30176 team edit from another
+/// device lands on `teams.json` but never touches `ManagedAgentRecord.team_id`:
+/// an added persona's running instances stay unbound (member in roster, not in
+/// behavior) and a removed persona's instances keep drawing the old team's
+/// instructions at spawn until restart.
+///
+/// A no-match insert has no prior roster, so its whole roster is the added
+/// delta — symmetric with `commit_team_create`. Injected persistence keeps it
+/// `AppHandle`-free so the prior-roster capture and delta direction are
+/// unit-testable; a `persist_teams` error propagates, agent IO is best-effort
+/// (mirrors the local command path: the authoritative team write already
+/// landed, and boot repair is the designed retry for a stale binding).
+fn commit_inbound_team(
+    teams: &mut Vec<TeamRecord>,
+    d_tag: String,
+    inbound: TeamEventContent,
+    persist_teams: impl FnOnce(&[TeamRecord]) -> Result<(), String>,
+    load_agents: impl FnOnce() -> Result<Vec<ManagedAgentRecord>, String>,
+    save_agents: impl FnOnce(&[ManagedAgentRecord]) -> Result<(), String>,
+) -> Result<(), String> {
+    let team_id = d_tag.clone();
+    let previous_persona_ids = teams
+        .iter()
+        .find(|record| record.id == team_id)
+        .map(|record| record.persona_ids.clone())
+        .unwrap_or_default();
+    apply_inbound_team(teams, d_tag, inbound);
+    let current_persona_ids = teams
+        .iter()
+        .find(|record| record.id == team_id)
+        .map(|record| record.persona_ids.clone())
+        .unwrap_or_default();
+    persist_teams(teams)?;
+    crate::commands::teams::propagate_membership_best_effort(
+        &team_id,
+        &previous_persona_ids,
+        &current_persona_ids,
+        load_agents,
+        save_agents,
+    );
+    Ok(())
 }
 
 /// Merge an inbound kind:30176 team projection into the local set.

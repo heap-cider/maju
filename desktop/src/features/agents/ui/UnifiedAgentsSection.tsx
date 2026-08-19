@@ -15,6 +15,7 @@ import {
 import { friendlyAgentLastError } from "@/features/agents/lib/friendlyAgentLastError";
 import { isManagedAgentActive } from "@/features/agents/lib/managedAgentControlActions";
 import { pickProfileAgent } from "@/features/agents/lib/pickProfileAgent";
+import { useIsArchivedPredicate } from "@/features/identity-archive/hooks";
 import { useUserProfileQuery } from "@/features/profile/hooks";
 import type { AgentPersona, ManagedAgent } from "@/shared/api/types";
 import {
@@ -104,9 +105,10 @@ export function UnifiedAgentsSection(props: UnifiedAgentsSectionProps) {
     onDeletePersona,
   } = props;
 
+  const isArchived = useIsArchivedPredicate();
   const { groups, ungrouped, unknown } = React.useMemo(
-    () => buildUnifiedGroups(personas, agents),
-    [personas, agents],
+    () => buildUnifiedGroups(personas, agents, isArchived),
+    [personas, agents, isArchived],
   );
   const devicesQuery = useQuery({
     enabled: agents.length > 0,
@@ -151,7 +153,7 @@ export function UnifiedAgentsSection(props: UnifiedAgentsSectionProps) {
               onClick={onOpenCatalog}
             />
             {groups.map((group) => {
-              const profileAgent = pickProfileAgent(group.agents);
+              const profileAgent = pickProfileAgent(group.agents, isArchived);
               return (
                 <AgentPersonaCard
                   actions={(effectiveAvatarUrl, isEffectiveAvatarLoading) => (
@@ -288,6 +290,7 @@ function AgentPersonaCard({
   const modelLabel = resolveAgentCardModelLabel({
     agent,
     personaModel: persona.model,
+    provider: persona.provider,
     defaultModel,
   });
   const isLocallyActive = agent ? isManagedAgentActive(agent) : false;
@@ -306,7 +309,6 @@ function AgentPersonaCard({
     executionLocation?.currentDeviceIsStandby
       ? null
       : friendlyError;
-  const opensRuntimeTab = Boolean(agent && visibleError && !isActive);
 
   return (
     <AgentIdentityCard
@@ -355,13 +357,15 @@ function AgentPersonaCard({
       label={title}
       modelLabel={modelLabel}
       onClick={() => {
-        if (agent) {
-          onOpenAgentProfile(
-            agent.pubkey,
-            opensRuntimeTab ? { tab: "runtime" } : undefined,
-          );
-          return;
-        }
+        // The card's main click always opens the PERSONA target, never an
+        // explicit pubkey. A pubkey target is durable in the panel, so a pick
+        // made during the archive-snapshot fail-open window would strand the
+        // panel on an archived identity after hydration (Carl's cold-hydration
+        // race). A persona target re-resolves every render through the shared
+        // archive-aware selector, so it self-corrects to a live sibling — or
+        // persona-only mode when every instance is archived. Deliberate
+        // instance navigation and the runtime-error affordance keep their
+        // explicit-pubkey path via the avatar control below.
         onOpenPersonaProfile(persona);
       }}
       statusBadge={
@@ -453,6 +457,7 @@ function StandaloneAgentCard({
       modelLabel={resolveAgentCardModelLabel({
         agent,
         personaModel: null,
+        provider: agent.provider,
         defaultModel,
       })}
       onClick={() => {

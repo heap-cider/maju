@@ -117,6 +117,7 @@ type MockManagedAgentRuntimeSeed = {
 
 type MockRelayAgentSeed = {
   pubkey: string;
+  ownerPubkey?: string | null;
   name: string;
   agentType?: string;
   capabilities?: string[];
@@ -240,6 +241,8 @@ type E2eConfig = {
     acpAuthMethods?: Record<string, RawAcpAuthMethodsResult>;
     acpAuthMethodsErrors?: Record<string, string>;
     acpAuthMethodsError?: string;
+    /** When set, workflow updates fail with this message. */
+    workflowUpdateError?: string;
     /** When set, the `delete_custom_harness` mock command throws with this message. */
     deleteCustomHarnessError?: string;
     connectAcpRuntimeResult?: RawConnectAcpRuntimeResult;
@@ -299,6 +302,8 @@ type E2eConfig = {
     relayAgents?: MockRelayAgentSeed[];
     /** Reject successive relay-agent directory reads, then resume. */
     relayAgentListErrors?: (string | null)[];
+    /** Pubkeys omitted only from targeted send-time authorization checks. */
+    relayAgentRevalidationRevokedPubkeys?: string[];
     /** Native-like huddle state seeded from authoritative role-bearing membership. */
     huddle?: MockHuddleSeed;
     agentListDelayMs?: number;
@@ -854,6 +859,7 @@ type RawSendChannelMessageResponse = {
 
 type RawRelayAgent = {
   pubkey: string;
+  owner_pubkey?: string | null;
   name: string;
   agent_type: string;
   channels: string[];
@@ -2327,6 +2333,7 @@ function resetMockRelayAgents(config?: E2eConfig) {
     });
     mockRelayAgents.push({
       pubkey: seed.pubkey,
+      owner_pubkey: seed.ownerPubkey ?? null,
       name: seed.name,
       agent_type: seed.agentType ?? "goose",
       channels: channels.map((channel) => channel.name),
@@ -3361,6 +3368,7 @@ let mockRelayAgents: RawRelayAgent[] = defaultMockRelayAgents.map((agent) => ({
 
 type MockWorkflow = {
   id: string;
+  revision: string;
   name: string;
   owner_pubkey: string;
   channel_id: string | null;
@@ -3448,6 +3456,7 @@ function handleCreateWorkflow(args: {
       : `workflow_${mockWorkflowIdCounter}`;
   const workflow: MockWorkflow = {
     id: `mock-wf-${mockWorkflowIdCounter}`,
+    revision: `mock-revision-${mockWorkflowIdCounter}-1`,
     name,
     owner_pubkey: MOCK_IDENTITY_PUBKEY,
     channel_id: args.channelId,
@@ -3471,13 +3480,22 @@ function handleCreateWorkflow(args: {
 function handleUpdateWorkflow(args: {
   workflowId: string;
   yamlDefinition: string;
+  expectedRevision: string;
 }) {
   const workflow = mockWorkflows.find((w) => w.id === args.workflowId);
   if (!workflow) throw new Error(`Workflow ${args.workflowId} not found`);
+  const configuredError = window.__MAJU_E2E__?.mock?.workflowUpdateError;
+  if (configuredError) throw new Error(configuredError);
+  if (workflow.revision !== args.expectedRevision) {
+    throw new Error(
+      "workflow changed since it was loaded; refresh and try again",
+    );
+  }
   const definition = parseWorkflowDefinition(args.yamlDefinition);
   if (typeof definition.name === "string") workflow.name = definition.name;
   workflow.definition = definition;
   workflow.updated_at = Math.floor(Date.now() / 1000);
+  workflow.revision = `mock-revision-${workflow.id}-${workflow.updated_at}-${Math.random()}`;
 
   const trigger = definition.trigger as Record<string, unknown> | undefined;
   return {
@@ -12285,6 +12303,27 @@ export function maybeInstallE2eTauriMocks() {
         );
       case "list_relay_agents":
         return handleListRelayAgents(activeConfig);
+      case "revalidate_relay_agents": {
+        const agents = await handleListRelayAgents(activeConfig);
+        const { pubkeys, channelId } = payload as {
+          pubkeys: string[];
+          channelId?: string;
+        };
+        const requested = new Set(
+          pubkeys.map((pubkey) => pubkey.toLowerCase()),
+        );
+        const revoked = new Set(
+          (activeConfig?.mock?.relayAgentRevalidationRevokedPubkeys ?? []).map(
+            (pubkey) => pubkey.toLowerCase(),
+          ),
+        );
+        return agents.filter(
+          (agent) =>
+            requested.has(agent.pubkey.toLowerCase()) &&
+            !revoked.has(agent.pubkey.toLowerCase()) &&
+            (!channelId || agent.channel_ids.includes(channelId)),
+        );
+      }
       case "list_personas":
         return handleListPersonas();
       case "create_persona":

@@ -60,7 +60,7 @@ fn run_event_sync_reads_only_the_captured_store_directory() {
 
     let keys = nostr::Keys::generate();
     let db_path = first.path().join("captured.db");
-    run_event_sync(&keys, &db_path, first.path());
+    run_event_sync(&keys, &db_path, first.path()).unwrap();
 
     let conn = open_retention_db(&db_path).unwrap();
     let rows = get_retained_personas(&conn, &keys.public_key().to_hex()).unwrap();
