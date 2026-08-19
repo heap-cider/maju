@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.23
+
+- Adopt Buzz desktop-v0.5.15 through desktop-v0.5.17, rename the built-in Bumble agent to Pollen in place, remove duplicate Startup Recovery guidance, and keep coordinated disclosure without an unconditional advisory promise while preserving stable community identities, simple teams, and live ACP configuration.
+- Polish mobile message threads, composer and keyboard behavior, and require device authentication before exporting identity data.
+- Drive agent model capabilities and labels from one manifest, enforce shared-agent access across devices, and resolve agent profiles through one archive-aware selector.
+- Add responsive workflow-library actions, preserve multi-channel workflow listings, repair team membership links, and keep managed-agent mentions reliable during relay errors.
+- Reduce mounted-view CPU and disk work, bind presence retry timers, bound remote-agent mention authorization, and update `h2` for RUSTSEC-2026-0258.
+
 ## v0.2.22
 
 - Keep managed-agent definitions, identities, teams, and runtime configuration bound to their own community while background runners stay active.
