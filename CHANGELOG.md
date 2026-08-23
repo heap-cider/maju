@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.24
+
+- Adopt Buzz `desktop-v0.5.18` while preserving Maju's self-hosted identity, community-scoped ACP configuration, stable shared agents, and empty-project creation flow.
+- Expand Projects with selectable workspaces, richer repository trees and work items, clearer navigation, and agent chat that reuses an online representative on another device.
+- Add the workflow editor and threaded workflow replies, improve Maju deep links and notifications, and keep owner-only agents secure by authorizing the relay signer rather than an attributed workflow author.
+- Make reconnect repair lossless, move unread observation into native storage, restore recent-channel ordering, and safely fence stale large-channel roster snapshots with the new relay migration.
+- Refresh appearance and conversation-density controls, mobile timelines, emoji and message actions, pairing, shared-agent discovery, and several hot desktop paths.
+
 ## v0.2.23
 
 - Adopt Buzz desktop-v0.5.15 through desktop-v0.5.17, rename the built-in Bumble agent to Pollen in place, remove duplicate Startup Recovery guidance, and keep coordinated disclosure without an unconditional advisory promise while preserving stable community identities, simple teams, and live ACP configuration.
