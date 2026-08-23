@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maju/features/channels/channel_management_provider.dart';
 import 'package:maju/features/channels/mentions/mention_candidates.dart';
-import 'package:maju/features/profile/user_profile.dart';
+import 'package:maju/shared/profile/user_profile.dart';
 import 'package:maju/shared/mentions/agent_identity_provider.dart';
 
 final userPubkey = 'a' * 64;

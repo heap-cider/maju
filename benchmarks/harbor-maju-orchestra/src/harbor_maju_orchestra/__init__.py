@@ -7,11 +7,17 @@ from .container_runtime import (
     RuntimeLaunchError,
 )
 from .manifest import ExperimentManifest, ManifestError
-from .provisioning import AgentCredential, TrialHandle, TrialProvisioner
+from .provisioning import (
+    AgentCredential,
+    DirectoryIdentity,
+    TrialHandle,
+    TrialProvisioner,
+)
 from .runtime import OrchestraRuntime, RuntimeResult
 
 __all__ = [
     "AgentCredential",
+    "DirectoryIdentity",
     "EndpointLaunchConfig",
     "ExperimentManifest",
     "MajuContainerRuntime",

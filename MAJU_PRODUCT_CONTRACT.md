@@ -110,6 +110,13 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
   controls show every value the selected model actually advertises. Missing,
   stale, or invalid options fall back visibly to the engine default instead of
   being guessed or silently converted.
+- ACP session option choices are stored as one complete, community-scoped
+  definition value and synchronize among the owning account's devices. API
+  keys, other secret environment values, executable paths, local tools, and
+  running state remain device-local.
+- A running agent keeps the ACP option values it started with. Editing those
+  choices marks the agent as needing a restart; the new values take effect only
+  after restart, without a second configured-versus-live value in the UI.
 
 ## Account devices
 

@@ -72,5 +72,7 @@ test("an empty Projects page opens the real create flow", async ({ page }) => {
     .fill("https://github.com/heap-cider/maju");
   await page.getByTestId("create-project-submit").click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText("first-project", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("project-grid-card-name")).toHaveText(
+    "first-project",
+  );
 });

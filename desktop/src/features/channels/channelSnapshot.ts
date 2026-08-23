@@ -216,6 +216,26 @@ export function readChannelSnapshot(
 }
 
 /**
+ * Returns whether a trusted snapshot can paint a remembered channel before
+ * the relay revalidation finishes. Invalid, archived, and non-member entries
+ * must stay on Home until the authoritative read settles.
+ */
+export function channelSnapshotCanPreload(
+  relayUrl: string,
+  ownerPubkey: string,
+  channelId: string,
+): boolean {
+  return (
+    readChannelSnapshot(relayUrl, ownerPubkey)?.channels.some(
+      (channel) =>
+        channel.id === channelId &&
+        channel.isMember &&
+        channel.archivedAt === null,
+    ) ?? false
+  );
+}
+
+/**
  * Persists the complete last successfully fetched channel list and the hash
  * that describes it as one document. Atomic replacement prevents a stale hash
  * from ever being paired with a newer list (or vice versa). Non-fatal on

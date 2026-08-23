@@ -17,6 +17,7 @@ test("turns every bare Maju entity permalink family into a chip node", () => {
   const id = "cd".repeat(32);
   const links = [
     `maju://repo?owner=${owner}&d=maju`,
+    `maju://project?owner=${owner}&d=onboarding`,
     `maju://pr?id=${id}&owner=${owner}&d=maju`,
     `maju://issue?id=${id}&owner=${owner}&d=maju`,
   ];

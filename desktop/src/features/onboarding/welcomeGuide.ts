@@ -7,12 +7,12 @@ import {
   addChannelMembers,
   createManagedAgent,
   deleteManagedAgent,
-  discoverAcpRuntimes,
   getChannelMembers,
   listManagedAgents,
   removeChannelMember,
   updateManagedAgent,
 } from "@/shared/api/tauri";
+import { discoverAcpRuntimes } from "@/shared/api/tauriAcpDiscovery";
 import { getAgentAccessOwnerOnly } from "@/shared/api/tauriAgentAccess";
 import { getGlobalAgentConfig } from "@/shared/api/tauriGlobalAgentConfig";
 import { getIdentity } from "@/shared/api/tauriIdentity";

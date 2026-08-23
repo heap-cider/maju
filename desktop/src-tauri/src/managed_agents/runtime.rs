@@ -14,6 +14,7 @@ use crate::{
     util::now_iso,
 };
 
+use super::claude_config::apply_claude_model_env;
 mod path;
 pub(in crate::managed_agents) use path::build_augmented_path;
 pub(crate) use path::{compose_path_entries, should_skip_claude_executable, should_use_inherited};
@@ -69,6 +70,8 @@ mod lifecycle;
 #[cfg(test)]
 use lifecycle::kill_stale_tracked_processes_with;
 pub use lifecycle::{kill_stale_tracked_processes, sync_managed_agent_processes};
+mod spawn_key; // production spawn-key derivation + its regressions
+pub(crate) use spawn_key::bound_runtime_key;
 
 /// Classify an agent's persona against the live catalog for the Agents-menu
 /// drift indicator. Returns `(out_of_date, orphaned)`.
@@ -774,17 +777,8 @@ pub(crate) fn spawn_agent_child_with_context(
 
     command.env("MAJU_ACP_RELAY_OBSERVER", "true");
 
-    // ── Git credential helper for Maju relay ──────────────────────────
-    //
-    // Agents need to clone/push repos hosted on the Maju relay's git
-    // server, which authenticates via NIP-98. The `git-credential-nostr`
-    // binary signs auth events using the agent's nostr key.
-    //
-    // We configure git via GIT_CONFIG_COUNT env vars (ephemeral, no
-    // filesystem writes) scoped to the relay's git URL so we don't
-    // interfere with other remotes (e.g. GitHub).
-    //
-    // NOSTR_PRIVATE_KEY mirrors MAJU_PRIVATE_KEY — keep in sync.
+    // Git credential helper: NIP-98 auth for Maju relay git via git-credential-nostr.
+    // Ephemeral GIT_CONFIG_COUNT env vars scoped to relay HTTP URL; NOSTR_PRIVATE_KEY mirrors MAJU_PRIVATE_KEY.
     if let Some(cred_helper) = resolve_command("git-credential-nostr") {
         let relay_http_url = crate::relay::relay_http_base_url(&effective_relay_url);
 
@@ -809,16 +803,18 @@ pub(crate) fn spawn_agent_child_with_context(
         );
     }
 
-    // ── User env vars: definition floor + global + live persona + agent overrides ──
-    //
-    // `descriptor.env` is the fully-layered result from `resolve_effective_harness_descriptor`:
-    // baked floor → runtime metadata → definition env (harness author defaults) →
-    // global → live persona → per-agent, with reserved-key and malformed-key filtering
-    // applied. Writing it last lets user-provided values win over every Maju-set env
-    // written above — reserved keys were already stripped from descriptor.env so they
-    // cannot clobber MAJU_PRIVATE_KEY, NOSTR_PRIVATE_KEY, etc.
+    // User env (descriptor.env): fully-layered floor→runtime→definition→global→persona→agent,
+    // reserved-key filtered. Written last so user-explicit values win over Maju-set env.
     for (key, value) in &descriptor.env {
         command.env(key, value);
+    }
+
+    // A1: for local claude agents, ANTHROPIC_MODEL is the single startup model authority.
+    // MAJU_ACP_MODEL is removed (live ACP switches only; two authorities in the same env
+    // would be ambiguous).
+    if record.backend == super::BackendKind::Local && runtime_meta.is_some_and(|r| r.id == "claude")
+    {
+        apply_claude_model_env(&mut command, effective_model.as_deref());
     }
     configure_runtime_cli(&mut command, runtime_meta);
 
@@ -931,21 +927,20 @@ fn child_rust_log_filter() -> String {
     }
 }
 
+/// Spawn (or adopt) the runtime pair for `record` on the caller's bound
+/// workspace relay. `workspace_relay` can only be produced by
+/// `bind_expected_relay_scope`, so this spawn consumes — by construction — the
+/// exact workspace-relay read the caller's scope assertion passed on; it never
+/// re-reads the mutable override (see `relay::scope`). The key comes from
+/// [`bound_runtime_key`] — the seam the spawn-key regressions exercise.
 pub fn start_managed_agent_process(
     app: &AppHandle,
     record: &mut ManagedAgentRecord,
     runtimes: &mut HashMap<ManagedAgentRuntimeKey, ManagedAgentPairRuntime>,
     owner_hex: Option<&str>,
+    workspace_relay: &crate::relay::ScopedWorkspaceRelay,
 ) -> Result<(), String> {
-    let relay_url = {
-        use tauri::Manager;
-        let state = app.state::<crate::app_state::AppState>();
-        crate::relay::effective_agent_relay_url(
-            &record.relay_url,
-            &crate::relay::relay_ws_url_with_override(&state),
-        )
-    };
-    let key = ManagedAgentRuntimeKey::new(record.pubkey.clone(), &relay_url)?;
+    let key = bound_runtime_key(record, workspace_relay)?;
     if let Some(runtime) = runtimes.get_mut(&key) {
         if runtime
             .child

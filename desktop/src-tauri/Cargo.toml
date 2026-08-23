@@ -108,6 +108,7 @@ maju_sdk_pkg = { package = "maju-sdk", path = "../../crates/maju-sdk" }
 maju_agent_pkg = { package = "maju-agent", path = "../../crates/maju-agent" }
 maju_voice_pkg = { package = "maju-voice", path = "../../crates/maju-voice" }
 maju_terminal = { package = "maju-terminal", path = "crates/maju-terminal" }
+maju_ws_client_pkg = { package = "maju-ws-client", path = "../../crates/maju-ws-client" }
 portable-pty = "0.9"
 iroh = { version = "1.0.2", optional = true }
 mesh-llm-sdk = { git = "https://github.com/Mesh-LLM/mesh-llm.git", tag = "v0.75.1", package = "mesh-llm-sdk", default-features = false, features = ["client", "serving"], optional = true }

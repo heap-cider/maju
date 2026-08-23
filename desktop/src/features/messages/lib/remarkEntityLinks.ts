@@ -1,7 +1,7 @@
-/** Detect bare `maju://pr|issue|repo?…` URLs in markdown text nodes. */
+/** Detect bare `maju://pr|issue|repo|project?…` URLs in markdown text nodes. */
 import { createRemarkPrefixPlugin } from "../../../shared/lib/createRemarkPrefixPlugin.ts";
 
-const ENTITY_URL_PATTERN = /maju:\/\/(?:pr|issue|repo)\?[^\s<>"')\]]+/g;
+const ENTITY_URL_PATTERN = /maju:\/\/(?:pr|issue|repo|project)\?[^\s<>"')\]]+/g;
 const TRAILING_PUNCTUATION_PATTERN = /[.,;:!?]+$/;
 
 export default function remarkEntityLinks() {

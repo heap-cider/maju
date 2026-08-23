@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  channelSnapshotCanPreload,
   channelSnapshotKey,
   inspectChannelSnapshot,
   readChannelSnapshot,
@@ -80,6 +81,34 @@ test("read after write returns the complete list and matching hash", () => {
   assert.equal(diagnostics.channelCount, channels.length);
   assert.ok(diagnostics.serializedBytes > 0);
   assert.ok(diagnostics.ageMs >= 0);
+});
+
+test("preload accepts only an available member channel from a valid snapshot", () => {
+  writeChannelSnapshot(
+    RELAY,
+    OWNER,
+    [
+      makeChannel({ id: "available" }),
+      makeChannel({ id: "archived", archivedAt: "2026-01-01T00:00:00Z" }),
+      makeChannel({ id: "not-a-member", isMember: false }),
+    ],
+    HASH,
+  );
+
+  assert.equal(channelSnapshotCanPreload(RELAY, OWNER, "available"), true);
+  assert.equal(channelSnapshotCanPreload(RELAY, OWNER, "archived"), false);
+  assert.equal(channelSnapshotCanPreload(RELAY, OWNER, "not-a-member"), false);
+  assert.equal(channelSnapshotCanPreload(RELAY, OWNER, "missing"), false);
+});
+
+test("preload rejects a snapshot whose integrity no longer matches", () => {
+  writeChannelSnapshot(RELAY, OWNER, [makeChannel()], HASH);
+  const key = channelSnapshotKey(RELAY, OWNER);
+  const stored = JSON.parse(window.localStorage.getItem(key));
+  stored.channels = [];
+  window.localStorage.setItem(key, JSON.stringify(stored));
+
+  assert.equal(channelSnapshotCanPreload(RELAY, OWNER, "chan-1"), false);
 });
 
 test("inspection distinguishes absent from invalid snapshots", () => {

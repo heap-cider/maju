@@ -34,6 +34,7 @@ maju messages send --channel <uuid> --content "Reply" --reply-to <event-id> --br
 maju messages send --channel <uuid> --content - < message.md   # read body from stdin
 maju messages get --channel <uuid> --limit 20
 maju messages thread --channel <uuid> --event <event-id>
+maju messages thread --link 'maju://message?channel=<uuid>&id=<event-id>&thread=<root-id>'
 maju messages search --query "architecture"
 maju messages search --author <pubkey|npub|name> --since <unix-ts>
 maju messages edit --event <event-id> --content "Updated text"

@@ -5,7 +5,6 @@ import {
   useRelayAgentsQuery,
   useTeamsQuery,
 } from "@/features/agents/hooks";
-import { useAgentAccessOwnerOnlyQuery } from "@/features/agents/useAgentAccessOwnerOnly";
 import {
   useChannelMembersQuery,
   useChannelsQuery,
@@ -67,6 +66,21 @@ export type PersonaMentionTarget = {
 type UseMentionsOptions = {
   channelType?: ChannelType | null;
 };
+
+function normalizeMentionNames(names: readonly string[]) {
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const name of names) {
+    const trimmed = name.trim();
+    const key = trimmed.toLowerCase();
+    if (trimmed && !seen.has(key)) {
+      unique.push(trimmed);
+      seen.add(key);
+    }
+  }
+  return unique;
+}
+
 export function useMentions(
   channelId: string | null,
   externalMembers?: ChannelMember[],
@@ -101,7 +115,6 @@ export function useMentions(
   const channelsQuery = useChannelsQuery();
   const personasQuery = usePersonasQuery();
   const teamsQuery = useTeamsQuery();
-  const agentAccessOwnerOnlyQuery = useAgentAccessOwnerOnlyQuery();
   const managedAgentDirectoryReady =
     managedAgentsQuery.data !== undefined &&
     managedAgentsQuery.error === null &&
@@ -110,12 +123,8 @@ export function useMentions(
     relayAgentsQuery.data !== undefined &&
     relayAgentsQuery.error === null &&
     !relayAgentsQuery.isFetching;
-  const ownerPolicyReady =
-    agentAccessOwnerOnlyQuery.data !== undefined &&
-    agentAccessOwnerOnlyQuery.error === null &&
-    !agentAccessOwnerOnlyQuery.isFetching;
   const agentDirectoriesReady =
-    managedAgentDirectoryReady && relayAgentDirectoryReady && ownerPolicyReady;
+    managedAgentDirectoryReady && relayAgentDirectoryReady;
   const canSearchGlobalUsers = canSearchGlobalPeople && agentDirectoriesReady;
   const userSearchQuery = useInfiniteUserSearchQuery(mentionQuery ?? "", {
     allowEmpty: true,
@@ -256,16 +265,12 @@ export function useMentions(
       if (
         shouldHideAgentFromMentions({
           isAgent: candidate.isAgent === true,
-          isManagedAgent: candidate.isManagedAgent === true,
           pubkey,
-          ownerPubkey: candidate.ownerPubkey,
-          currentPubkey,
           mentionableAgentPubkeys,
           directoryReady:
             candidate.isManagedAgent === true
               ? managedAgentDirectoryReady
               : relayAgentDirectoryReady,
-          ownerOnly: agentAccessOwnerOnlyQuery.data,
         })
       ) {
         return;
@@ -349,7 +354,7 @@ export function useMentions(
         personaId:
           managedAgentPersonaIdsByPubkey.get(pubkey) ??
           (activePersonaById.has(pubkey) ? pubkey : undefined),
-        ownerPubkey: null,
+        ownerPubkey: agent.ownerPubkey,
         isAgent: true,
       });
     }
@@ -416,7 +421,6 @@ export function useMentions(
   }, [
     activePersonaById,
     activePersonas,
-    agentAccessOwnerOnlyQuery.data,
     userSearchResults,
     canSearchGlobalUsers,
     currentPubkey,
@@ -468,35 +472,14 @@ export function useMentions(
     [mentionCandidatesWithTeams],
   );
 
-  const highlightNames = React.useMemo<string[]>(() => {
-    const names: string[] = [];
-    const seen = new Set<string>();
-
-    for (const name of selectedMentionNames) {
-      const trimmed = name.trim();
-      if (trimmed && !seen.has(trimmed.toLowerCase())) {
-        names.push(trimmed);
-        seen.add(trimmed.toLowerCase());
-      }
-    }
-
-    return names;
-  }, [selectedMentionNames]);
-
-  const agentHighlightNames = React.useMemo<string[]>(() => {
-    const names: string[] = [];
-    const seen = new Set<string>();
-
-    for (const name of selectedAgentMentionNames) {
-      const trimmed = name.trim();
-      if (trimmed && !seen.has(trimmed.toLowerCase())) {
-        names.push(trimmed);
-        seen.add(trimmed.toLowerCase());
-      }
-    }
-
-    return names;
-  }, [selectedAgentMentionNames]);
+  const highlightNames = React.useMemo(
+    () => normalizeMentionNames(selectedMentionNames),
+    [selectedMentionNames],
+  );
+  const agentHighlightNames = React.useMemo(
+    () => normalizeMentionNames(selectedAgentMentionNames),
+    [selectedAgentMentionNames],
+  );
 
   const searchableNamesLower = React.useMemo<string[]>(
     () => searchableNames.map((n) => n.toLowerCase()),
@@ -515,13 +498,14 @@ export function useMentions(
     searchableNamesLowerRef.current = searchableNamesLower;
   }, [searchableNamesLower]);
 
-  React.useEffect(() => {
-    return () => {
+  React.useEffect(
+    () => () => {
       if (debounceTimerRef.current !== null) {
         clearTimeout(debounceTimerRef.current);
       }
-    };
-  }, []);
+    },
+    [],
+  );
 
   const matchingSuggestions = React.useMemo<MentionSuggestion[]>(() => {
     if (mentionQuery === null) {
@@ -536,6 +520,7 @@ export function useMentions(
       .slice(0, MENTION_SUGGESTION_LIMIT)
       .map(({ candidate, label }) =>
         mapMentionCandidateToSuggestion({
+          agentProvenanceReady: agentDirectoriesReady,
           candidate,
           label,
           channelType: options?.channelType,
@@ -546,6 +531,7 @@ export function useMentions(
       );
   }, [
     activePersonaIds,
+    agentDirectoriesReady,
     currentPubkey,
     mentionCandidatesWithTeams,
     mentionQuery,
@@ -824,8 +810,6 @@ export function useMentions(
       ? { type: "channel", channelId: mentionChannelId }
       : { type: "managed-only" },
     sharedChannelIds,
-    ownerOnly: agentAccessOwnerOnlyQuery.data,
-    ownerPolicyError: agentAccessOwnerOnlyQuery.error,
     refetchManagedAgents: managedAgentsQuery.refetch,
   });
 
@@ -925,6 +909,7 @@ export function useMentions(
             searchableNamesLowerRef,
             candidates: mentionCandidatesWithTeams,
             activePersonaIds,
+            agentProvenanceReady: agentDirectoriesReady,
             channelType: options?.channelType,
             currentPubkey,
             ownerProfiles: ownerProfilesQuery.data?.profiles,
@@ -954,6 +939,7 @@ export function useMentions(
     },
     [
       activePersonaIds,
+      agentDirectoriesReady,
       cancelMentionAutocomplete,
       currentPubkey,
       isMentionOpen,

@@ -13,6 +13,7 @@
   "links": {
     "pullRequest": "maju://pr?id=c3b589fa5713ba25bad6dc095e2de00a4ac8f50050fdea00fc6444e603be1dd1&owner=71d67180ba17e749ee825fc8819c9c6ee7003617e1c126504f9b658070ab9224&d=maju-world",
     "issue": "maju://issue?id=c3b589fa5713ba25bad6dc095e2de00a4ac8f50050fdea00fc6444e603be1dd1&owner=71d67180ba17e749ee825fc8819c9c6ee7003617e1c126504f9b658070ab9224&d=maju-world",
+    "commit": "maju://repo?owner=71d67180ba17e749ee825fc8819c9c6ee7003617e1c126504f9b658070ab9224&d=maju-world&tab=commits&commit=c3b589fa5713ba25bad6dc095e2de00a4ac8f50050fdea00fc6444e603be1dd1",
     "repository": "maju://repo?owner=71d67180ba17e749ee825fc8819c9c6ee7003617e1c126504f9b658070ab9224&d=maju-world",
     "project": "maju://project?owner=71d67180ba17e749ee825fc8819c9c6ee7003617e1c126504f9b658070ab9224&d=maju-world"
   },

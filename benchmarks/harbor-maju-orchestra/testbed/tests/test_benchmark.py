@@ -52,7 +52,7 @@ def test_selectors_pass_through():
         ]
     )
     argv = benchmark.leaderboard_argv(args, Path("p.json"), Path("b"))
-    assert argv[argv.index("--path") + 1] == "/tmp/task"
+    assert Path(argv[argv.index("--path") + 1]) == Path("/tmp/task")
     assert argv[argv.index("--include-task") + 1] == "cobol*"
     assert argv[argv.index("--exclude-task") + 1] == "flaky*"
     assert argv[argv.index("--attempts") + 1] == "1"
@@ -120,8 +120,9 @@ def test_compose_command_isolates_the_project(state_dir):
     assert command[:2] == ["docker", "compose"]
     assert command[command.index("--project-name") + 1] == "maju-benchmark"
     files = [command[i + 1] for i, part in enumerate(command) if part == "-f"]
-    assert any(f.endswith("deploy/compose/compose.yml") for f in files)
-    assert any(f.endswith("compose.benchmark.yml") for f in files)
+    normalized = [Path(file).as_posix() for file in files]
+    assert any(file.endswith("deploy/compose/compose.yml") for file in normalized)
+    assert any(file.endswith("compose.benchmark.yml") for file in normalized)
 
 
 def test_bring_up_self_heals_a_stale_credential_volume(monkeypatch):

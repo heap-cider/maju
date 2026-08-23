@@ -1,5 +1,5 @@
 import 'package:maju/features/profile/profile_provider.dart';
-import 'package:maju/features/profile/user_profile.dart';
+import 'package:maju/shared/profile/user_profile.dart';
 import 'package:maju/shared/relay/relay.dart';
 import 'package:maju/shared/theme/theme.dart';
 import 'package:flutter/widgets.dart';

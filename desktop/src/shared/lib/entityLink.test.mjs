@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  buildCommitLink,
   buildIssueLink,
   buildProjectLink,
   buildPullRequestLink,
@@ -40,6 +41,14 @@ test("builders emit the canonical cross-language link format", () => {
   assert.equal(
     buildProjectLink({ owner: OWNER, dtag: GOLDEN.dtag }),
     GOLDEN.links.project,
+  );
+  assert.equal(
+    buildCommitLink({
+      commitHash: EVENT_ID,
+      owner: OWNER,
+      dtag: GOLDEN.dtag,
+    }),
+    GOLDEN.links.commit,
   );
   assert.deepEqual(ENTITY_LINK_TABS, GOLDEN.tabs);
   for (const dtag of GOLDEN.validDtags) {
@@ -83,6 +92,34 @@ test("parseEntityLink round-trips built links", () => {
     ok: true,
     value: { type: "project", owner: OWNER, dtag: "maju-world" },
   });
+});
+
+test("commit links select an exact repository commit", () => {
+  const link = buildCommitLink({
+    commitHash: EVENT_ID,
+    owner: OWNER,
+    dtag: "maju-world",
+  });
+  assert.equal(
+    link,
+    `maju://repo?owner=${OWNER}&d=maju-world&tab=commits&commit=${EVENT_ID}`,
+  );
+  assert.deepEqual(parseEntityLink(link), {
+    ok: true,
+    value: {
+      type: "repo",
+      owner: OWNER,
+      dtag: "maju-world",
+      tab: "commits",
+      commitHash: EVENT_ID,
+    },
+  });
+  assert.deepEqual(
+    parseEntityLink(
+      `maju://repo?owner=${OWNER}&d=maju-world&tab=files&commit=${EVENT_ID}`,
+    ),
+    { ok: false, reason: "invalid-commit" },
+  );
 });
 
 test("parseEntityLink lowercase-normalizes hex identifiers", () => {

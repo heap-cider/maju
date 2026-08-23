@@ -12,8 +12,8 @@ import 'package:maju/features/channels/channel_detail_page.dart';
 import 'package:maju/features/channels/message_content.dart';
 import 'package:maju/features/channels/channels_provider.dart';
 import 'package:maju/shared/read_state/read_state_provider.dart';
-import 'package:maju/features/profile/user_cache_provider.dart';
-import 'package:maju/features/profile/user_profile.dart';
+import 'package:maju/shared/profile/user_cache_provider.dart';
+import 'package:maju/shared/profile/user_profile.dart';
 import 'package:maju/shared/theme/theme.dart';
 import 'package:maju/shared/widgets/anchored_popover_menu.dart';
 import 'package:maju/shared/widgets/frosted_app_bar.dart';
@@ -684,6 +684,10 @@ void main() {
     expect(page.channel.id, 'ch1');
     expect(page.initialThreadRootId, 'parent-reply');
     expect(page.initialMessageId, 'reply-event');
+    expect(
+      page.initialThreadRouteBehavior,
+      InitialThreadRouteBehavior.replaceCurrentRoute,
+    );
   });
 
   testWidgets('thread filter matches grouped thread replies', (tester) async {

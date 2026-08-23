@@ -2483,7 +2483,10 @@ test("supports webview zoom keyboard shortcuts", async ({ page }) => {
 
   const getTextScaleState = () =>
     page.evaluate(() => ({
-      fontSize: getComputedStyle(document.documentElement).fontSize,
+      rootFontSize: getComputedStyle(document.documentElement).fontSize,
+      textRemSize: getComputedStyle(document.documentElement)
+        .getPropertyValue("--maju-type-rem")
+        .trim(),
       storedScale: localStorage.getItem("maju:text-scale"),
       webviewZoom: (window as Window & { __MAJU_E2E_WEBVIEW_ZOOM__?: number })
         .__MAJU_E2E_WEBVIEW_ZOOM__,
@@ -2514,7 +2517,8 @@ test("supports webview zoom keyboard shortcuts", async ({ page }) => {
   await dispatchPrimaryShortcut("+", "Equal", true);
 
   await expect.poll(getTextScaleState).toEqual({
-    fontSize: "17.6px",
+    rootFontSize: "16px",
+    textRemSize: "17.6px",
     storedScale: "1.1",
     webviewZoom: 1,
   });
@@ -2522,7 +2526,8 @@ test("supports webview zoom keyboard shortcuts", async ({ page }) => {
   await dispatchPrimaryShortcut("-", "Minus");
 
   await expect.poll(getTextScaleState).toEqual({
-    fontSize: "16px",
+    rootFontSize: "16px",
+    textRemSize: "16px",
     storedScale: null,
     webviewZoom: 1,
   });
@@ -2531,7 +2536,8 @@ test("supports webview zoom keyboard shortcuts", async ({ page }) => {
   await dispatchPrimaryShortcut("+", "Equal", true);
 
   await expect.poll(getTextScaleState).toEqual({
-    fontSize: "19.2px",
+    rootFontSize: "16px",
+    textRemSize: "19.2px",
     storedScale: "1.2",
     webviewZoom: 1,
   });
@@ -2539,10 +2545,93 @@ test("supports webview zoom keyboard shortcuts", async ({ page }) => {
   await dispatchPrimaryShortcut("0", "Digit0");
 
   await expect.poll(getTextScaleState).toEqual({
-    fontSize: "16px",
+    rootFontSize: "16px",
+    textRemSize: "16px",
     storedScale: null,
     webviewZoom: 1,
   });
+});
+
+test("storage clear resets composed font size and keyboard zoom across windows", async ({
+  context,
+  page,
+}) => {
+  await page.goto("/");
+  await openSettings(page, "appearance");
+  await page.getByTestId("font-size-larger").click();
+
+  const dispatchZoomIn = () =>
+    page.evaluate(() => {
+      const isMac = /mac|iphone|ipad|ipod/i.test(navigator.platform);
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          code: "Equal",
+          ctrlKey: !isMac,
+          key: "+",
+          metaKey: isMac,
+          shiftKey: true,
+        }),
+      );
+    });
+
+  for (let step = 0; step < 5; step += 1) {
+    await dispatchZoomIn();
+  }
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        fontSize: document.documentElement.dataset.fontSize,
+        textRemSize: getComputedStyle(document.documentElement)
+          .getPropertyValue("--maju-type-rem")
+          .trim(),
+        textScale: localStorage.getItem("maju:text-scale"),
+      })),
+    )
+    .toEqual({
+      fontSize: "larger",
+      textRemSize: "25.714286px",
+      textScale: "1.5",
+    });
+
+  const peerPage = await context.newPage();
+  await installMockBridge(peerPage);
+  await peerPage.goto("/");
+  await peerPage.evaluate(() => localStorage.clear());
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        fontSize: document.documentElement.dataset.fontSize,
+        textRemSize: getComputedStyle(document.documentElement)
+          .getPropertyValue("--maju-type-rem")
+          .trim(),
+        textScale: localStorage.getItem("maju:text-scale"),
+      })),
+    )
+    .toEqual({
+      fontSize: "default",
+      textRemSize: "16px",
+      textScale: null,
+    });
+
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+-" : "Control+-",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        textRemSize: getComputedStyle(document.documentElement)
+          .getPropertyValue("--maju-type-rem")
+          .trim(),
+        textScale: localStorage.getItem("maju:text-scale"),
+      })),
+    )
+    .toEqual({ textRemSize: "14.4px", textScale: "0.9" });
+
+  await peerPage.close();
 });
 
 test("shows agent runtimes in agent settings", async ({ page }) => {
@@ -2592,10 +2681,8 @@ test("shows agent runtimes in agent settings", async ({ page }) => {
     .evaluate((element) => getComputedStyle(element).color);
   await page.getByTestId("settings-nav-appearance").click();
   const appearanceSecondaryColor = await page
-    .getByTestId("link-preview-style-trigger")
-    .locator("..")
-    .locator("p")
-    .nth(1)
+    .getByTestId("link-preview-style-group")
+    .locator("[data-settings-subcopy]")
     .evaluate((element) => getComputedStyle(element).color);
   expect(agentsSecondaryColor).toBe(appearanceSecondaryColor);
 });

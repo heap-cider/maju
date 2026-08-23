@@ -34,6 +34,11 @@ fn parse_entity_deep_link_accepts_every_share_link_shape() {
             "{raw}"
         );
     }
+    let commit_link = format!(
+        "maju://repo?owner={owner}&d={dtag}&tab=commits&commit={}",
+        golden["eventId"].as_str().unwrap()
+    );
+    assert!(parse_entity_deep_link(&Url::parse(&commit_link).unwrap()).is_some());
     let expected_tabs = golden["tabs"]
         .as_array()
         .unwrap()
@@ -64,6 +69,8 @@ fn parse_entity_deep_link_rejects_malformed_and_non_canonical_links() {
         // Unknown tab value, duplicate tab, and tab on an event link.
         format!("maju://repo?owner={owner}&d=maju-world&tab=overview"),
         format!("maju://repo?owner={owner}&d=maju-world&tab=prs&tab=prs"),
+        format!("maju://repo?owner={owner}&d=maju-world&tab=files&commit={event_id}"),
+        format!("maju://repo?owner={owner}&d=maju-world&tab=commits&commit=short"),
         format!("maju://pr?id={event_id}&owner={owner}&d=maju-world&tab=prs"),
         format!("maju://repo/extra?owner={owner}&d=maju-world"),
         format!("maju://repo?owner={owner}&d=maju-world#top"),

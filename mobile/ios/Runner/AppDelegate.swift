@@ -10,6 +10,8 @@ import UserNotifications
   private var inlinePhotoPickerSupportChannel: FlutterMethodChannel?
   private var concentricSheetSurfaceChannel: FlutterMethodChannel?
   private var nativeAttachmentPopoverCoordinator: NativeAttachmentPopoverCoordinator?
+  private var nativeEmojiPickerCoordinator: NativeEmojiPickerCoordinator?
+  private var nativeMessageActionSurfaceSupportChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
@@ -88,6 +90,33 @@ import UserNotifications
       }
     }
 
+    if let jumpToLatestGlassRegistrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "MajuJumpToLatestGlassButton"
+    ) {
+      jumpToLatestGlassRegistrar.register(
+        JumpToLatestGlassButtonFactory(messenger: messenger),
+        withId: "maju/jump_to_latest_glass"
+      )
+    }
+
+    if let navigationGlassRegistrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "MajuNavigationGlassButton"
+    ) {
+      navigationGlassRegistrar.register(
+        NavigationGlassButtonFactory(messenger: messenger),
+        withId: "maju/navigation_glass"
+      )
+    }
+
+    if let stickyDateGlassRegistrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "MajuStickyDateGlassHeader"
+    ) {
+      stickyDateGlassRegistrar.register(
+        StickyDateGlassHeaderFactory(messenger: messenger),
+        withId: "maju/sticky_date_glass"
+      )
+    }
+
     let nativeAttachmentRegistrar = engineBridge.pluginRegistry.registrar(
       forPlugin: "MajuNativeAttachmentPopover"
     )
@@ -95,6 +124,34 @@ import UserNotifications
       messenger: messenger,
       parentViewController: nativeAttachmentRegistrar?.viewController
     )
+
+    let nativeEmojiPickerRegistrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "MajuNativeEmojiPicker"
+    )
+    nativeEmojiPickerCoordinator = NativeEmojiPickerCoordinator(
+      messenger: messenger,
+      parentViewController: nativeEmojiPickerRegistrar?.viewController
+    )
+    if #available(iOS 16.0, *),
+      let nativeMessageActionsRegistrar = engineBridge.pluginRegistry.registrar(
+        forPlugin: "MajuNativeMessageActionSurface"
+      ) {
+      nativeMessageActionsRegistrar.register(
+        NativeMessageActionSurfaceFactory(messenger: messenger),
+        withId: "maju/native_message_action_surface"
+      )
+      nativeMessageActionSurfaceSupportChannel = FlutterMethodChannel(
+        name: "maju/native_message_action_surface",
+        binaryMessenger: messenger
+      )
+      nativeMessageActionSurfaceSupportChannel?.setMethodCallHandler { call, result in
+        guard call.method == "isSupported" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        result(true)
+      }
+    }
   }
 
   private static func handleQrScannerMethodCall(

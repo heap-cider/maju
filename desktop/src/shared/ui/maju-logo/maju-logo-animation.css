@@ -56,6 +56,21 @@
   animation: maju-logo-pulse 1.8s ease-in-out infinite;
 }
 
+@keyframes maju-logo-scale-pulse {
+  0%,
+  100% {
+    transform: scale(0.94);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.maju-logo--scale-pulse .maju-logo__mark {
+  animation: maju-logo-scale-pulse 1.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .maju-logo animate {
     display: none;
@@ -64,5 +79,10 @@
   .maju-logo--pulse .maju-logo__mark {
     animation: none;
     opacity: 0.8;
+  }
+
+  .maju-logo--scale-pulse .maju-logo__mark {
+    animation: none;
+    transform: none;
   }
 }

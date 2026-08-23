@@ -15,6 +15,7 @@ pub use agent_identity::{
     resolve_definition_team_id,
 };
 mod backend;
+pub(crate) mod claude_config;
 pub(crate) mod config_bridge;
 pub(crate) mod custom_harnesses;
 mod definition_validation;

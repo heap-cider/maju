@@ -1,4 +1,5 @@
 import { Card } from "@/shared/ui/card";
+import { MajuLoadingState } from "@/shared/ui/MajuLoadingState";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { cn } from "@/shared/lib/cn";
 import { channelChrome } from "@/shared/layout/chromeLayout";
@@ -402,7 +403,9 @@ export function ViewLoadingFallback({
       {shouldShowChannelHeader ? <LoadingHeaderSkeleton /> : null}
       {kind === "agents" ? <AgentsLoadingBody /> : null}
       {kind === "workflows" ? <CardListLoadingBody /> : null}
-      {kind === "projects" ? <CardListLoadingBody /> : null}
+      {kind === "projects" ? (
+        <MajuLoadingState fill label="Loading projects" />
+      ) : null}
       {kind === "channel" ? (
         <ChannelLoadingBody hasHeader={shouldShowChannelHeader} />
       ) : null}

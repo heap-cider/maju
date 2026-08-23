@@ -188,14 +188,14 @@ test("parseSupportedLinkPreview parses maju:// PR and issue deep links", () => {
       href: `maju://pr?id=${MAJU_EVENT_ID}&owner=${MAJU_OWNER}&d=maju-world`,
       provider: "Maju",
       title: "maju-world #c3b589fa",
-      typeLabel: "PR",
+      typeLabel: "Review",
     },
   );
   assert.deepEqual(
     parseSupportedLinkPreview(
       `maju://issue?id=${MAJU_EVENT_ID}&owner=${MAJU_OWNER}&d=maju-world`,
     )?.typeLabel,
-    "issue",
+    "Task",
   );
   assert.deepEqual(
     parseSupportedLinkPreview(`maju://repo?owner=${MAJU_OWNER}&d=maju-world`),

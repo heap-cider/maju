@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maju/features/profile/profile_avatar.dart';
 import 'package:maju/features/profile/profile_provider.dart';
-import 'package:maju/features/profile/user_profile.dart';
+import 'package:maju/shared/profile/user_profile.dart';
 import 'package:maju/shared/theme/theme.dart';
 import 'package:maju/shared/widgets/avatar_image.dart';
 import 'package:maju/shared/widgets/masked_avatar_badge.dart';

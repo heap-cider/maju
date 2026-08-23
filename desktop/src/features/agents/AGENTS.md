@@ -47,7 +47,12 @@ shape instead of adding a runtime-ID exception.
 2. **Effort reads/writes go through its declared source.** Env-backed effort
    uses the descriptor's `currentPersistence` key. ACP-native reasoning uses
    the exact discovered `configId` whose category is `thought_level`; never
-   assume the id is `effort`, parse a model suffix, or invent choices.
+   assume the id is `effort`, parse a model suffix, or invent choices. Persist
+   ACP-native selections together in the definition's
+   `MAJU_ACP_CONFIG_OPTIONS` map; never add a device-local `effort_level`
+   authority beside it. A running process keeps its startup map until restart,
+   and profile/config rows show one effective value without configured/live
+   provenance or struck-through shadow values.
 3. **Native field absence follows discovery, not an adapter omission table.**
    A runtime without static effort defers to live ACP options. If no
    `thought_level` option is advertised, the UI hides the field and leaves the

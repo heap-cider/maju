@@ -12,6 +12,7 @@ import {
   markPendingCommunityRestore,
   saveCommunityDestination,
 } from "@/features/communities/communityNavigationStorage";
+import { channelSnapshotCanPreload } from "@/features/channels/channelSnapshot";
 import { markCommunityDiscoveryAfterLeave } from "@/features/communities/communityStorage";
 import type { useCommunities } from "@/features/communities/useCommunities";
 import { leaveCommunity } from "@/features/communities/leaveCommunity";
@@ -23,11 +24,13 @@ type GoHome = ReturnType<typeof useAppNavigation>["goHome"];
 export function useCommunityNavigationTransitions({
   communities,
   goHome,
+  ownerPubkey,
   selectedChannelId,
   selectedView,
 }: {
   communities: Communities;
   goHome: GoHome;
+  ownerPubkey: string | null;
   selectedChannelId: ShellRoute["selectedChannelId"];
   selectedView: ShellRoute["selectedView"];
 }) {
@@ -59,7 +62,19 @@ export function useCommunityNavigationTransitions({
         await goHome({ replace: true });
         markPendingCommunityRestore(id);
         const destination = loadCommunityDestination(id);
-        if (destination?.kind === "channel") {
+        const targetCommunity = communities.communities.find(
+          (community) => community.id === id,
+        );
+        if (
+          destination?.kind === "channel" &&
+          targetCommunity &&
+          ownerPubkey &&
+          channelSnapshotCanPreload(
+            targetCommunity.relayUrl,
+            ownerPubkey,
+            destination.channelId,
+          )
+        ) {
           replaceCommunityDestinationRoute(
             destination.channelId,
             router.history,
@@ -68,7 +83,7 @@ export function useCommunityNavigationTransitions({
         communities.switchCommunity(id);
       });
     },
-    [communities, goHome, router.history, saveActiveDestination],
+    [communities, goHome, ownerPubkey, router.history, saveActiveDestination],
   );
 
   const removeCommunity = React.useCallback(
@@ -111,7 +126,15 @@ export function useCommunityNavigationTransitions({
         await goHome({ replace: true });
         markPendingCommunityRestore(fallback.id);
         const destination = loadCommunityDestination(fallback.id);
-        if (destination?.kind === "channel") {
+        if (
+          destination?.kind === "channel" &&
+          ownerPubkey &&
+          channelSnapshotCanPreload(
+            fallback.relayUrl,
+            ownerPubkey,
+            destination.channelId,
+          )
+        ) {
           replaceCommunityDestinationRoute(
             destination.channelId,
             router.history,
@@ -121,7 +144,7 @@ export function useCommunityNavigationTransitions({
       });
       return leaveResult;
     },
-    [communities, goHome, router.history, saveActiveDestination],
+    [communities, goHome, ownerPubkey, router.history, saveActiveDestination],
   );
 
   return { removeCommunity, switchCommunity };
