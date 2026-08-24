@@ -70,7 +70,11 @@ The `content` field is a **plaintext** (unencrypted) JSON object:
   "name_pool": ["<string>", ...],
   "respond_to": "<string | null>",
   "respond_to_allowlist": ["<64-hex pubkey>", ...],
-  "parallelism": "<integer | null>"
+  "parallelism": "<integer | null>",
+  "acp_config_options": {
+    "<config-id>": "<string | number | boolean>",
+    ...
+  }
 }
 ```
 
@@ -93,6 +97,7 @@ The `content` field is a **plaintext** (unencrypted) JSON object:
 | `respond_to` | string \| null | `null` | **Reserved.** Default respond-to policy for instances spawned from this definition: `"anyone"`, `"owner-only"`, or `"allowlist"`. `null` defers to the client default. |
 | `respond_to_allowlist` | string[] | `[]` | **Reserved.** Allowlisted author pubkeys (64-char lowercase hex) when `respond_to` is `"allowlist"`. Ignored otherwise. |
 | `parallelism` | integer \| null | `null` | **Reserved.** Default max concurrent turns for spawned instances. `null` defers to the client default. |
+| `acp_config_options` | object \| absent | absent | Complete non-secret ACP session option selections for this definition. Values MUST be strings, numbers, or booleans. A missing field from a legacy writer does not change a reader's saved selections; an explicit `{}` clears them. Running sessions keep their startup values until restart. |
 
 The behavioral fields (`respond_to`, `respond_to_allowlist`,
 `parallelism`) are definition-level *defaults*: a spawned instance copies them
@@ -112,7 +117,7 @@ Unknown fields MUST be ignored by readers (forward compatibility).
 
 ### Prohibited: secrets in content
 
-The content body is **public and unencrypted**. It MUST NOT contain secrets (API keys, tokens, credentials, or any sensitive environment variables). In particular, an `env_vars` field MUST NOT appear in the content body.
+The content body is **public and unencrypted**. It MUST NOT contain secrets (API keys, tokens, credentials, or any sensitive environment variables). In particular, an `env_vars` field MUST NOT appear in the content body. `acp_config_options` is the sole environment-backed exception: it carries only validated scalar UI selections, never the surrounding environment map.
 
 Secrets required by agents spawned from a persona MUST be conveyed through a separate encrypted channel — specifically, the [NIP-AE](NIP-AE.md) engram at `mem/persona` (which is NIP-44 encrypted to the agent↔owner conversation key) or through out-of-band injection at spawn time.
 

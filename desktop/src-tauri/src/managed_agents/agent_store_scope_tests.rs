@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use super::{
     apply_team_membership_to_instances, scoped_agent_store_dir, select_scoped_agent_records,
-    select_scoped_teams, ManagedAgentRecord, TeamRecord,
+    select_scoped_teams, EventSyncBootstrap, ManagedAgentRecord, TeamRecord,
 };
 
 fn record(
@@ -55,6 +55,23 @@ fn scope_directory_reuses_retention_scope_id() {
     .expect("scope directory");
 
     assert_eq!(dir, std::path::Path::new("agents/scopes/abc123"));
+}
+
+#[test]
+fn event_sync_bootstrap_is_an_exact_coordinate_allowlist() {
+    let bootstrap = EventSyncBootstrap {
+        persona_d_tags: vec!["persona-a".to_string()],
+        team_d_tags: vec!["team-a".to_string()],
+        agent_d_tags: vec!["agent-a".to_string()],
+    };
+    assert!(bootstrap.allows_persona("persona-a"));
+    assert!(!bootstrap.allows_persona("persona-b"));
+    assert!(bootstrap.allows_team("team-a"));
+    assert!(!bootstrap.allows_team("team-b"));
+    assert!(bootstrap.allows_agent("agent-a"));
+    assert!(!bootstrap.allows_agent("agent-b"));
+    assert!(!bootstrap.is_empty());
+    assert!(EventSyncBootstrap::default().is_empty());
 }
 
 #[test]

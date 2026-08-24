@@ -1,5 +1,12 @@
 use super::*;
 
+fn team_bootstrap(d_tags: &[&str]) -> crate::managed_agents::EventSyncBootstrap {
+    crate::managed_agents::EventSyncBootstrap {
+        team_d_tags: d_tags.iter().map(|value| (*value).to_string()).collect(),
+        ..Default::default()
+    }
+}
+
 /// Helper: write a `teams.json` directly in `base_dir` (the migration reads
 /// `base_dir/teams.json`, where `base_dir` is the `agents` dir).
 fn write_base_teams(base_dir: &Path, records: &serde_json::Value) {
@@ -32,7 +39,10 @@ fn migrate_teams_writes_signed_retention_rows() {
     let keys = nostr::Keys::generate();
     let pubkey = keys.public_key().to_hex();
 
-    assert_eq!(migrate_teams_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_teams_in_dir(base.path(), &keys, &team_bootstrap(&["team-alpha"])).unwrap(),
+        1
+    );
 
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
     let row = get_retained_event(&conn, KIND_TEAM, &pubkey, "team-alpha")
@@ -63,7 +73,10 @@ fn migrate_teams_skips_builtins() {
     );
     let keys = nostr::Keys::generate();
 
-    assert_eq!(migrate_teams_in_dir(base.path(), &keys).unwrap(), 0);
+    assert_eq!(
+        migrate_teams_in_dir(base.path(), &keys, &Default::default()).unwrap(),
+        0
+    );
 
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
     assert!(get_retained_event(
@@ -82,8 +95,14 @@ fn migrate_teams_unchanged_second_run_is_noop() {
     write_base_teams(base.path(), &one_team());
     let keys = nostr::Keys::generate();
 
-    assert_eq!(migrate_teams_in_dir(base.path(), &keys).unwrap(), 1);
-    assert_eq!(migrate_teams_in_dir(base.path(), &keys).unwrap(), 0);
+    assert_eq!(
+        migrate_teams_in_dir(base.path(), &keys, &team_bootstrap(&["team-alpha"])).unwrap(),
+        1
+    );
+    assert_eq!(
+        migrate_teams_in_dir(base.path(), &keys, &Default::default()).unwrap(),
+        0
+    );
 }
 
 #[test]
@@ -96,7 +115,10 @@ fn migrate_teams_edited_team_re_retains_pending() {
     let keys = nostr::Keys::generate();
     let pubkey = keys.public_key().to_hex();
 
-    assert_eq!(migrate_teams_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_teams_in_dir(base.path(), &keys, &team_bootstrap(&["team-alpha"])).unwrap(),
+        1
+    );
 
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
     let row = get_retained_event(&conn, KIND_TEAM, &pubkey, "team-alpha")
@@ -117,7 +139,10 @@ fn migrate_teams_edited_team_re_retains_pending() {
     edited.as_array_mut().unwrap()[0]["description"] = serde_json::json!("Renamed team");
     write_base_teams(base.path(), &edited);
 
-    assert_eq!(migrate_teams_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_teams_in_dir(base.path(), &keys, &Default::default()).unwrap(),
+        1
+    );
 
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
     let row = get_retained_event(&conn, KIND_TEAM, &pubkey, "team-alpha")
@@ -131,7 +156,10 @@ fn migrate_teams_edited_team_re_retains_pending() {
 fn migrate_teams_no_file_is_noop() {
     let base = tempfile::tempdir().unwrap();
     let keys = nostr::Keys::generate();
-    assert_eq!(migrate_teams_in_dir(base.path(), &keys).unwrap(), 0);
+    assert_eq!(
+        migrate_teams_in_dir(base.path(), &keys, &Default::default()).unwrap(),
+        0
+    );
 }
 
 /// Error-contract for the fatal team leg. `run_event_sync` propagates a team
@@ -145,7 +173,7 @@ fn migrate_teams_surfaces_error_on_unparseable_store() {
     let base = tempfile::tempdir().unwrap();
     std::fs::write(base.path().join("teams.json"), "{ not valid json").unwrap();
     let keys = nostr::Keys::generate();
-    assert!(migrate_teams_in_dir(base.path(), &keys).is_err());
+    assert!(migrate_teams_in_dir(base.path(), &keys, &Default::default()).is_err());
 }
 
 /// Build a signed inbound team head at an explicit `created_at`, mirroring a
@@ -228,7 +256,13 @@ fn reconcile_first_makes_stale_inbound_team_head_lose() {
     let ordered_db = ordered.path().join("retention.db");
     write_base_teams(ordered.path(), &repaired);
     assert_eq!(
-        migrate_teams_in_dir_at(ordered.path(), &keys, &ordered_db).unwrap(),
+        migrate_teams_in_dir_at(
+            ordered.path(),
+            &keys,
+            &ordered_db,
+            &team_bootstrap(&["sietch-tabr"]),
+        )
+        .unwrap(),
         1
     );
     let conn = open_retention_db(&ordered_db).unwrap();

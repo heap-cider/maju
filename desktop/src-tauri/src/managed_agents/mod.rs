@@ -61,7 +61,8 @@ pub(crate) fn lock_path_mutex() -> std::sync::MutexGuard<'static, ()> {
 
 pub(crate) use agent_store_scope::{
     active_agent_store_dir, agent_store_dir_for_relay, apply_team_membership_to_instances,
-    complete_active_agent_store_scope_repair, initialize_agent_store_scope, AgentStoreScopeRepair,
+    complete_active_agent_store_scope_repair, complete_active_event_sync_bootstrap,
+    initialize_agent_store_scope, AgentStoreScopeInitialization, EventSyncBootstrap,
 };
 pub use backend::*;
 pub(crate) use definition_validation::{

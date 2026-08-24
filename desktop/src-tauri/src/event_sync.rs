@@ -1,9 +1,11 @@
 //! Boot-time disk→relay event reconcile ("event sync").
 //!
-//! Reconciles the on-disk JSON stores (`personas.json`, `teams.json`,
-//! `managed-agents.json`) into signed retention events queued for relay
-//! publish. Runs after identity resolution (event signing needs the owner
-//! keys), unlike the pre-identity migrations in [`crate::migration`].
+//! Reconciles proven coordinates from the on-disk JSON stores
+//! (`personas.json`, `teams.json`, `managed-agents.json`) into signed retention
+//! events queued for relay publish. A coordinate needs an existing scoped
+//! retention head or the exact one-shot legacy bootstrap allowlist; JSON alone
+//! is never relay provenance. Runs after identity resolution (event signing
+//! needs the owner keys), unlike pre-identity migrations.
 
 use std::path::Path;
 
@@ -17,14 +19,16 @@ pub fn run_event_sync(
     owner_keys: &nostr::Keys,
     db_path: &Path,
     store_dir: &Path,
+    bootstrap: &crate::managed_agents::EventSyncBootstrap,
 ) -> Result<(), String> {
-    migrate_personas_to_events(store_dir, owner_keys, db_path);
-    migrate_teams_to_events(store_dir, owner_keys, db_path)?;
+    migrate_personas_to_events(store_dir, owner_keys, db_path, bootstrap)?;
+    migrate_teams_to_events(store_dir, owner_keys, db_path, bootstrap)?;
     crate::managed_agents::reconcile::reconcile_agents_to_events(
         &store_dir.join("managed-agents.json"),
         owner_keys,
         db_path,
-    );
+        bootstrap,
+    )?;
     Ok(())
 }
 
@@ -44,10 +48,13 @@ pub async fn run_event_sync_blocking(
     owner_keys: nostr::Keys,
     db_path: std::path::PathBuf,
     store_dir: std::path::PathBuf,
+    bootstrap: crate::managed_agents::EventSyncBootstrap,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || run_event_sync(&owner_keys, &db_path, &store_dir))
-        .await
-        .map_err(|e| format!("event-sync: spawn_blocking failed: {e}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        run_event_sync(&owner_keys, &db_path, &store_dir, &bootstrap)
+    })
+    .await
+    .map_err(|e| format!("event-sync: spawn_blocking failed: {e}"))?
 }
 
 /// Reconcile `personas.json` into the persona-event retention store.
@@ -59,29 +66,32 @@ pub async fn run_event_sync_blocking(
 ///
 /// Per-record reconcile: for each non-builtin persona it compares the freshly
 /// serialized event content against the retained row at the same coordinate
-/// and re-retains (marking `pending_sync = 1`) only when the row is absent or
-/// its content differs. An unchanged persona is left untouched, so a launch
-/// after a no-op edit does not churn `pending_sync`; a persona added or edited
-/// on disk between launches is picked up and republished. There is no
-/// whole-store sentinel — comparing per coordinate is what lets newly added
-/// personas reach the relay.
+/// and re-retains (marking `pending_sync = 1`) when a proven row's content
+/// differs. An unchanged persona is left untouched, so a launch after a no-op
+/// edit does not churn `pending_sync`. A coordinate absent from retention is
+/// admitted only by the exact one-shot legacy bootstrap allowlist; every other
+/// JSON-only coordinate is ignored instead of becoming a new relay head.
 ///
 /// Strategy: write to local SQLite retention first (durable copy), mark as
 /// `pending_sync = 1` for later relay publish. Migration succeeds on local
 /// write, not relay acknowledgment. Every retained row is a real signed
 /// event — there is no placeholder path.
-pub fn migrate_personas_to_events(base_dir: &Path, keys: &nostr::Keys, db_path: &Path) {
-    match migrate_personas_in_dir_at(base_dir, keys, db_path) {
+pub fn migrate_personas_to_events(
+    base_dir: &Path,
+    keys: &nostr::Keys,
+    db_path: &Path,
+    bootstrap: &crate::managed_agents::EventSyncBootstrap,
+) -> Result<(), String> {
+    match migrate_personas_in_dir_at(base_dir, keys, db_path, bootstrap) {
         Ok(0) => {}
         Ok(migrated) => {
             eprintln!(
                 "maju-desktop: persona-event-migration: {migrated} personas migrated to retention"
             );
         }
-        Err(e) => {
-            eprintln!("maju-desktop: persona-event-migration: {e}");
-        }
+        Err(e) => return Err(format!("persona-event-migration: {e}")),
     }
+    Ok(())
 }
 
 /// Core reconcile logic, decoupled from the Tauri `AppHandle` for testing.
@@ -90,14 +100,19 @@ pub fn migrate_personas_to_events(base_dir: &Path, keys: &nostr::Keys, db_path: 
 /// `Ok(0)` when every non-builtin persona already has a matching retained row
 /// (or there are none to reconcile).
 #[cfg(test)]
-fn migrate_personas_in_dir(base_dir: &Path, keys: &nostr::Keys) -> Result<u32, String> {
-    migrate_personas_in_dir_at(base_dir, keys, &base_dir.join("retention.db"))
+fn migrate_personas_in_dir(
+    base_dir: &Path,
+    keys: &nostr::Keys,
+    bootstrap: &crate::managed_agents::EventSyncBootstrap,
+) -> Result<u32, String> {
+    migrate_personas_in_dir_at(base_dir, keys, &base_dir.join("retention.db"), bootstrap)
 }
 
 fn migrate_personas_in_dir_at(
     base_dir: &Path,
     keys: &nostr::Keys,
     db_path: &Path,
+    bootstrap: &crate::managed_agents::EventSyncBootstrap,
 ) -> Result<u32, String> {
     use crate::managed_agents::{
         persona_events::{build_persona_event, monotonic_created_at, persona_d_tag},
@@ -163,6 +178,10 @@ fn migrate_personas_in_dir_at(
         // while `migrated` over-reports. Mirror the interactive sites' monotonic
         // bump (F1) so a changed body always lands.
         let existing = get_retained_event(&conn, KIND_PERSONA, &pubkey, &d_tag)?;
+        if existing.is_none() && !bootstrap.allows_persona(&d_tag) {
+            eprintln!("maju-desktop: quarantined unproven persona disk coordinate '{d_tag}'");
+            continue;
+        }
 
         let mut scoped_record = record.clone();
         scoped_record.shared = existing
@@ -226,8 +245,9 @@ pub fn migrate_teams_to_events(
     base_dir: &Path,
     keys: &nostr::Keys,
     db_path: &Path,
+    bootstrap: &crate::managed_agents::EventSyncBootstrap,
 ) -> Result<(), String> {
-    match migrate_teams_in_dir_at(base_dir, keys, db_path) {
+    match migrate_teams_in_dir_at(base_dir, keys, db_path, bootstrap) {
         Ok(0) => Ok(()),
         Ok(migrated) => {
             eprintln!("maju-desktop: team-event-migration: {migrated} teams migrated to retention");
@@ -243,14 +263,19 @@ pub fn migrate_teams_to_events(
 /// per-coordinate content compare matches [`migrate_personas_in_dir`]: an
 /// unchanged team is skipped so a launch does not churn `pending_sync`.
 #[cfg(test)]
-fn migrate_teams_in_dir(base_dir: &Path, keys: &nostr::Keys) -> Result<u32, String> {
-    migrate_teams_in_dir_at(base_dir, keys, &base_dir.join("retention.db"))
+fn migrate_teams_in_dir(
+    base_dir: &Path,
+    keys: &nostr::Keys,
+    bootstrap: &crate::managed_agents::EventSyncBootstrap,
+) -> Result<u32, String> {
+    migrate_teams_in_dir_at(base_dir, keys, &base_dir.join("retention.db"), bootstrap)
 }
 
 fn migrate_teams_in_dir_at(
     base_dir: &Path,
     keys: &nostr::Keys,
     db_path: &Path,
+    bootstrap: &crate::managed_agents::EventSyncBootstrap,
 ) -> Result<u32, String> {
     use crate::managed_agents::{
         persona_events::monotonic_created_at,
@@ -295,6 +320,10 @@ fn migrate_teams_in_dir_at(
         // Fetch the head first so the monotonic bump can supersede a
         // future-dated head — see migrate_personas_in_dir (F1/F8).
         let existing = get_retained_event(&conn, KIND_TEAM, &pubkey, &d_tag)?;
+        if existing.is_none() && !bootstrap.allows_team(&d_tag) {
+            eprintln!("maju-desktop: quarantined unproven team disk coordinate '{d_tag}'");
+            continue;
+        }
 
         let event = build_team_event(record)
             .map_err(|e| format!("failed to build event for team '{}': {e}", record.name))?

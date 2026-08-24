@@ -573,7 +573,21 @@ to do so causes data from the old community to leak into the new one. Avoid
 duplicating its complete reset list here; the implementation is the source of
 truth.
 
+Workspace application is **latest-selection-wins**, not lock-arrival-wins.
+The frontend request generation must be checked after every asynchronous reset
+or apply boundary, and apply-related refs become authoritative only after the
+backend receipt matches the selected relay and signer. The backend claims its
+generation before waiting for `workspace_apply_lock`; a stale waiter or running
+transaction must fail its next generation boundary without consuming one-shot
+restore state.
+
+Relay event origin is the URL of the socket that actually delivered or served
+the event. Community labels captured by a React effect are only expectations:
+origin-aware backfills and subscriptions must compare them and fail closed on
+a mismatch before calling an inbound reconcile command.
+
 Key files:
+- `desktop/src/features/communities/useCommunityInit.test.mjs` — delayed A→B→A latest-wins regression
 - `desktop/src/app/App.tsx` — community key, init gate, remount boundary
 - `desktop/src/features/communities/useCommunityInit.ts` — `resetCommunityState()`, applies config to Tauri backend
 - `desktop/src/main.tsx` — provider hierarchy (`QueryClientProvider` > `App`)

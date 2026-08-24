@@ -1,5 +1,19 @@
 use super::*;
 
+fn persona_bootstrap(d_tags: &[&str]) -> crate::managed_agents::EventSyncBootstrap {
+    crate::managed_agents::EventSyncBootstrap {
+        persona_d_tags: d_tags.iter().map(|value| (*value).to_string()).collect(),
+        ..Default::default()
+    }
+}
+
+fn team_bootstrap(d_tags: &[&str]) -> crate::managed_agents::EventSyncBootstrap {
+    crate::managed_agents::EventSyncBootstrap {
+        team_d_tags: d_tags.iter().map(|value| (*value).to_string()).collect(),
+        ..Default::default()
+    }
+}
+
 /// Helper: write a `personas.json` directly in `base_dir` (the migration
 /// reads `base_dir/personas.json`, where `base_dir` is the `agents` dir).
 fn write_base_personas(base_dir: &Path, records: &serde_json::Value) {
@@ -33,7 +47,9 @@ fn migrate_personas_writes_signed_retention_rows() {
     let keys = nostr::Keys::generate();
     let pubkey = keys.public_key().to_hex();
 
-    let migrated = migrate_personas_in_dir(base.path(), &keys).unwrap();
+    let migrated =
+        migrate_personas_in_dir(base.path(), &keys, &persona_bootstrap(&["code-reviewer"]))
+            .unwrap();
     assert_eq!(migrated, 1);
 
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
@@ -60,7 +76,13 @@ fn run_event_sync_reads_only_the_captured_store_directory() {
 
     let keys = nostr::Keys::generate();
     let db_path = first.path().join("captured.db");
-    run_event_sync(&keys, &db_path, first.path()).unwrap();
+    run_event_sync(
+        &keys,
+        &db_path,
+        first.path(),
+        &persona_bootstrap(&["code-reviewer"]),
+    )
+    .unwrap();
 
     let conn = open_retention_db(&db_path).unwrap();
     let rows = get_retained_personas(&conn, &keys.public_key().to_hex()).unwrap();
@@ -90,7 +112,7 @@ fn migrate_personas_skips_builtins() {
     );
     let keys = nostr::Keys::generate();
 
-    let migrated = migrate_personas_in_dir(base.path(), &keys).unwrap();
+    let migrated = migrate_personas_in_dir(base.path(), &keys, &Default::default()).unwrap();
     assert_eq!(migrated, 0);
 
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
@@ -107,13 +129,20 @@ fn migrate_personas_unchanged_second_run_is_noop() {
     // First run retains; second run with identical personas re-retains
     // nothing — the per-coordinate content matches, so `pending_sync` is
     // not churned.
-    assert_eq!(migrate_personas_in_dir(base.path(), &keys).unwrap(), 1);
-    assert_eq!(migrate_personas_in_dir(base.path(), &keys).unwrap(), 0);
+    let bootstrap = persona_bootstrap(&["code-reviewer"]);
+    assert_eq!(
+        migrate_personas_in_dir(base.path(), &keys, &bootstrap).unwrap(),
+        1
+    );
+    assert_eq!(
+        migrate_personas_in_dir(base.path(), &keys, &Default::default()).unwrap(),
+        0
+    );
     assert!(!base.path().join("migration_state.json").exists());
 }
 
 #[test]
-fn migrate_personas_new_persona_after_first_run_gets_retained() {
+fn migrate_personas_new_unproven_disk_persona_is_quarantined() {
     use crate::managed_agents::retention::{get_retained_personas, open_retention_db};
 
     let base = tempfile::tempdir().unwrap();
@@ -121,11 +150,14 @@ fn migrate_personas_new_persona_after_first_run_gets_retained() {
     let keys = nostr::Keys::generate();
     let pubkey = keys.public_key().to_hex();
 
-    assert_eq!(migrate_personas_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_personas_in_dir(base.path(), &keys, &persona_bootstrap(&["code-reviewer"]),)
+            .unwrap(),
+        1
+    );
 
-    // A persona added to personas.json after the first reconcile must be
-    // picked up — the whole-store sentinel that previously short-circuited
-    // this is gone.
+    // A persona added only to JSON has no scoped provenance. It must not be
+    // turned into a new relay head by the next workspace apply.
     let mut two = one_persona();
     two.as_array_mut().unwrap().push(serde_json::json!({
         "id": "test-writer",
@@ -140,11 +172,15 @@ fn migrate_personas_new_persona_after_first_run_gets_retained() {
     }));
     write_base_personas(base.path(), &two);
 
-    assert_eq!(migrate_personas_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_personas_in_dir(base.path(), &keys, &Default::default()).unwrap(),
+        0
+    );
 
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
     let rows = get_retained_personas(&conn, &pubkey).unwrap();
-    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.len(), 1);
+    assert!(!rows.iter().any(|row| row.d_tag == "test-writer"));
 }
 
 #[test]
@@ -157,7 +193,11 @@ fn migrate_personas_edited_persona_re_retains_pending() {
     let keys = nostr::Keys::generate();
     let pubkey = keys.public_key().to_hex();
 
-    assert_eq!(migrate_personas_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_personas_in_dir(base.path(), &keys, &persona_bootstrap(&["code-reviewer"]),)
+            .unwrap(),
+        1
+    );
 
     // Simulate the flush loop confirming the first publish.
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
@@ -182,7 +222,10 @@ fn migrate_personas_edited_persona_re_retains_pending() {
         serde_json::json!("You review code carefully.");
     write_base_personas(base.path(), &edited);
 
-    assert_eq!(migrate_personas_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_personas_in_dir(base.path(), &keys, &Default::default()).unwrap(),
+        1
+    );
 
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
     let row = get_retained_event(&conn, KIND_PERSONA, &pubkey, "code-reviewer")
@@ -196,7 +239,10 @@ fn migrate_personas_edited_persona_re_retains_pending() {
 fn migrate_personas_no_file_is_noop() {
     let base = tempfile::tempdir().unwrap();
     let keys = nostr::Keys::generate();
-    assert_eq!(migrate_personas_in_dir(base.path(), &keys).unwrap(), 0);
+    assert_eq!(
+        migrate_personas_in_dir(base.path(), &keys, &Default::default()).unwrap(),
+        0
+    );
 }
 
 /// F8: a future-dated retained head must be SUPERSEDED on a changed-content
@@ -217,7 +263,11 @@ fn migrate_personas_supersedes_future_dated_head() {
     let pubkey = keys.public_key().to_hex();
 
     // First migrate retains the persona at ~now.
-    assert_eq!(migrate_personas_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_personas_in_dir(base.path(), &keys, &persona_bootstrap(&["code-reviewer"]),)
+            .unwrap(),
+        1
+    );
 
     // Force the retained head far into the future, simulating a clock-skewed or
     // same-second `max(now, head+1)` interactive bump.
@@ -243,7 +293,7 @@ fn migrate_personas_supersedes_future_dated_head() {
     write_base_personas(base.path(), &edited);
 
     assert_eq!(
-        migrate_personas_in_dir(base.path(), &keys).unwrap(),
+        migrate_personas_in_dir(base.path(), &keys, &Default::default()).unwrap(),
         1,
         "changed content over a future-dated head must report a real migration"
     );
@@ -292,7 +342,10 @@ fn migrate_teams_supersedes_future_dated_head() {
     let keys = nostr::Keys::generate();
     let pubkey = keys.public_key().to_hex();
 
-    assert_eq!(migrate_teams_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_teams_in_dir(base.path(), &keys, &team_bootstrap(&["my-team"])).unwrap(),
+        1
+    );
 
     let conn = open_retention_db(&base.path().join("retention.db")).unwrap();
     let head = get_retained_event(&conn, KIND_TEAM, &pubkey, "my-team")
@@ -313,7 +366,10 @@ fn migrate_teams_supersedes_future_dated_head() {
     edited.as_array_mut().unwrap()[0]["description"] = serde_json::json!("second");
     write_base_teams(base.path(), &edited);
 
-    assert_eq!(migrate_teams_in_dir(base.path(), &keys).unwrap(), 1);
+    assert_eq!(
+        migrate_teams_in_dir(base.path(), &keys, &Default::default()).unwrap(),
+        1
+    );
 
     let row = get_retained_event(&conn, KIND_TEAM, &pubkey, "my-team")
         .unwrap()

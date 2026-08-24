@@ -74,14 +74,14 @@ test("startup backfill keeps only the newest managed-agent head per coordinate",
 // first live event. `startPersonaSync` MUST do a one-shot history fetch up
 // front, and both the backfill and the live sub MUST carry the deletion kind
 // so tombstones catch up too.
-test("startPersonaSync backfills history including the deletion kind", () => {
+test("startPersonaSync backfills history including the deletion kind", async () => {
   const fetchCalls = [];
   const liveCalls = [];
-  mock.method(relayClient, "fetchEvents", (filter) => {
+  mock.method(relayClient, "fetchEventsWithOrigin", (filter) => {
     fetchCalls.push(filter);
-    return Promise.resolve([]);
+    return Promise.resolve({ events: [], relayUrl: "wss://relay.example" });
   });
-  mock.method(relayClient, "subscribeLive", (filter) => {
+  mock.method(relayClient, "subscribeLiveWithOrigin", (filter) => {
     liveCalls.push(filter);
     return Promise.resolve(() => Promise.resolve());
   });
@@ -107,6 +107,8 @@ test("startPersonaSync backfills history including the deletion kind", () => {
     "live sub must also carry the deletion kind",
   );
 
+  await new Promise((resolve) => setImmediate(resolve));
+
   mock.reset();
 });
 
@@ -130,10 +132,13 @@ test("startPersonaSync forwards its own relay as the event arrival relay", async
   const ownEvent = { id: "e1", pubkey: "owner-pubkey", kind: KIND_PERSONA };
   const foreignEvent = { id: "e2", pubkey: "someone-else", kind: KIND_PERSONA };
 
-  mock.method(relayClient, "fetchEvents", () =>
-    Promise.resolve([ownEvent, foreignEvent]),
+  mock.method(relayClient, "fetchEventsWithOrigin", () =>
+    Promise.resolve({
+      events: [ownEvent, foreignEvent],
+      relayUrl: "wss://community-a.example",
+    }),
   );
-  mock.method(relayClient, "subscribeLive", () =>
+  mock.method(relayClient, "subscribeLiveWithOrigin", () =>
     Promise.resolve(() => Promise.resolve()),
   );
 
@@ -159,6 +164,54 @@ test("startPersonaSync forwards its own relay as the event arrival relay", async
   mock.reset();
   delete globalThis.window;
 });
+
+test("startPersonaSync drops backfill and live events whose socket origin differs", async () => {
+  const invokes = [];
+  globalThis.window = {
+    __TAURI_INTERNALS__: {
+      invoke: (cmd, args) => {
+        invokes.push({ cmd, args });
+        return Promise.resolve();
+      },
+    },
+  };
+
+  mock.method(relayClient, "fetchEventsWithOrigin", () =>
+    Promise.resolve({
+      events: [
+        { id: "office-event", pubkey: "owner-pubkey", kind: KIND_PERSONA },
+      ],
+      relayUrl: "wss://office.example",
+    }),
+  );
+  let onLiveEvent;
+  mock.method(relayClient, "subscribeLiveWithOrigin", (_filter, listener) => {
+    onLiveEvent = listener;
+    return Promise.resolve(() => Promise.resolve());
+  });
+
+  startPersonaSync("owner-pubkey", "wss://maju.example", () => false);
+  await new Promise((resolve) => setImmediate(resolve));
+  onLiveEvent(
+    {
+      id: "office-live",
+      pubkey: "owner-pubkey",
+      kind: KIND_PERSONA,
+    },
+    "wss://office.example",
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(
+    invokes.filter((call) => call.cmd === "reconcile_inbound_persona_event")
+      .length,
+    0,
+    "an intended label must never relabel events from another socket",
+  );
+
+  mock.reset();
+  delete globalThis.window;
+});
 test("provisioning can await every backfilled identity write", async () => {
   const invokes = [];
   let releaseFirstWrite;
@@ -174,11 +227,14 @@ test("provisioning can await every backfilled identity write", async () => {
     },
   };
 
-  mock.method(relayClient, "fetchEvents", () =>
-    Promise.resolve([
-      { id: "old", pubkey: "owner-pubkey", kind: KIND_MANAGED_AGENT },
-      { id: "new", pubkey: "owner-pubkey", kind: KIND_MANAGED_AGENT },
-    ]),
+  mock.method(relayClient, "fetchEventsWithOrigin", () =>
+    Promise.resolve({
+      events: [
+        { id: "old", pubkey: "owner-pubkey", kind: KIND_MANAGED_AGENT },
+        { id: "new", pubkey: "owner-pubkey", kind: KIND_MANAGED_AGENT },
+      ],
+      relayUrl: "wss://community-a.example",
+    }),
   );
 
   let settled = false;
@@ -215,20 +271,28 @@ test("startPersonaSync serializes inbound reconciliation in relay order", async 
   };
 
   let onEvent;
-  mock.method(relayClient, "fetchEvents", () => Promise.resolve([]));
-  mock.method(relayClient, "subscribeLive", (_filter, listener) => {
+  mock.method(relayClient, "fetchEventsWithOrigin", () =>
+    Promise.resolve({ events: [], relayUrl: "wss://community.example" }),
+  );
+  mock.method(relayClient, "subscribeLiveWithOrigin", (_filter, listener) => {
     onEvent = listener;
     return Promise.resolve(() => Promise.resolve());
   });
 
   startPersonaSync("owner-pubkey", "wss://community.example", () => false);
   await new Promise((resolve) => setImmediate(resolve));
-  onEvent({ id: "broad", pubkey: "owner-pubkey", kind: KIND_MANAGED_AGENT });
-  onEvent({
-    id: "restricted",
-    pubkey: "owner-pubkey",
-    kind: KIND_MANAGED_AGENT,
-  });
+  onEvent(
+    { id: "broad", pubkey: "owner-pubkey", kind: KIND_MANAGED_AGENT },
+    "wss://community.example",
+  );
+  onEvent(
+    {
+      id: "restricted",
+      pubkey: "owner-pubkey",
+      kind: KIND_MANAGED_AGENT,
+    },
+    "wss://community.example",
+  );
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(

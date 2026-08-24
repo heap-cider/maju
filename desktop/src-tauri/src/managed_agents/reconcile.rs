@@ -3,11 +3,12 @@
 //! `run_event_sync` already reconciles personas (30175) and teams (30176)
 //! into the retention store at boot; managed agents were the missing leg —
 //! their events were enqueued only on the interactive save path
-//! (`retain_managed_agent_pending`), so a record edited on disk between
-//! launches, or a save whose publish was missed, silently diverged from the
-//! relay. This module mirrors `migrate_personas_in_dir`: per-coordinate
-//! content diff, monotonic `created_at` bump, retain with `pending_sync = 1`
-//! for the existing flush loop.
+//! (`retain_managed_agent_pending`), so an existing scoped record edited on
+//! disk between launches, or a save whose publish was missed, could diverge
+//! from the relay. This module mirrors `migrate_personas_in_dir`:
+//! per-coordinate content diff, monotonic `created_at` bump, retain with
+//! `pending_sync = 1` for the existing flush loop. A brand-new JSON coordinate
+//! is quarantined unless it belongs to the exact one-shot legacy bootstrap.
 //!
 //! Best-effort contract (decided in #centralize-personas-and-agents):
 //! - No file watcher — hand edits are picked up at next boot only.
@@ -18,7 +19,7 @@
 //!   `managed-agents.json.invalid` (see [`super::storage::backup_invalid_store`])
 //!   and an error is returned, never silently skipped.
 
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use super::{
     agent_events::build_agent_event_for_owner,
@@ -32,38 +33,102 @@ use nostr::JsonUtil;
 /// Reconcile `managed-agents.json` into kind:30177 events in the retention
 /// store. Boot-time entry point, called from `event_sync::run_event_sync`
 /// after the persona and team legs.
-pub(crate) fn reconcile_agents_to_events(store_path: &Path, keys: &nostr::Keys, db_path: &Path) {
+pub(crate) fn reconcile_agents_to_events(
+    store_path: &Path,
+    keys: &nostr::Keys,
+    db_path: &Path,
+    bootstrap: &super::EventSyncBootstrap,
+) -> Result<(), String> {
     // Unlike the test/disk seam below, the real boot path hydrates nsecs from
     // the OS keyring. That lets pre-envelope agents publish their encrypted
     // identity once after upgrade; reading raw JSON would see an empty key in
     // the normal keyring-backed case and leave those agents device-bound.
-    let result = (|| -> Result<u32, String> {
+    let reconciled = (|| -> Result<u32, String> {
         let records = super::load_managed_agents_from_path(store_path)?;
         if records.is_empty() {
             return Ok(0);
         }
         let conn =
             open_retention_db(db_path).map_err(|e| format!("failed to open retention db: {e}"))?;
+        let owner_pubkey = keys.public_key().to_hex();
+        let definition_d_tags: HashMap<String, String> = records
+            .iter()
+            .filter(|record| record.pubkey.is_empty())
+            .filter_map(ManagedAgentRecord::to_definition_view)
+            .map(|definition| {
+                let d_tag = super::persona_events::persona_d_tag(&definition);
+                (definition.id, d_tag)
+            })
+            .collect();
         let mut reconciled = 0u32;
         for record in &records {
+            if record.pubkey.is_empty() {
+                continue;
+            }
+            let existing =
+                get_retained_event(&conn, KIND_MANAGED_AGENT, &owner_pubkey, &record.pubkey)?;
+            if existing.is_none() && !bootstrap.allows_agent(&record.pubkey) {
+                eprintln!(
+                    "maju-desktop: quarantined unproven managed-agent disk coordinate '{}'",
+                    record.pubkey
+                );
+                continue;
+            }
+            if let Some(persona_id) = record.persona_id.as_deref() {
+                if !persona_id.starts_with("builtin:") {
+                    let Some(definition_d_tag) = definition_d_tags.get(persona_id) else {
+                        eprintln!(
+                            "maju-desktop: quarantined managed-agent '{}' without local definition '{}'",
+                            record.pubkey, persona_id
+                        );
+                        continue;
+                    };
+                    if get_retained_event(
+                        &conn,
+                        maju_core_pkg::kind::KIND_PERSONA,
+                        &owner_pubkey,
+                        definition_d_tag,
+                    )?
+                    .is_none()
+                    {
+                        eprintln!(
+                            "maju-desktop: quarantined managed-agent '{}' without scoped definition '{}'",
+                            record.pubkey, definition_d_tag
+                        );
+                        continue;
+                    }
+                }
+            }
+            if let Some(team_id) = record.team_id.as_deref() {
+                if !team_id.starts_with("builtin-team:")
+                    && get_retained_event(
+                        &conn,
+                        maju_core_pkg::kind::KIND_TEAM,
+                        &owner_pubkey,
+                        team_id,
+                    )?
+                    .is_none()
+                {
+                    eprintln!(
+                        "maju-desktop: quarantined managed-agent '{}' without scoped team '{}'",
+                        record.pubkey, team_id
+                    );
+                    continue;
+                }
+            }
             if retain_agent_record(&conn, keys, record)? {
                 reconciled += 1;
             }
         }
         Ok(reconciled)
-    })();
+    })()?;
 
-    match result {
-        Ok(0) => {}
-        Ok(reconciled) => {
-            eprintln!(
-                "maju-desktop: agent-event-reconcile: {reconciled} agents reconciled to retention"
-            );
-        }
-        Err(e) => {
-            eprintln!("maju-desktop: agent-event-reconcile: {e}");
-        }
+    if reconciled > 0 {
+        eprintln!(
+            "maju-desktop: agent-event-reconcile: {reconciled} agents reconciled to retention"
+        );
     }
+    Ok(())
 }
 
 /// Core reconcile logic, decoupled from the Tauri `AppHandle` for testing.

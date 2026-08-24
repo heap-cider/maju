@@ -53,11 +53,17 @@ import type { Community } from "./types";
  */
 async function resetCommunityState({
   resetAvatarState,
+  isCurrent = () => true,
 }: {
   resetAvatarState: boolean;
-}): Promise<void> {
+  isCurrent?: () => boolean;
+}): Promise<boolean> {
   relayClient.disconnect();
   await resetNavigationDeepLinkDrain();
+  // A newer community may have completed its own reset and apply while this
+  // request was awaiting the native deep-link drain. Do not let the stale
+  // continuation clear the new community's singleton state.
+  if (!isCurrent()) return false;
   resetRateLimitGate();
   clearAllDrafts();
   resetAgentObserverStore();
@@ -81,6 +87,11 @@ async function resetCommunityState({
   clearSearchHitEventCache();
   clearMarkdownNodeCache();
   resetMessageLinkMetadataCache();
+  return true;
+}
+
+function normalizedRelayUrl(relayUrl: string): string {
+  return relayUrl.trim().replace(/\/+$/, "");
 }
 
 type CommunityInitResult =
@@ -128,10 +139,17 @@ export function useCommunityInit(
   // same-relay identity replacement (in-app key import) must clear it so
   // pending profile writes are never published as the new signer.
   const appliedPubkeyRef = useRef<string | null>(null);
+  // React cleanup only marks the previous effect as cancelled. A monotonic
+  // request id also protects continuations that were already inside an await,
+  // and mirrors the backend's latest-wins workspace generation.
+  const requestGenerationRef = useRef(0);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: we intentionally depend on specific properties (id/relayUrl/token/reposDir) — depending on the whole object would trigger resets on name-only changes
   useEffect(() => {
+    const requestGeneration = ++requestGenerationRef.current;
     let cancelled = false;
+    const isCurrent = () =>
+      !cancelled && requestGenerationRef.current === requestGeneration;
 
     async function init() {
       if (!activeCommunity) {
@@ -141,10 +159,14 @@ export function useCommunityInit(
             prevCommunityIdRef.current = null;
           }
           try {
-            await resetCommunityState({ resetAvatarState: true });
+            const reset = await resetCommunityState({
+              resetAvatarState: true,
+              isCurrent,
+            });
+            if (!reset || !isCurrent()) return;
           } catch (error) {
             console.error("Failed to reset community state:", error);
-            if (!cancelled) {
+            if (isCurrent()) {
               setResult({
                 isReady: false,
                 needsSetup: false,
@@ -158,12 +180,15 @@ export function useCommunityInit(
             return;
           }
           appliedRelayUrlRef.current = null;
+          appliedPubkeyRef.current = null;
           hasInitializedRef.current = false;
         }
         try {
           const defaultRelayUrl = await getDefaultRelayUrl();
+          if (!isCurrent()) return;
           const autoConnectDefaultRelay =
             await autoConnectDefaultRelayEnabled();
+          if (!isCurrent()) return;
 
           // Internal builds explicitly opt into treating their reviewed default
           // relay as the first community. Public builds retain community
@@ -175,16 +200,16 @@ export function useCommunityInit(
                 shouldAutoConnectDefaultRelay(defaultRelayUrl)))
           ) {
             const identity = await getIdentity();
-            if (cancelled) return;
+            if (!isCurrent()) return;
             const community = initFirstCommunity(
               defaultRelayUrl,
               identity.pubkey,
             );
-            if (community && !cancelled) {
+            if (community && isCurrent()) {
               window.location.reload();
               return;
             }
-            if (!cancelled) {
+            if (isCurrent()) {
               setResult({
                 isReady: false,
                 needsSetup: true,
@@ -194,7 +219,7 @@ export function useCommunityInit(
             return;
           }
 
-          if (!cancelled) {
+          if (isCurrent()) {
             setResult({
               isReady: false,
               needsSetup: true,
@@ -202,7 +227,7 @@ export function useCommunityInit(
             });
           }
         } catch {
-          if (!cancelled) {
+          if (isCurrent()) {
             setResult({
               isReady: false,
               needsSetup: true,
@@ -237,7 +262,7 @@ export function useCommunityInit(
           err,
         );
       }
-      if (cancelled) return;
+      if (!isCurrent()) return;
 
       // On community switch (not initial mount), reset module singletons
       // so the new tree starts with a clean slate.
@@ -252,16 +277,18 @@ export function useCommunityInit(
           prevCommunityIdRef.current = null;
         }
         try {
-          await resetCommunityState({
+          const reset = await resetCommunityState({
             resetAvatarState:
               appliedRelayUrlRef.current !== activeCommunity.relayUrl ||
               (identityPubkey !== null &&
                 appliedPubkeyRef.current !== null &&
                 appliedPubkeyRef.current !== identityPubkey),
+            isCurrent,
           });
+          if (!reset || !isCurrent()) return;
         } catch (error) {
           console.error("Failed to reset community state:", error);
-          if (!cancelled) {
+          if (isCurrent()) {
             setResult({
               isReady: false,
               needsSetup: false,
@@ -275,9 +302,7 @@ export function useCommunityInit(
           return;
         }
       }
-      hasInitializedRef.current = true;
-      appliedRelayUrlRef.current = activeCommunity.relayUrl;
-      appliedPubkeyRef.current = identityPubkey ?? appliedPubkeyRef.current;
+      if (!isCurrent()) return;
 
       // Apply community config to the Tauri backend.
       //
@@ -289,13 +314,28 @@ export function useCommunityInit(
       // imported key. `loadCommunities()` strips lingering `nsec` fields from
       // legacy entries; this site refuses to apply one even if present.
       try {
-        await applyCommunity(
+        const appliedWorkspace = await applyCommunity(
           activeCommunity.relayUrl,
           undefined,
           activeCommunity.token,
           activeCommunity.reposDir,
           getOverrides().agentManagedProfiles === true,
         );
+        if (!isCurrent()) return;
+        if (
+          !appliedWorkspace.scopeId ||
+          !Number.isSafeInteger(appliedWorkspace.generation) ||
+          appliedWorkspace.generation <= 0 ||
+          normalizedRelayUrl(appliedWorkspace.relayUrl) !==
+            normalizedRelayUrl(activeCommunity.relayUrl) ||
+          (identityPubkey !== null &&
+            appliedWorkspace.ownerPubkey.toLowerCase() !==
+              identityPubkey.toLowerCase())
+        ) {
+          throw new Error(
+            "Backend applied a different community scope than the current selection.",
+          );
+        }
       } catch (error) {
         // A bad `repos_dir` no longer reaches here — `apply_workspace` treats
         // it as non-fatal (relay/keys apply, bad value not persisted, REPOS
@@ -307,7 +347,7 @@ export function useCommunityInit(
         // community-scoped UI against a backend that never applied — park on
         // the loading gate (isReady:false, no appliedKey) instead.
         console.error("Failed to apply community to backend:", error);
-        if (!cancelled) {
+        if (isCurrent()) {
           setResult({
             isReady: false,
             needsSetup: false,
@@ -321,7 +361,7 @@ export function useCommunityInit(
         return;
       }
 
-      if (!cancelled) {
+      if (isCurrent()) {
         // Refresh relay-derived media state only after the backend has installed
         // this community's relay override. On cold launch, mediaUrl.ts may have
         // eagerly cached the default relay origin before applyCommunity ran;
@@ -336,6 +376,11 @@ export function useCommunityInit(
         // trip). This runs after applyCommunity succeeds and before the app
         // renders so components see the restored timers on first render.
         restoreActiveAgentTurnsForCommunity(activeCommunity.id);
+        // Apply-related refs become authoritative only after the backend
+        // returned and its exact relay+owner receipt passed validation.
+        hasInitializedRef.current = true;
+        appliedRelayUrlRef.current = activeCommunity.relayUrl;
+        appliedPubkeyRef.current = identityPubkey ?? appliedPubkeyRef.current;
         // Prime the ref so the NEXT switch saves this community's state.
         prevCommunityIdRef.current = activeCommunity.id;
         setResult({

@@ -218,6 +218,29 @@ export class RelayClient {
     return this.fetchHistory(filter);
   }
 
+  /** Fetch events together with the exact socket origin used for the REQ. */
+  async fetchEventsWithOrigin(
+    filter: RelaySubscriptionFilter,
+  ): Promise<{ events: RelayEvent[]; relayUrl: string }> {
+    await this.ensureConnected();
+    const generation = this.connectionGeneration;
+    const relayUrl = this.relayUrl;
+    if (this.wsId === null || relayUrl === null) {
+      throw new Error("Relay socket origin is unavailable.");
+    }
+    const events = await this.requestHistory(filter);
+    if (
+      generation !== this.connectionGeneration ||
+      this.wsId === null ||
+      this.relayUrl !== relayUrl
+    ) {
+      throw new Error(
+        "Relay history request was superseded by another socket.",
+      );
+    }
+    return { events, relayUrl };
+  }
+
   async fetchFirstEvent(
     filter: RelaySubscriptionFilter,
   ): Promise<RelayEvent | null> {
@@ -323,7 +346,6 @@ export class RelayClient {
     return this.subscribe(buildChannelFilter(channelId, 50), onEvent);
   }
 
-  /** Subscribe to channel rows and aux starting now, with no history replay. */
   async subscribeToChannelLive(
     channelId: string,
     onEvent: (event: RelayEvent) => void,
@@ -392,7 +414,6 @@ export class RelayClient {
     );
   }
 
-  /** Subscribe to kind:30315 user status events (live only, no backfill). */
   async subscribeToUserStatusUpdates(onEvent: (event: RelayEvent) => void) {
     return this.subscribe(
       { kinds: [KIND_USER_STATUS], "#d": ["general"], limit: 0 },
@@ -412,6 +433,28 @@ export class RelayClient {
   ) {
     return this.subscribe(filter, onEvent, onReady, readinessTimeoutMs);
   }
+
+  /** Subscribe with the origin captured by each delivering socket generation. */
+  async subscribeLiveWithOrigin(
+    filter: RelaySubscriptionFilter,
+    onEvent: (event: RelayEvent, relayUrl: string) => void,
+    onReady?: (readiness: LiveSubscriptionReadiness) => void,
+    readinessTimeoutMs?: number,
+  ) {
+    return this.subscribe(
+      filter,
+      (event, relayUrl) => {
+        if (relayUrl === undefined) {
+          console.warn("Dropped live relay event without a socket origin.");
+          return;
+        }
+        onEvent(event, relayUrl);
+      },
+      onReady,
+      readinessTimeoutMs,
+    );
+  }
+
   async subscribeToChannelMentionEvents(
     channelId: string,
     pubkey: string,
@@ -465,7 +508,6 @@ export class RelayClient {
     };
   }
 
-  /** Current connection state — synchronous read. */
   getConnectionState(): ConnectionState {
     return this.connectionStateEmitter.get();
   }
@@ -529,23 +571,24 @@ export class RelayClient {
       this.hasConnectedOnce ? "reconnecting" : "connecting",
     );
     const generation = ++this.connectionGeneration;
-    const inbound = createRelayInboundBuffer(
-      async (delivery) => {
-        for (const message of toRelayFrames(delivery))
-          await this.handleWsMessage(message, generation);
-      },
-      (error) => {
-        if (generation === this.connectionGeneration)
-          this.recoverFromSocketFailure(error, "Relay connection errored.");
-      },
-    );
-    this.onMessageChannel = new Channel<unknown>(inbound.receive);
     try {
       if (!this.relayUrl) {
         this.relayUrl = await getRelayWsUrl();
       }
+      const connectionRelayUrl = this.relayUrl;
+      const inbound = createRelayInboundBuffer(
+        async (delivery) => {
+          for (const message of toRelayFrames(delivery))
+            await this.handleWsMessage(message, generation, connectionRelayUrl);
+        },
+        (error) => {
+          if (generation === this.connectionGeneration)
+            this.recoverFromSocketFailure(error, "Relay connection errored.");
+        },
+      );
+      this.onMessageChannel = new Channel<unknown>(inbound.receive);
       const wsId = await invoke<number>("plugin:websocket|connect", {
-        url: this.relayUrl,
+        url: connectionRelayUrl,
         onMessage: this.onMessageChannel,
         config: {},
       });
@@ -593,7 +636,7 @@ export class RelayClient {
 
   private async subscribe(
     filter: RelaySubscriptionFilter,
-    onEvent: (event: RelayEvent) => void,
+    onEvent: (event: RelayEvent, relayUrl?: string) => void,
     onReady?: (readiness: LiveSubscriptionReadiness) => void,
     readinessTimeoutMs = 250,
   ) {
@@ -750,7 +793,11 @@ export class RelayClient {
     });
   }
 
-  private async handleWsMessage(message: unknown, generation: number) {
+  private async handleWsMessage(
+    message: unknown,
+    generation: number,
+    connectionRelayUrl: string,
+  ) {
     if (generation !== this.connectionGeneration) return;
     this.stallWatchdog.recordInbound();
 
@@ -783,11 +830,16 @@ export class RelayClient {
 
     const [type, ...rest] = data;
     if (type === "AUTH" && typeof rest[0] === "string") {
-      await this.handleAuthChallenge(rest[0], generation);
+      await this.handleAuthChallenge(rest[0], generation, connectionRelayUrl);
       return;
     }
     if (type === "EVENT" && typeof rest[0] === "string" && rest[1]) {
-      this.handleEvent(rest[0], rest[1] as RelayEvent, generation);
+      this.handleEvent(
+        rest[0],
+        rest[1] as RelayEvent,
+        generation,
+        connectionRelayUrl,
+      );
       return;
     }
 
@@ -832,14 +884,14 @@ export class RelayClient {
     }
   }
 
-  private async handleAuthChallenge(challenge: string, generation: number) {
-    if (!this.relayUrl) {
-      this.relayUrl = await getRelayWsUrl();
-    }
-
+  private async handleAuthChallenge(
+    challenge: string,
+    generation: number,
+    connectionRelayUrl: string,
+  ) {
     const event = await createAuthEvent({
       challenge,
-      relayUrl: this.relayUrl,
+      relayUrl: connectionRelayUrl,
     });
 
     if (generation !== this.connectionGeneration || !this.authRequest) {
@@ -850,7 +902,12 @@ export class RelayClient {
     await this.sendRaw(["AUTH", event]);
   }
 
-  private handleEvent(subId: string, event: RelayEvent, generation: number) {
+  private handleEvent(
+    subId: string,
+    event: RelayEvent,
+    generation: number,
+    connectionRelayUrl: string,
+  ) {
     const subscription = this.subscriptions.get(subId);
     if (!subscription) {
       return;
@@ -862,7 +919,12 @@ export class RelayClient {
     }
 
     if (!prepareSubscriptionEvent(subscription, event)) return;
-    this.eventBuffer.push({ subId, event, generation });
+    this.eventBuffer.push({
+      subId,
+      event,
+      generation,
+      relayUrl: connectionRelayUrl,
+    });
     this.flushTimeout ??= window.setTimeout(
       () => this.flushEventBuffer(),
       EVENT_BATCH_MS,

@@ -3666,6 +3666,7 @@ type RawWorkflowRun = {
 const mockWorkflows: MockWorkflow[] = [];
 let mockWorkflowRuns: RawWorkflowRun[] = [];
 let mockWorkflowIdCounter = 0;
+let mockWorkspaceApplyGeneration = 0;
 
 function resetMockWorkflows() {
   mockWorkflows.length = 0;
@@ -10755,6 +10756,7 @@ export function maybeInstallE2eTauriMocks() {
   window.__MAJU_E2E_COMMANDS__ = [];
   window.__MAJU_E2E_COMMAND_PAYLOADS__ = [];
   window.__MAJU_E2E_COMMAND_LOG__ = [];
+  mockWorkspaceApplyGeneration = 0;
   mockMediaProxyPort = config.mock?.mediaProxyInitiallyUnavailable
     ? 0
     : MOCK_MEDIA_PROXY_PORT;
@@ -12001,11 +12003,18 @@ export function maybeInstallE2eTauriMocks() {
       case "apply_workspace": {
         const applyDelayMs = activeConfig?.mock?.applyCommunityDelayMs ?? 0;
         if (applyDelayMs > 0) {
-          return new Promise((resolve) =>
+          await new Promise((resolve) =>
             window.setTimeout(resolve, applyDelayMs),
           );
         }
-        return;
+        const relayUrl = (payload as { relayUrl?: string }).relayUrl ?? "";
+        const ownerPubkey = identity?.pubkey ?? MOCK_IDENTITY_PUBKEY;
+        return {
+          scopeId: `mock:${ownerPubkey}:${relayUrl}`,
+          relayUrl,
+          ownerPubkey,
+          generation: ++mockWorkspaceApplyGeneration,
+        };
       }
       case "update_tray_agent_activity":
       case "clear_tray_agent_activity":

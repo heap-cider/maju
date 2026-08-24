@@ -1301,18 +1301,33 @@ test("buffer flush drops stale generations and removed subscriptions", () => {
   const subscription = {
     mode: "live",
     filter: buildChannelFilter("channel-1", 50),
-    onEvent: (value) => delivered.push(value.id),
+    onEvent: (value, relayUrl) => delivered.push([value.id, relayUrl]),
   };
   flushEvents(
     [
-      { subId: "live-1", event: event("stale", 100), generation: 6 },
-      { subId: "removed", event: event("removed", 101), generation: 7 },
-      { subId: "live-1", event: event("current", 102), generation: 7 },
+      {
+        subId: "live-1",
+        event: event("stale", 100),
+        generation: 6,
+        relayUrl: "wss://stale.example",
+      },
+      {
+        subId: "removed",
+        event: event("removed", 101),
+        generation: 7,
+        relayUrl: "wss://removed.example",
+      },
+      {
+        subId: "live-1",
+        event: event("current", 102),
+        generation: 7,
+        relayUrl: "wss://current.example",
+      },
     ],
     new Map([["live-1", subscription]]),
     7,
   );
-  assert.deepEqual(delivered, ["current"]);
+  assert.deepEqual(delivered, [["current", "wss://current.example"]]);
 });
 
 test("live-before-repair and repair-before-live dispatch once", async () => {

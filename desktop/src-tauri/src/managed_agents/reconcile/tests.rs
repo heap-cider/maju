@@ -59,6 +59,51 @@ fn fresh_record_is_retained_pending() {
 }
 
 #[test]
+fn production_reconcile_quarantines_unproven_disk_identity() {
+    let dir = TempDir::new().unwrap();
+    let keys = nostr::Keys::generate();
+    let record = sample_record("9".repeat(64).as_str(), "foreign-agent");
+    write_store(&dir, &[record]);
+    let db_path = dir.path().join("scoped-retention.db");
+
+    reconcile_agents_to_events(
+        &dir.path().join("managed-agents.json"),
+        &keys,
+        &db_path,
+        &super::super::EventSyncBootstrap::default(),
+    )
+    .unwrap();
+
+    let conn = open_retention_db(&db_path).unwrap();
+    assert!(get_pending_sync(&conn).unwrap().is_empty());
+}
+
+#[test]
+fn production_reconcile_quarantines_identity_without_its_definition() {
+    let dir = TempDir::new().unwrap();
+    let keys = nostr::Keys::generate();
+    let mut record = sample_record("8".repeat(64).as_str(), "orphan-agent");
+    record.persona_id = Some("missing-definition".to_string());
+    write_store(&dir, &[record]);
+    let db_path = dir.path().join("scoped-retention.db");
+    let bootstrap = super::super::EventSyncBootstrap {
+        agent_d_tags: vec!["8".repeat(64)],
+        ..Default::default()
+    };
+
+    reconcile_agents_to_events(
+        &dir.path().join("managed-agents.json"),
+        &keys,
+        &db_path,
+        &bootstrap,
+    )
+    .unwrap();
+
+    let conn = open_retention_db(&db_path).unwrap();
+    assert!(get_pending_sync(&conn).unwrap().is_empty());
+}
+
+#[test]
 fn unchanged_record_does_not_churn_pending_sync() {
     let dir = TempDir::new().unwrap();
     let keys = nostr::Keys::generate();

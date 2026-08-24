@@ -20,7 +20,7 @@ test("typed ACP values round-trip without string coercion", () => {
   }
 });
 
-test("stored ACP options preserve unrelated values and delete the empty envelope", () => {
+test("stored ACP options preserve unrelated values and retain an explicit empty envelope", () => {
   const initial = {
     KEEP: "yes",
     [MAJU_ACP_CONFIG_OPTIONS]: JSON.stringify({ "fast-mode": false }),
@@ -42,7 +42,8 @@ test("stored ACP options preserve unrelated values and delete the empty envelope
     null,
   );
   assert.equal(empty.KEEP, "yes");
-  assert.equal(MAJU_ACP_CONFIG_OPTIONS in empty, false);
+  assert.equal(empty[MAJU_ACP_CONFIG_OPTIONS], "{}");
+  assert.deepEqual(readStoredAcpConfigOptions(empty), {});
 });
 
 test("categories, not adapter names, decide native field placement", () => {

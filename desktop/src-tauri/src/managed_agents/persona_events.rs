@@ -16,7 +16,8 @@ use crate::app_state::AppState;
 ///
 /// Field order MUST match the NIP-AP reference vectors (`docs/nips/NIP-AP.md`
 /// content body: `display_name, system_prompt, avatar_url, runtime, model,
-/// provider, name_pool`). serde emits fields in declaration order, so this
+/// provider, name_pool, respond_to, respond_to_allowlist, parallelism,
+/// acp_config_options`). serde emits fields in declaration order, so this
 /// order pins the exact content bytes and therefore the NIP-01 event id — a
 /// reorder here breaks cross-implementation interop. Guarded by
 /// `content_matches_nip_ap_vector`.
@@ -48,6 +49,11 @@ pub struct PersonaEventContent {
     pub respond_to_allowlist: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parallelism: Option<u32>,
+    /// Complete non-secret ACP session option map selected on the definition.
+    /// `None` means a legacy event did not carry the field; `Some({})` is an
+    /// explicit clear. Arbitrary `env_vars` remain prohibited.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acp_config_options: Option<super::env_vars::SyncedAcpConfigOptions>,
 }
 
 /// Derive the d-tag (persona slug) from a `AgentDefinition`.
@@ -68,6 +74,20 @@ pub fn persona_d_tag(record: &AgentDefinition) -> String {
         .as_deref()
         .unwrap_or(&record.id);
     normalize_d_tag(raw)
+}
+
+/// Resolve the kind:30175 coordinate carried by a linked identity reference.
+///
+/// Team-imported definition ids are namespaced as `<team>:<source-slug>` while
+/// their NIP-AP d-tag remains the source slug. In-app ids are already their
+/// own d-tag. This mirrors the import convention without putting local lineage
+/// fields into the public managed-agent event.
+pub(crate) fn persona_reference_d_tag(persona_id: &str) -> String {
+    normalize_d_tag(
+        persona_id
+            .rsplit_once(':')
+            .map_or(persona_id, |(_, slug)| slug),
+    )
 }
 
 /// Normalize a raw slug to the NIP-AP grammar `^[a-z0-9][a-z0-9_-]{0,63}$`.
@@ -179,6 +199,15 @@ pub fn persona_from_event(event: &nostr::Event) -> Result<AgentDefinition, Strin
     let content: PersonaEventContent = serde_json::from_str(event.content.as_ref())
         .map_err(|e| format!("failed to parse persona event content: {e}"))?;
 
+    let mut env_vars = BTreeMap::new();
+    if let Some(options) = &content.acp_config_options {
+        env_vars.insert(
+            super::env_vars::ACP_CONFIG_OPTIONS_ENV.to_string(),
+            serde_json::to_string(options)
+                .map_err(|e| format!("failed to serialize ACP config options: {e}"))?,
+        );
+    }
+
     let created_at = event.created_at.to_human_datetime();
 
     Ok(AgentDefinition {
@@ -196,7 +225,7 @@ pub fn persona_from_event(event: &nostr::Event) -> Result<AgentDefinition, Strin
         source_team: None,
         source_team_persona_slug: Some(d_tag),
         catalog_source: None,
-        env_vars: BTreeMap::new(),
+        env_vars,
         respond_to: content.respond_to,
         respond_to_allowlist: content.respond_to_allowlist,
         parallelism: content.parallelism,
@@ -262,6 +291,46 @@ pub fn active_pending_event(
     )
 }
 
+fn managed_agent_dependencies_confirmed(
+    conn: &rusqlite::Connection,
+    event: &nostr::Event,
+    owner_pubkey: &str,
+) -> Result<bool, String> {
+    use maju_core_pkg::kind::{KIND_PERSONA, KIND_TEAM};
+
+    let content = super::agent_events::managed_agent_content_from_event(event)?;
+    if let Some(persona_id) = content.persona_id.as_deref() {
+        if !persona_id.starts_with("builtin:") {
+            let definition_d_tag = persona_reference_d_tag(persona_id);
+            let confirmed = crate::managed_agents::retention::get_retained_event(
+                conn,
+                KIND_PERSONA,
+                owner_pubkey,
+                &definition_d_tag,
+            )?
+            .is_some_and(|row| !row.pending_sync);
+            if !confirmed {
+                return Ok(false);
+            }
+        }
+    }
+    if let Some(team_id) = content.team_id.as_deref() {
+        if !team_id.starts_with("builtin-team:") {
+            let confirmed = crate::managed_agents::retention::get_retained_event(
+                conn,
+                KIND_TEAM,
+                owner_pubkey,
+                team_id,
+            )?
+            .is_some_and(|row| !row.pending_sync);
+            if !confirmed {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
 pub(crate) async fn flush_pending_events_at(
     db_path: &std::path::Path,
     state: &AppState,
@@ -306,6 +375,18 @@ pub(crate) async fn flush_pending_events_at(
 
         let event = nostr::Event::from_json(&current.raw_event)
             .map_err(|e| format!("failed to parse retained event '{}': {e}", current.d_tag))?;
+
+        // A definition-linked identity is publishable only after its exact
+        // definition (and optional team) is relay-confirmed in this scoped
+        // retention database. Definitions sort before identities above, so a
+        // successful dependency can unlock the identity in the same sweep;
+        // failure or absence leaves it pending instead of creating an orphan.
+        if current.kind == maju_core_pkg::kind::KIND_MANAGED_AGENT {
+            let conn = open_retention_db(db_path)?;
+            if !managed_agent_dependencies_confirmed(&conn, &event, &owner_pubkey)? {
+                continue;
+            }
+        }
 
         // NIP-IA requests are freshness-checked by the relay (±120s on
         // `created_at`), so a request retained while the relay was
@@ -411,6 +492,7 @@ pub fn persona_event_content(record: &AgentDefinition) -> PersonaEventContent {
         respond_to: record.respond_to.clone(),
         respond_to_allowlist: record.respond_to_allowlist.clone(),
         parallelism: record.parallelism,
+        acp_config_options: super::env_vars::synced_acp_config_options(&record.env_vars),
     }
 }
 
@@ -560,3 +642,7 @@ pub fn preview_prospective_persona_snapshot(
 mod stale_pin_tests;
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "persona_events/dependency_tests.rs"]
+mod dependency_tests;

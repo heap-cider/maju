@@ -30,10 +30,14 @@ fn assert_current_apply_generation(
 async fn begin_workspace_apply(
     lock: std::sync::Arc<tokio::sync::Mutex<()>>,
     generation: &std::sync::atomic::AtomicU64,
-) -> (tokio::sync::OwnedMutexGuard<()>, u64) {
-    let guard = lock.lock_owned().await;
+) -> Result<(tokio::sync::OwnedMutexGuard<()>, u64), String> {
+    // Claim the request's place in latest-wins order before waiting for the
+    // transaction lock. A request that was selected later must supersede an
+    // older request even when the older one reaches the lock last.
     let ticket = next_apply_generation(generation);
-    (guard, ticket)
+    let guard = lock.lock_owned().await;
+    assert_current_apply_generation(generation, ticket)?;
+    Ok((guard, ticket))
 }
 
 /// Adopt the pre-scoping global retention database's pending rows into `scope`.
@@ -105,6 +109,20 @@ pub struct ActiveWorkspaceInfo {
     pubkey: String,
 }
 
+/// Exact workspace scope installed by [`apply_workspace`].
+///
+/// The frontend verifies this receipt before mounting community-scoped UI, so
+/// a stale command result can never make a different relay or signer appear
+/// ready.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppliedWorkspaceInfo {
+    scope_id: String,
+    relay_url: String,
+    owner_pubkey: String,
+    generation: u64,
+}
+
 /// Returns the current active workspace info (relay URL + pubkey).
 #[tauri::command]
 pub fn get_active_workspace(state: State<'_, AppState>) -> Result<ActiveWorkspaceInfo, String> {
@@ -157,24 +175,23 @@ pub async fn apply_workspace(
     repos_dir: Option<String>,
     agent_managed_profiles: Option<bool>,
     app: AppHandle,
-) -> Result<(), String> {
+) -> Result<AppliedWorkspaceInfo, String> {
     let state = app.state::<AppState>();
-    // Take the generation only after entering the serialized transaction. An
-    // apply that is already running remains authoritative until it releases
-    // the lock; the next apply then advances the generation. This keeps every
-    // awaited reconciliation/event-sync phase inside one ordered transaction.
+    // The request claims its generation before waiting for the serialized
+    // transaction. `begin_workspace_apply` rejects it immediately after lock
+    // acquisition when a newer selection arrived while it was queued.
     let (apply_guard, apply_generation) = begin_workspace_apply(
         state.workspace_apply_lock.clone(),
         &state.workspace_apply_generation,
     )
-    .await;
+    .await?;
 
     let restore_app = app.clone();
     let apply_app = app.clone();
     // Capture the caller's relay before the blocking apply. Reading shared
     // state afterward could pick up a newer concurrent community switch.
     let profile_reconcile_relay = relay_url.clone();
-    tokio::task::spawn_blocking(move || {
+    let (applied_workspace, event_sync_bootstrap) = tokio::task::spawn_blocking(move || {
         let app = apply_app;
         let state = app.state::<AppState>();
 
@@ -226,9 +243,23 @@ pub async fn apply_workspace(
         };
         let scope =
             crate::managed_agents::retention::retention_scope(&app, &relay_url, owner_keys)?;
+        let scope_id = scope
+            .db_path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "retention scope path has no usable scope id".to_string())?
+            .to_string();
+        let applied_workspace = AppliedWorkspaceInfo {
+            scope_id,
+            relay_url: scope.relay_url.clone(),
+            owner_pubkey: scope.owner_keys.public_key().to_hex(),
+            generation: apply_generation,
+        };
         migrate_legacy_retention_into(&app, &scope)?;
-        let scope_repair: crate::managed_agents::AgentStoreScopeRepair =
+        let scope_initialization: crate::managed_agents::AgentStoreScopeInitialization =
             crate::managed_agents::initialize_agent_store_scope(&app, &scope)?;
+        let scope_repair = scope_initialization.repair;
 
         // Acquire every fallible state lock before writing either value.
         let mut override_guard = state.relay_url_override.lock().map_err(|e| e.to_string())?;
@@ -300,7 +331,13 @@ pub async fn apply_workspace(
             }
         }
 
-        Ok::<(), String>(())
+        Ok::<
+            (
+                AppliedWorkspaceInfo,
+                crate::managed_agents::EventSyncBootstrap,
+            ),
+            String,
+        >((applied_workspace, scope_initialization.event_sync_bootstrap))
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
@@ -309,6 +346,7 @@ pub async fn apply_workspace(
 
     let state = restore_app.state::<AppState>();
     super::agents::provider_access::reconcile_on_workspace_apply(&restore_app, &state).await?;
+    assert_current_apply_generation(&state.workspace_apply_generation, apply_generation)?;
     // The Bumble→Pollen migration may have renamed stopped agents. Reconcile
     // their relay profiles independently of runtime restore; successful writes
     // record this relay while retaining the agent for other communities, and
@@ -349,8 +387,15 @@ pub async fn apply_workspace(
                 &scope.relay_url,
             )
             .map_err(|error| format!("scoped event-sync store unavailable: {error}"))?;
-            crate::event_sync::run_event_sync_blocking(scope.owner_keys, scope.db_path, store_dir)
-                .await?;
+            crate::event_sync::run_event_sync_blocking(
+                scope.owner_keys,
+                scope.db_path,
+                store_dir,
+                event_sync_bootstrap,
+            )
+            .await?;
+            crate::managed_agents::complete_active_event_sync_bootstrap(&restore_app)?;
+            assert_current_apply_generation(&state.workspace_apply_generation, apply_generation)?;
         }
         Err(error) => {
             // Scope resolution is a prerequisite for establishing the
@@ -364,9 +409,22 @@ pub async fn apply_workspace(
         }
     }
 
+    // A newer selection may have arrived during provider reconcile or event
+    // sync. Never transfer the lock into launch restore for a stale request.
+    assert_current_apply_generation(&state.workspace_apply_generation, apply_generation)?;
     let restore_pending = state
         .managed_agent_restore_pending
         .swap(false, Ordering::AcqRel);
+    if let Err(error) =
+        assert_current_apply_generation(&state.workspace_apply_generation, apply_generation)
+    {
+        if restore_pending {
+            state
+                .managed_agent_restore_pending
+                .store(true, Ordering::Release);
+        }
+        return Err(error);
+    }
 
     // Transfer the apply guard to launch restoration. The command can return
     // promptly, but a queued workspace cannot mutate relay/identity until the
@@ -394,7 +452,7 @@ pub async fn apply_workspace(
                 }
             }
         });
-        return Ok(());
+        return Ok(applied_workspace);
     }
 
     #[cfg(not(feature = "mesh-llm"))]
@@ -410,12 +468,12 @@ pub async fn apply_workspace(
                 eprintln!("maju-desktop: failed to restore managed agents: {error}");
             }
         });
-        return Ok(());
+        return Ok(applied_workspace);
     }
 
     assert_current_apply_generation(&state.workspace_apply_generation, apply_generation)?;
 
-    Ok(())
+    Ok(applied_workspace)
 }
 
 #[cfg(test)]
@@ -439,30 +497,58 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn queued_apply_cannot_supersede_running_transaction_or_restore_phase() {
+    async fn newer_request_supersedes_the_running_transaction_before_lock_handoff() {
         let lock = Arc::new(tokio::sync::Mutex::new(()));
         let generation = Arc::new(AtomicU64::new(0));
-        let (running_guard, running_ticket) =
-            begin_workspace_apply(Arc::clone(&lock), &generation).await;
+        let (running_guard, running_ticket) = begin_workspace_apply(Arc::clone(&lock), &generation)
+            .await
+            .unwrap();
 
         let queued_lock = Arc::clone(&lock);
         let queued_generation = Arc::clone(&generation);
         let queued = tokio::spawn(async move {
-            let (_guard, ticket) = begin_workspace_apply(queued_lock, &queued_generation).await;
+            let (_guard, ticket) = begin_workspace_apply(queued_lock, &queued_generation)
+                .await
+                .unwrap();
             ticket
         });
         tokio::task::yield_now().await;
 
-        // A queued workspace has not advanced the generation, so every awaited
-        // phase of the running transaction, including one-shot launch restore,
-        // remains authoritative while it holds the lock.
-        assert_eq!(generation.load(Ordering::Acquire), running_ticket);
-        assert_current_apply_generation(&generation, running_ticket).unwrap();
+        // Selection order, not lock-acquisition order, is authoritative. The
+        // queued request advances the generation immediately, so the running
+        // request must fail its next boundary and release the lock.
+        assert!(generation.load(Ordering::Acquire) > running_ticket);
+        assert_current_apply_generation(&generation, running_ticket).unwrap_err();
         assert!(!queued.is_finished());
 
         drop(running_guard);
         let queued_ticket = queued.await.unwrap();
         assert!(queued_ticket > running_ticket);
         assert_current_apply_generation(&generation, queued_ticket).unwrap();
+    }
+
+    #[tokio::test]
+    async fn stale_waiter_is_rejected_when_a_newer_waiter_was_selected() {
+        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        let held = Arc::clone(&lock).lock_owned().await;
+        let generation = Arc::new(AtomicU64::new(0));
+
+        let older_lock = Arc::clone(&lock);
+        let older_generation = Arc::clone(&generation);
+        let older =
+            tokio::spawn(async move { begin_workspace_apply(older_lock, &older_generation).await });
+        tokio::task::yield_now().await;
+
+        let newer_lock = Arc::clone(&lock);
+        let newer_generation = Arc::clone(&generation);
+        let newer =
+            tokio::spawn(async move { begin_workspace_apply(newer_lock, &newer_generation).await });
+        tokio::task::yield_now().await;
+
+        drop(held);
+        let stale_error = older.await.unwrap().unwrap_err();
+        assert!(stale_error.contains("superseded"), "{stale_error}");
+        let (_guard, newest_ticket) = newer.await.unwrap().unwrap();
+        assert_current_apply_generation(&generation, newest_ticket).unwrap();
     }
 }

@@ -156,7 +156,13 @@ pub(super) fn sample_persona() -> AgentDefinition {
         source_team: None,
         source_team_persona_slug: Some("test-slug".to_string()),
         catalog_source: None,
-        env_vars: BTreeMap::from([("KEY".to_string(), "value".to_string())]),
+        env_vars: BTreeMap::from([
+            ("KEY".to_string(), "secret-value".to_string()),
+            (
+                crate::managed_agents::env_vars::ACP_CONFIG_OPTIONS_ENV.to_string(),
+                r#"{"fast-mode":true,"thought_level":"high"}"#.to_string(),
+            ),
+        ]),
         respond_to: None,
         respond_to_allowlist: Vec::new(),
         parallelism: None,
@@ -293,9 +299,17 @@ fn round_trip_serialization() {
     assert_eq!(restored.model, Some("claude-opus-4".to_string()));
     assert_eq!(restored.provider, Some("anthropic".to_string()));
     assert_eq!(restored.name_pool, vec!["Alpha", "Beta"]);
-    // env_vars are not included in public persona events (secrets travel
-    // via NIP-44-encrypted engrams only).
-    assert!(restored.env_vars.is_empty());
+    // Only the explicitly non-secret ACP option map crosses devices. Other
+    // env vars remain local and must never enter the public event.
+    assert_eq!(
+        restored
+            .env_vars
+            .get(crate::managed_agents::env_vars::ACP_CONFIG_OPTIONS_ENV)
+            .map(String::as_str),
+        Some(r#"{"fast-mode":true,"thought_level":"high"}"#)
+    );
+    assert!(!restored.env_vars.contains_key("KEY"));
+    assert!(!event.content.contains("secret-value"));
     assert_eq!(
         restored.source_team_persona_slug,
         Some("test-slug".to_string())
@@ -326,6 +340,7 @@ fn content_matches_nip_ap_vector() {
         respond_to: None,
         respond_to_allowlist: Vec::new(),
         parallelism: None,
+        acp_config_options: None,
     };
     assert_eq!(
         serde_json::to_string(&content).unwrap(),
@@ -540,6 +555,13 @@ fn quad_absent_definition_hash_stable_across_activation() {
 /// Test-only bridge: build an AgentDefinition from parsed content the same
 /// way `persona_from_event` maps fields, without needing a signed event.
 fn persona_from_event_content_for_test(content: PersonaEventContent) -> AgentDefinition {
+    let mut env_vars = BTreeMap::new();
+    if let Some(options) = &content.acp_config_options {
+        env_vars.insert(
+            crate::managed_agents::env_vars::ACP_CONFIG_OPTIONS_ENV.to_string(),
+            serde_json::to_string(options).unwrap(),
+        );
+    }
     AgentDefinition {
         id: "staged".to_string(),
         display_name: content.display_name,
@@ -555,7 +577,7 @@ fn persona_from_event_content_for_test(content: PersonaEventContent) -> AgentDef
         source_team: None,
         source_team_persona_slug: None,
         catalog_source: None,
-        env_vars: BTreeMap::new(),
+        env_vars,
         respond_to: content.respond_to,
         respond_to_allowlist: content.respond_to_allowlist,
         parallelism: content.parallelism,
@@ -577,6 +599,7 @@ fn persona_content_hash_is_deterministic() {
         respond_to: None,
         respond_to_allowlist: Vec::new(),
         parallelism: None,
+        acp_config_options: None,
     };
     let hash1 = persona_content_hash(&content);
     let hash2 = persona_content_hash(&content);
@@ -597,12 +620,32 @@ fn persona_content_hash_changes_on_edit() {
         respond_to: None,
         respond_to_allowlist: Vec::new(),
         parallelism: None,
+        acp_config_options: None,
     };
     let mut content2 = content1.clone();
     content2.system_prompt = Some("Goodbye".to_string());
     assert_ne!(
         persona_content_hash(&content1),
         persona_content_hash(&content2)
+    );
+}
+
+#[test]
+fn persona_content_hash_changes_on_acp_config_edit() {
+    let key = crate::managed_agents::env_vars::ACP_CONFIG_OPTIONS_ENV;
+    let mut before = sample_persona();
+    before
+        .env_vars
+        .insert(key.to_string(), r#"{"thought_level":"low"}"#.to_string());
+    let mut after = before.clone();
+    after
+        .env_vars
+        .insert(key.to_string(), r#"{"thought_level":"high"}"#.to_string());
+
+    assert_ne!(
+        persona_content_hash(&persona_event_content(&before)),
+        persona_content_hash(&persona_event_content(&after)),
+        "a synchronized ACP selection must mark running instances for restart",
     );
 }
 

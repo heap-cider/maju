@@ -1,4 +1,5 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import type { AppliedWorkspaceInfo } from "@/shared/api/workspaceTypes";
 import {
   activateRateLimit,
   parseRateLimitHint,
@@ -1075,8 +1076,8 @@ export async function applyCommunity(
   token?: string,
   reposDir?: string,
   agentManagedProfiles?: boolean,
-): Promise<void> {
-  await invokeTauri("apply_workspace", {
+): Promise<AppliedWorkspaceInfo> {
+  return invokeTauri<AppliedWorkspaceInfo>("apply_workspace", {
     relayUrl,
     nsec: nsec ?? null,
     token: token ?? null,

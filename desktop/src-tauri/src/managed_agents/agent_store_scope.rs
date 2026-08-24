@@ -19,7 +19,8 @@ use super::{
     storage::read_agent_records, ManagedAgentRecord, TeamRecord,
 };
 
-const SCOPED_STORE_MARKER: &str = ".initialized-v1";
+const SCOPED_STORE_MARKER_V1: &str = ".initialized-v1";
+const SCOPED_STORE_MARKER_V2: &str = ".initialized-v2";
 const LEGACY_STORE_CLAIM: &str = "legacy-store-claim.json";
 
 #[derive(Debug, Serialize)]
@@ -46,11 +47,113 @@ pub(crate) struct AgentStoreScopeRepair {
     pub team_ids: Vec<String>,
 }
 
+/// Exact disk coordinates a newly claimed legacy store may seed once.
+///
+/// Outside this allowlist, disk→relay reconcile may update an existing scoped
+/// retention head but must never create a new one from JSON alone.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub(crate) struct EventSyncBootstrap {
+    #[serde(default)]
+    pub persona_d_tags: Vec<String>,
+    #[serde(default)]
+    pub team_d_tags: Vec<String>,
+    #[serde(default)]
+    pub agent_d_tags: Vec<String>,
+}
+
+impl EventSyncBootstrap {
+    pub(crate) fn allows_persona(&self, d_tag: &str) -> bool {
+        self.persona_d_tags.iter().any(|value| value == d_tag)
+    }
+
+    pub(crate) fn allows_team(&self, d_tag: &str) -> bool {
+        self.team_d_tags.iter().any(|value| value == d_tag)
+    }
+
+    pub(crate) fn allows_agent(&self, d_tag: &str) -> bool {
+        self.agent_d_tags.iter().any(|value| value == d_tag)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.persona_d_tags.is_empty()
+            && self.team_d_tags.is_empty()
+            && self.agent_d_tags.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.persona_d_tags.clear();
+        self.team_d_tags.clear();
+        self.agent_d_tags.clear();
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AgentStoreScopeInitialization {
+    pub repair: AgentStoreScopeRepair,
+    pub event_sync_bootstrap: EventSyncBootstrap,
+}
+
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 struct AgentStoreScopeMarker {
     repair: AgentStoreScopeRepair,
     repair_queued: bool,
+    #[serde(default)]
+    event_sync_bootstrap: EventSyncBootstrap,
+}
+
+fn initialization_from_marker(marker: &AgentStoreScopeMarker) -> AgentStoreScopeInitialization {
+    AgentStoreScopeInitialization {
+        repair: if marker.repair_queued {
+            AgentStoreScopeRepair::default()
+        } else {
+            marker.repair.clone()
+        },
+        event_sync_bootstrap: marker.event_sync_bootstrap.clone(),
+    }
+}
+
+fn write_scope_marker(path: &Path, marker: &AgentStoreScopeMarker) -> Result<(), String> {
+    let payload = serde_json::to_vec_pretty(marker)
+        .map_err(|error| format!("failed to serialize scoped agent-store marker: {error}"))?;
+    atomic_write_json(path, &payload)
+}
+
+fn quarantine_v1_unprojected_pending_events(
+    scoped_dir: &Path,
+    scope: &retention::RetentionScope,
+) -> Result<(), String> {
+    let records = read_agent_records(&scoped_dir.join("managed-agents.json"))?;
+    let persona_d_tags: HashSet<String> = records
+        .iter()
+        .filter(|record| record.pubkey.is_empty() && !record.is_builtin)
+        .filter_map(ManagedAgentRecord::to_definition_view)
+        .map(|definition| super::persona_events::persona_d_tag(&definition))
+        .collect();
+    let agent_d_tags: HashSet<String> = records
+        .iter()
+        .filter(|record| !record.pubkey.is_empty())
+        .map(|record| record.pubkey.clone())
+        .collect();
+    let team_d_tags: HashSet<String> = read_team_records(&scoped_dir.join("teams.json"))?
+        .into_iter()
+        .filter(|team| !team.is_builtin)
+        .map(|team| team.id)
+        .collect();
+    let mut conn = retention::open_retention_db(&scope.db_path)?;
+    let quarantined = retention::quarantine_unprojected_pending_agent_events(
+        &mut conn,
+        &scope.owner_keys.public_key().to_hex(),
+        &persona_d_tags,
+        &team_d_tags,
+        &agent_d_tags,
+    )?;
+    if quarantined > 0 {
+        eprintln!(
+            "maju-desktop: v2 scope repair quarantined {quarantined} unprojected pending event(s)"
+        );
+    }
+    Ok(())
 }
 
 /// Directory holding mutable Agent/Team JSON for one relay+owner scope.
@@ -297,24 +400,41 @@ fn legacy_store_claims_scope(base_dir: &Path, scope_id: &str) -> Result<bool, St
 pub fn initialize_agent_store_scope(
     app: &AppHandle,
     scope: &retention::RetentionScope,
-) -> Result<AgentStoreScopeRepair, String> {
+) -> Result<AgentStoreScopeInitialization, String> {
     use maju_core_pkg::kind::{KIND_MANAGED_AGENT, KIND_PERSONA, KIND_TEAM};
 
     let base_dir = managed_agents_base_dir(app)?;
     let scoped_dir = scoped_agent_store_dir(&base_dir, &scope.db_path)?;
     fs::create_dir_all(&scoped_dir)
         .map_err(|error| format!("failed to create scoped agents dir: {error}"))?;
-    let marker = scoped_dir.join(SCOPED_STORE_MARKER);
-    if marker.exists() {
-        let content = fs::read_to_string(&marker)
+    let marker_v2 = scoped_dir.join(SCOPED_STORE_MARKER_V2);
+    if marker_v2.exists() {
+        let content = fs::read_to_string(&marker_v2)
             .map_err(|error| format!("failed to read scoped agent-store marker: {error}"))?;
         let marker: AgentStoreScopeMarker = serde_json::from_str(&content)
             .map_err(|error| format!("failed to parse scoped agent-store marker: {error}"))?;
-        return Ok(if marker.repair_queued {
-            AgentStoreScopeRepair::default()
-        } else {
-            marker.repair
-        });
+        return Ok(initialization_from_marker(&marker));
+    }
+
+    // Existing v1 scopes have already had their one-time disk reconcile. Move
+    // them to the fail-closed v2 policy with an empty bootstrap allowlist; no
+    // current JSON row is granted new relay provenance merely by upgrading.
+    let marker_v1 = scoped_dir.join(SCOPED_STORE_MARKER_V1);
+    if marker_v1.exists() {
+        let content = fs::read_to_string(&marker_v1)
+            .map_err(|error| format!("failed to read scoped agent-store marker: {error}"))?;
+        let mut marker: AgentStoreScopeMarker = serde_json::from_str(&content)
+            .map_err(|error| format!("failed to parse scoped agent-store marker: {error}"))?;
+        // A non-empty bootstrap means the current version wrote v1 and then
+        // stopped before committing v2. Preserve that exact allowlist so the
+        // interrupted initial import can finish. Old-version v1 markers have
+        // no field (serde defaults it empty) and receive the fail-closed audit.
+        if marker.event_sync_bootstrap.is_empty() {
+            quarantine_v1_unprojected_pending_events(&scoped_dir, scope)?;
+            marker.event_sync_bootstrap.clear();
+        }
+        write_scope_marker(&marker_v2, &marker)?;
+        return Ok(initialization_from_marker(&marker));
     }
 
     let owner_pubkey = scope.owner_keys.public_key().to_hex();
@@ -359,6 +479,33 @@ pub fn initialize_agent_store_scope(
     );
     apply_team_membership_to_instances(&mut selected_agents, &selected_teams);
 
+    let mut event_sync_bootstrap = EventSyncBootstrap {
+        persona_d_tags: selected_agents
+            .iter()
+            .filter(|record| record.pubkey.is_empty() && !record.is_builtin)
+            .filter_map(ManagedAgentRecord::to_definition_view)
+            .map(|definition| super::persona_events::persona_d_tag(&definition))
+            .filter(|d_tag| !persona_d_tags.contains(d_tag))
+            .collect(),
+        team_d_tags: selected_teams
+            .iter()
+            .filter(|team| !team.is_builtin && !team_d_tags.contains(&team.id))
+            .map(|team| team.id.clone())
+            .collect(),
+        agent_d_tags: selected_agents
+            .iter()
+            .filter(|record| !record.pubkey.is_empty())
+            .filter(|record| !agent_d_tags.contains(&record.pubkey))
+            .map(|record| record.pubkey.clone())
+            .collect(),
+    };
+    event_sync_bootstrap.persona_d_tags.sort();
+    event_sync_bootstrap.persona_d_tags.dedup();
+    event_sync_bootstrap.team_d_tags.sort();
+    event_sync_bootstrap.team_d_tags.dedup();
+    event_sync_bootstrap.agent_d_tags.sort();
+    event_sync_bootstrap.agent_d_tags.dedup();
+
     let payload = serde_json::to_vec_pretty(&selected_agents)
         .map_err(|error| format!("failed to serialize scoped agent store: {error}"))?;
     atomic_write_json_restricted(&scoped_agent_path, &payload)?;
@@ -375,13 +522,19 @@ pub fn initialize_agent_store_scope(
         agent_pubkeys: quarantined_agent_pubkeys,
         team_ids: quarantined_team_ids,
     };
-    let marker_payload = serde_json::to_vec_pretty(&AgentStoreScopeMarker {
+    let marker = AgentStoreScopeMarker {
         repair: repair.clone(),
         repair_queued: false,
+        event_sync_bootstrap: event_sync_bootstrap.clone(),
+    };
+    // Keep the v1 marker for downgrade safety; old clients ignore the added
+    // field, while new clients use the v2 marker as the policy authority.
+    write_scope_marker(&marker_v1, &marker)?;
+    write_scope_marker(&marker_v2, &marker)?;
+    Ok(AgentStoreScopeInitialization {
+        repair,
+        event_sync_bootstrap,
     })
-    .map_err(|error| format!("failed to serialize scoped agent-store marker: {error}"))?;
-    atomic_write_json(&marker, &marker_payload)?;
-    Ok(repair)
 }
 
 /// Mark the one-time scoped relay repair as durably queued.
@@ -389,18 +542,43 @@ pub fn initialize_agent_store_scope(
 /// If the app exits after initialization but before this marker update, the
 /// next workspace apply returns the same repair list and safely retries it.
 pub(crate) fn complete_active_agent_store_scope_repair(app: &AppHandle) -> Result<(), String> {
-    let marker_path = active_agent_store_dir(app)?.join(SCOPED_STORE_MARKER);
-    if !marker_path.exists() {
-        return Ok(());
+    let scoped_dir = active_agent_store_dir(app)?;
+    // Commit downgrade-visible v1 first. If the v2 write then fails, the next
+    // current-version apply safely retries an idempotent repair; the inverse
+    // order could leave v2 complete while v1 still re-queues on downgrade.
+    for marker_name in [SCOPED_STORE_MARKER_V1, SCOPED_STORE_MARKER_V2] {
+        let marker_path = scoped_dir.join(marker_name);
+        if !marker_path.exists() {
+            continue;
+        }
+        let content = fs::read_to_string(&marker_path)
+            .map_err(|error| format!("failed to read scoped agent-store marker: {error}"))?;
+        let mut marker: AgentStoreScopeMarker = serde_json::from_str(&content)
+            .map_err(|error| format!("failed to parse scoped agent-store marker: {error}"))?;
+        marker.repair_queued = true;
+        write_scope_marker(&marker_path, &marker)?;
     }
-    let content = fs::read_to_string(&marker_path)
-        .map_err(|error| format!("failed to read scoped agent-store marker: {error}"))?;
-    let mut marker: AgentStoreScopeMarker = serde_json::from_str(&content)
-        .map_err(|error| format!("failed to parse scoped agent-store marker: {error}"))?;
-    marker.repair_queued = true;
-    let payload = serde_json::to_vec_pretty(&marker)
-        .map_err(|error| format!("failed to serialize scoped agent-store marker: {error}"))?;
-    atomic_write_json(&marker_path, &payload)
+    Ok(())
+}
+
+/// Consume the one-time legacy coordinate allowlist after event sync retained
+/// every permitted head. A crash before this write is harmless: the next run
+/// sees matching retained content and performs no publish churn.
+pub(crate) fn complete_active_event_sync_bootstrap(app: &AppHandle) -> Result<(), String> {
+    let scoped_dir = active_agent_store_dir(app)?;
+    for marker_name in [SCOPED_STORE_MARKER_V1, SCOPED_STORE_MARKER_V2] {
+        let marker_path = scoped_dir.join(marker_name);
+        if !marker_path.exists() {
+            continue;
+        }
+        let content = fs::read_to_string(&marker_path)
+            .map_err(|error| format!("failed to read scoped agent-store marker: {error}"))?;
+        let mut marker: AgentStoreScopeMarker = serde_json::from_str(&content)
+            .map_err(|error| format!("failed to parse scoped agent-store marker: {error}"))?;
+        marker.event_sync_bootstrap.clear();
+        write_scope_marker(&marker_path, &marker)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

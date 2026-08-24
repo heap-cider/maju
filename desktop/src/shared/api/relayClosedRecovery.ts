@@ -168,7 +168,7 @@ export function flushEvents(
       item.generation === generation &&
       shouldDispatchSubscriptionEvent(subscription, item.event)
     ) {
-      subscription.onEvent(item.event);
+      subscription.onEvent(item.event, item.relayUrl);
     }
   }
 }

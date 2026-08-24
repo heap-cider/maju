@@ -4,6 +4,9 @@
 use super::*;
 use std::collections::BTreeMap;
 
+#[path = "acp_options_tests.rs"]
+mod acp_options_tests;
+
 const UUID: &str = "11111111-2222-3333-4444-555555555555"; // sadscan:disable sq.pii.cc.visa -- fixed test UUID
 
 /// A local in-app persona: `source_team_persona_slug` is None, so its d-tag

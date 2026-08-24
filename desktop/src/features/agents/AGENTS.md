@@ -52,7 +52,10 @@ shape instead of adding a runtime-ID exception.
    `MAJU_ACP_CONFIG_OPTIONS` map; never add a device-local `effort_level`
    authority beside it. A running process keeps its startup map until restart,
    and profile/config rows show one effective value without configured/live
-   provenance or struck-through shadow values.
+   provenance or struck-through shadow values. Kind `30175` publishes only the
+   parsed scalar option map as `acp_config_options`; every other env entry stays
+   local. A missing wire field is a legacy no-op, while an explicit `{}` clears
+   the definition's saved selections.
 3. **Native field absence follows discovery, not an adapter omission table.**
    A runtime without static effort defers to live ACP options. If no
    `thought_level` option is advertised, the UI hides the field and leaves the
@@ -225,6 +228,9 @@ shape instead of adding a runtime-ID exception.
 - `lib/acpNativeOptions.test.mjs` and `ui/AcpNativeConfigFields.test.mjs` —
   typed ACP value persistence, category-driven placement, inheritance, and the
   no-duplicate-reasoning contract.
+- Rust persona event and inbound tests pin the `acp_config_options`-only wire
+  allowlist, legacy-absent preservation, explicit-empty clearing, and restart
+  hash behavior.
 - `ui/agentConfigFieldsContract.test.mjs` — canonical behaviors + disclosure
   presets + `shouldShowModelStatusMessage` status-bypass +
   `shouldRenderModelControl` (successful-empty omit vs failure keep). If this

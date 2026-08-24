@@ -31,6 +31,11 @@ function eventIsNewer(candidate: RelayEvent, current: RelayEvent): boolean {
   );
 }
 
+function sameRelayScope(left: string, right: string): boolean {
+  const normalize = (value: string) => value.trim().replace(/\/+$/, "");
+  return normalize(left) === normalize(right);
+}
+
 /**
  * Keep only the NIP-33 head for each managed-agent coordinate in a startup
  * backfill. Applying historical policy revisions one by one can stop and start
@@ -68,10 +73,8 @@ export function coalesceManagedAgentBackfill(
 // so the wiring is unit-testable without a React renderer (see
 // `usePersonaSync.test.mjs`).
 //
-// `relayUrl` is the community this subscription is bound to, and every reconcile
-// carries it as the event's arrival relay. Capturing it here — rather than
-// letting the backend read whichever workspace is active when the reconcile runs
-// — is what keeps an in-flight event out of the next community's scoped store.
+// `relayUrl` is the expected community. Every reconcile carries the URL of the
+// socket that actually delivered the event, and a mismatch fails closed.
 export function startPersonaSync(
   pubkey: string,
   relayUrl: string,
@@ -83,10 +86,18 @@ export function startPersonaSync(
   // one. One chain per owner/relay subscription makes the newest event the last
   // deployment without serializing unrelated identities or communities.
   let reconcileChain = Promise.resolve();
-  const reconcile = (event: RelayEvent) => {
+  const reconcile = (event: RelayEvent, arrivalRelayUrl: string) => {
     if (event.pubkey !== pubkey) return;
+    if (!sameRelayScope(arrivalRelayUrl, relayUrl)) {
+      console.warn(
+        "[usePersonaSync] dropped event from a socket bound to a different community",
+      );
+      return;
+    }
     reconcileChain = reconcileChain
-      .then(() => reconcileInboundPersonaEvent(JSON.stringify(event), relayUrl))
+      .then(() =>
+        reconcileInboundPersonaEvent(JSON.stringify(event), arrivalRelayUrl),
+      )
       .catch((error) => {
         console.warn("[usePersonaSync] reconcile failed:", error);
       });
@@ -100,9 +111,9 @@ export function startPersonaSync(
 
   let unsub: (() => Promise<void>) | null = null;
   void relayClient
-    .subscribeLive(
+    .subscribeLiveWithOrigin(
       { kinds: PERSONA_SYNC_KINDS, authors: [pubkey], limit: 0 },
-      reconcile,
+      (event, arrivalRelayUrl) => reconcile(event, arrivalRelayUrl),
     )
     .then((dispose) => {
       if (onCancelled()) {
@@ -131,12 +142,19 @@ export async function backfillPersonaSync(
   relayUrl: string,
   onCancelled: () => boolean = () => false,
 ): Promise<void> {
-  const events = await relayClient.fetchEvents({
-    kinds: PERSONA_SYNC_KINDS,
-    authors: [pubkey],
-    limit: 500,
-  });
+  const { events, relayUrl: arrivalRelayUrl } =
+    await relayClient.fetchEventsWithOrigin({
+      kinds: PERSONA_SYNC_KINDS,
+      authors: [pubkey],
+      limit: 500,
+    });
   if (onCancelled()) return;
+  if (!sameRelayScope(arrivalRelayUrl, relayUrl)) {
+    console.warn(
+      "[usePersonaSync] dropped backfill from a socket bound to a different community",
+    );
+    return;
+  }
 
   // Reconciliation writes shared persona/team/agent stores. Keep the writes
   // ordered so provisioning can trust that the whole snapshot is visible when
@@ -144,7 +162,7 @@ export async function backfillPersonaSync(
   for (const event of coalesceManagedAgentBackfill(events)) {
     if (onCancelled()) return;
     if (event.pubkey !== pubkey) continue;
-    await reconcileInboundPersonaEvent(JSON.stringify(event), relayUrl);
+    await reconcileInboundPersonaEvent(JSON.stringify(event), arrivalRelayUrl);
   }
 }
 

@@ -18,9 +18,11 @@ use crate::app_state::AppState;
 
 mod inbound;
 mod legacy_migration;
+mod quarantine;
 
 pub use inbound::{inbound_event_outcome, retain_inbound_event, InboundOutcome};
 pub use legacy_migration::migrate_legacy_retention_db;
+pub use quarantine::quarantine_unprojected_pending_agent_events;
 
 /// Durable event-retention scope for one community relay and owner identity.
 ///
@@ -155,6 +157,18 @@ pub fn open_retention_db(path: &Path) -> Result<Connection, String> {
             raw_event TEXT NOT NULL,
             pending_sync INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (kind, pubkey, d_tag)
+        );
+        CREATE TABLE IF NOT EXISTS quarantined_persona_events (
+            kind INTEGER NOT NULL,
+            pubkey TEXT NOT NULL,
+            d_tag TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            raw_event TEXT NOT NULL,
+            pending_sync INTEGER NOT NULL,
+            reason TEXT NOT NULL,
+            quarantined_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            PRIMARY KEY (kind, pubkey, d_tag, created_at, raw_event)
         );",
     )
     .map_err(|e| format!("failed to create retention table: {e}"))?;
@@ -282,6 +296,10 @@ pub fn get_retained_personas(
 
 /// Get all events marked as pending sync (not yet confirmed on relay).
 ///
+/// After tombstones, definitions and teams sort before managed identities so
+/// a dependency accepted earlier in the sweep can unlock its identity without
+/// waiting for the next interval.
+///
 /// Tombstones (kind:5) sort FIRST: a delete retained in one session and its
 /// coordinate's replacement retained in a later one (B5 backfill resurrecting
 /// a deleted definition) must publish in that order — the relay's a-tag
@@ -294,7 +312,13 @@ pub fn get_pending_sync(conn: &Connection) -> Result<Vec<RetainedEvent>, String>
             "SELECT kind, pubkey, d_tag, content, created_at, raw_event, pending_sync
              FROM persona_events
              WHERE pending_sync = 1
-             ORDER BY (kind != 5), created_at ASC",
+             ORDER BY CASE kind
+                 WHEN 5 THEN 0
+                 WHEN 30175 THEN 1
+                 WHEN 30176 THEN 2
+                 WHEN 30177 THEN 3
+                 ELSE 4
+             END, created_at ASC",
         )
         .map_err(|e| format!("failed to prepare pending sync query: {e}"))?;
 
@@ -949,3 +973,7 @@ mod tests {
 #[cfg(test)]
 #[path = "retention/reapply_tests.rs"]
 mod reapply_tests;
+
+#[cfg(test)]
+#[path = "retention/ordering_tests.rs"]
+mod ordering_tests;

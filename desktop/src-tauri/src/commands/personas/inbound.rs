@@ -389,7 +389,9 @@ fn validate_inbound_persona_definition(persona: &AgentDefinition) -> Result<(), 
         &persona.display_name,
         &persona.system_prompt,
     )
-    .map_err(|error| format!("Inbound persona definition is unsafe: {error}"))
+    .map_err(|error| format!("Inbound persona definition is unsafe: {error}"))?;
+    crate::managed_agents::validate_user_env_keys(&persona.env_vars)
+        .map_err(|error| format!("Inbound persona ACP options are invalid: {error}"))
 }
 
 fn validate_inbound_managed_agent_definition(
@@ -556,8 +558,10 @@ fn event_d_tag(event: &nostr::Event) -> Result<String, String> {
 ///
 /// The match key is `persona_d_tag` — the same derivation the outbound path
 /// uses — so the inbound and outbound keys can never drift. On match, only the
-/// projected fields are overwritten; local `id`, `env_vars`, `source_team`, and
-/// `created_at` survive. On no match, the parsed record is inserted as-is; since
+/// projected fields are overwritten; local `id`, secret env vars,
+/// `source_team`, and `created_at` survive. The synchronized
+/// `MAJU_ACP_CONFIG_OPTIONS` entry is replaced only when the event carries it.
+/// On no match, the parsed record is inserted as-is; since
 /// `persona_from_event` sets `id = d_tag`, an in-app persona reuses its d-tag as
 /// the id and a re-received event stays idempotent (no duplicate row).
 fn apply_inbound_persona(personas: &mut Vec<AgentDefinition>, inbound: AgentDefinition) {
@@ -567,6 +571,15 @@ fn apply_inbound_persona(personas: &mut Vec<AgentDefinition>, inbound: AgentDefi
         .find(|record| persona_d_tag(record) == d_tag)
     {
         Some(local) => {
+            if let Some(options) = inbound
+                .env_vars
+                .get(crate::managed_agents::ACP_CONFIG_OPTIONS_ENV)
+            {
+                local.env_vars.insert(
+                    crate::managed_agents::ACP_CONFIG_OPTIONS_ENV.to_string(),
+                    options.clone(),
+                );
+            }
             local.display_name = inbound.display_name;
             local.avatar_url = inbound.avatar_url;
             local.system_prompt = inbound.system_prompt;

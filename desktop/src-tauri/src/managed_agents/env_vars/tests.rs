@@ -258,6 +258,24 @@ fn validate_keys_accepts_empty_map() {
     assert!(validate_user_env_keys(&BTreeMap::new()).is_ok());
 }
 
+#[test]
+fn validate_keys_accepts_scalar_acp_config_options() {
+    let env = map(&[(
+        ACP_CONFIG_OPTIONS_ENV,
+        r#"{"fast-mode":true,"maxOutputTokens":4096,"thought_level":"high"}"#,
+    )]);
+    assert!(validate_user_env_keys(&env).is_ok());
+}
+
+#[test]
+fn validate_keys_rejects_nested_or_invalid_acp_config_options() {
+    for invalid in [r#"{"nested":{"secret":"no"}}"#, "[]", "not-json"] {
+        let env = map(&[(ACP_CONFIG_OPTIONS_ENV, invalid)]);
+        let error = validate_user_env_keys(&env).unwrap_err();
+        assert!(error.contains(ACP_CONFIG_OPTIONS_ENV), "{error}");
+    }
+}
+
 // ── malformed-key rejection (=-in-key bypass and friends) ──────────
 //
 // Rust's `Command::env(k, v)` will accept a key containing `=` and

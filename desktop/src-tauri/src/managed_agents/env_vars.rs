@@ -17,6 +17,47 @@ use std::collections::BTreeMap;
 
 pub(crate) const ACP_CONFIG_OPTIONS_ENV: &str = "MAJU_ACP_CONFIG_OPTIONS";
 
+/// Public, definition-scoped ACP selections that may cross devices.
+///
+/// Only ACP scalar values are admitted. The surrounding `env_vars` map may
+/// contain credentials and is never serialized into a definition event.
+pub(crate) type SyncedAcpConfigOptions = BTreeMap<String, serde_json::Value>;
+
+pub(crate) fn parse_synced_acp_config_options(raw: &str) -> Result<SyncedAcpConfigOptions, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(raw).map_err(|_| "must be a valid JSON object".to_string())?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| "must be a JSON object".to_string())?;
+    let mut options = BTreeMap::new();
+    for (config_id, value) in object {
+        if config_id.is_empty() || config_id.len() > 256 || config_id.chars().any(char::is_control)
+        {
+            return Err("contains an invalid ACP config option id".to_string());
+        }
+        if !matches!(
+            value,
+            serde_json::Value::String(_)
+                | serde_json::Value::Number(_)
+                | serde_json::Value::Bool(_)
+        ) {
+            return Err(format!(
+                "ACP config option `{config_id}` must be a string, number, or boolean"
+            ));
+        }
+        options.insert(config_id.clone(), value.clone());
+    }
+    Ok(options)
+}
+
+pub(crate) fn synced_acp_config_options(
+    env_vars: &BTreeMap<String, String>,
+) -> Option<SyncedAcpConfigOptions> {
+    env_vars
+        .get(ACP_CONFIG_OPTIONS_ENV)
+        .and_then(|raw| parse_synced_acp_config_options(raw).ok())
+}
+
 /// Env var keys that are *derived* from the structured `AgentDefinition.provider`
 /// and `AgentDefinition.model` fields at spawn/deploy time. These must NOT be
 /// persisted in `AgentDefinition.env_vars` because they would shadow the
@@ -148,6 +189,10 @@ pub fn validate_user_env_keys(env_vars: &BTreeMap<String, String>) -> Result<(),
             "the following env vars are reserved by Maju and cannot be overridden: {}",
             reserved.join(", ")
         ));
+    }
+    if let Some(raw) = env_vars.get(ACP_CONFIG_OPTIONS_ENV) {
+        parse_synced_acp_config_options(raw)
+            .map_err(|error| format!("env var `{ACP_CONFIG_OPTIONS_ENV}` {error}"))?;
     }
     // Value validation. Keep these errors *generic* — values frequently
     // contain secrets and we'd rather not surface even a truncated view.

@@ -41,8 +41,9 @@ export function writeStoredAcpConfigOption(
   else options[configId] = value;
 
   const next = { ...envVars };
-  if (Object.keys(options).length === 0) delete next[MAJU_ACP_CONFIG_OPTIONS];
-  else next[MAJU_ACP_CONFIG_OPTIONS] = JSON.stringify(options);
+  // Preserve an explicit empty map. Definition sync treats `{}` as a clear,
+  // while an absent key means a legacy event did not carry this field.
+  next[MAJU_ACP_CONFIG_OPTIONS] = JSON.stringify(options);
   return next;
 }
 

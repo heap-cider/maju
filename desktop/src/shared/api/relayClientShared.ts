@@ -59,7 +59,12 @@ export type LiveSubscriptionReadiness = "eose" | "closed" | "timeout";
 type LiveSubscription = {
   mode: "live";
   filter: RelaySubscriptionFilter;
-  onEvent: (event: RelayEvent) => void;
+  /**
+   * `relayUrl` is present for events delivered by the websocket generation
+   * that actually received them. Reconnect-repair callers may omit it because
+   * those rows are fetched out-of-band rather than delivered by a socket.
+   */
+  onEvent: (event: RelayEvent, relayUrl?: string) => void;
   resolveReady?: (readiness: LiveSubscriptionReadiness) => void;
   lastSeenCreatedAt?: number;
   /**
@@ -100,6 +105,7 @@ export type SubscriptionEventBufferItem = {
   subId: string;
   event: RelayEvent;
   generation: number;
+  relayUrl: string;
 };
 
 export function sortEvents(events: RelayEvent[]) {
