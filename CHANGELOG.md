@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.25
+
+- Keep rapid community switches latest-selection-wins across the Desktop and Tauri backend, and bind every Agent definition, team, and identity event to the relay socket that actually delivered it.
+- Stop dirty or unproven local Agent projections from becoming relay heads, migrate existing scoped stores through a v2 safety audit, and publish identities only after their definition and team are relay-confirmed.
+- Synchronize the validated, non-secret `MAJU_ACP_CONFIG_OPTIONS` definition envelope across devices so effort, reasoning, and Fast mode selections stay consistent and existing sessions show their normal restart-required state.
+- Restore executable modes on benchmark verifiers used by the Maju agent dataset.
+
 ## v0.2.24
 
 - Adopt Buzz `desktop-v0.5.18` while preserving Maju's self-hosted identity, community-scoped ACP configuration, stable shared agents, and empty-project creation flow.
