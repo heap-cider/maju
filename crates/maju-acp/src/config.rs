@@ -422,7 +422,7 @@ pub struct CliArgs {
     pub no_memory: bool,
 
     /// Disable the [Base] platform-context section prepended to every prompt.
-    /// When set, agents receive only the persona [System] prompt with no Maju orientation.
+    /// When set, agents receive only the persona `[Agent Instructions]` prompt with no Maju orientation.
     #[arg(long, env = "MAJU_ACP_NO_BASE_PROMPT")]
     pub no_base_prompt: bool,
 
@@ -483,7 +483,7 @@ pub struct CliArgs {
     #[arg(long, env = "MAJU_ACP_ALLOWED_RESPOND_TO", value_delimiter = ',')]
     pub allowed_respond_to: Option<Vec<String>>,
 
-    /// Team-owned instructions layered after `[System]` and before agent memory.
+    /// Team-owned instructions layered after `[Agent Instructions]` and before agent memory.
     #[arg(long, env = "MAJU_ACP_TEAM_INSTRUCTIONS")]
     pub team_instructions: Option<String>,
 
@@ -736,7 +736,7 @@ fn default_agent_args(command: &str) -> Option<Vec<String>> {
 /// Hermes: ACP hosts supply session MCP servers explicitly through
 /// `session/new`, but Hermes otherwise starts every profile-configured MCP
 /// server before it responds to `initialize` — which can exhaust the host's
-/// startup budget (see heap-cider/maju#3355). Skip that unrelated global startup
+/// startup budget (see block/buzz#3355). Skip that unrelated global startup
 /// by default; an operator or persona can still opt back in by setting the
 /// variable explicitly.
 pub(crate) fn default_agent_env(command: &str) -> &'static [(&'static str, &'static str)] {

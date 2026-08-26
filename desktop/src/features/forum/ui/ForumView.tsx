@@ -6,7 +6,7 @@ import { useMyRelayMembershipQuery } from "@/features/community-members/hooks";
 import { canModerateCommunityContent } from "@/features/moderation/lib/contentModeration";
 import { mergeCurrentProfileIntoLookup } from "@/features/profile/lib/identity";
 import { getMentionTagPubkey } from "@/shared/lib/resolveMentionNames";
-import type { Channel, ForumPost, ThreadReply } from "@/shared/api/types";
+import type { Channel } from "@/shared/api/types";
 import { channelChrome } from "@/shared/layout/chromeLayout";
 import { cn } from "@/shared/lib/cn";
 import { Skeleton } from "@/shared/ui/skeleton";
@@ -17,12 +17,10 @@ import {
   useCreateForumReplyMutation,
   useDeleteForumPostMutation,
   useDeleteForumReplyMutation,
-  useEditForumContentMutation,
   useForumPostsQuery,
   useForumThreadQuery,
 } from "../hooks";
 import { ForumComposer } from "./ForumComposer";
-import { EditForumContentDialog } from "./EditForumContentDialog";
 import { ForumPostCard } from "./ForumPostCard";
 import { ForumThreadPanel } from "./ForumThreadPanel";
 
@@ -34,16 +32,11 @@ type ForumViewProps = {
   onTargetReached?: (messageId: string) => void;
   selectedPostId: string | null;
   targetReplyId: string | null;
+  targetSearchMessageId?: string;
+  targetSearchQuery?: string;
 };
 
-type EditableForumContent = {
-  content: string;
-  eventId: string;
-  label: "post" | "reply";
-  tags: string[][];
-};
-
-export function isForumContentAuthor(
+function isForumContentAuthor(
   postPubkey: string,
   currentPubkey?: string,
 ): boolean {
@@ -59,10 +52,10 @@ export function ForumView({
   onTargetReached,
   selectedPostId,
   targetReplyId,
+  targetSearchMessageId,
+  targetSearchQuery,
 }: ForumViewProps) {
   const [isComposerOpen, setIsComposerOpen] = React.useState(false);
-  const [editingContent, setEditingContent] =
-    React.useState<EditableForumContent | null>(null);
   const postsScrollRef = React.useRef<HTMLDivElement>(null);
 
   const profileQuery = useProfileQuery();
@@ -82,7 +75,6 @@ export function ForumView({
     channel,
     selectedPostId,
   );
-  const editContentMutation = useEditForumContentMutation(channel);
 
   const posts = postsQuery.data?.posts ?? [];
 
@@ -141,43 +133,7 @@ export function ForumView({
 
     previousChannelIdRef.current = channel.id;
     setIsComposerOpen(false);
-    setEditingContent(null);
   }, [channel.id]);
-
-  const openPostEditor = React.useCallback((post: ForumPost) => {
-    setEditingContent({
-      content: post.content,
-      eventId: post.eventId,
-      label: "post",
-      tags: post.tags,
-    });
-  }, []);
-  const openReplyEditor = React.useCallback((reply: ThreadReply) => {
-    setEditingContent({
-      content: reply.content,
-      eventId: reply.eventId,
-      label: "reply",
-      tags: reply.tags,
-    });
-  }, []);
-  const editDialog = editingContent ? (
-    <EditForumContentDialog
-      content={editingContent.content}
-      isSaving={editContentMutation.isPending}
-      label={editingContent.label}
-      onOpenChange={(open) => {
-        if (!open) setEditingContent(null);
-      }}
-      onSave={(content) =>
-        editContentMutation.mutateAsync({
-          content,
-          eventId: editingContent.eventId,
-          tags: editingContent.tags,
-        })
-      }
-      open
-    />
-  ) : null;
 
   if (selectedPostId) {
     const threadPost = threadQuery.data?.post;
@@ -187,58 +143,55 @@ export function ForumView({
       : false;
 
     return (
-      <>
-        <ForumThreadPanel
-          canDeletePost={canDeleteExpandedPost}
-          canModerateContent={canModerateContent}
-          currentPubkey={effectiveCurrentPubkey}
-          isDeletingPost={deletePostMutation.isPending}
-          isLoading={threadQuery.isLoading}
-          isSendingReply={createReplyMutation.isPending}
-          onBack={onClosePost}
-          onDeletePost={(eventId) => {
-            deletePostMutation.mutate(
-              {
-                eventId,
-                moderatorDelete:
-                  threadPost != null &&
-                  !isForumContentAuthor(
-                    threadPost.pubkey,
-                    effectiveCurrentPubkey,
-                  ),
-              },
-              { onSuccess: onClosePost },
-            );
-          }}
-          onDeleteReply={(eventId) => {
-            const reply = threadQuery.data?.replies.find(
-              (candidate) => candidate.eventId === eventId,
-            );
-            deleteReplyMutation.mutate({
+      <ForumThreadPanel
+        canDeletePost={canDeleteExpandedPost}
+        canModerateContent={canModerateContent}
+        currentPubkey={effectiveCurrentPubkey}
+        isDeletingPost={deletePostMutation.isPending}
+        isLoading={threadQuery.isLoading}
+        isSendingReply={createReplyMutation.isPending}
+        onBack={onClosePost}
+        onDeletePost={(eventId) => {
+          deletePostMutation.mutate(
+            {
               eventId,
               moderatorDelete:
-                reply != null &&
-                !isForumContentAuthor(reply.pubkey, effectiveCurrentPubkey),
-            });
-          }}
-          onEditPost={canDeleteExpandedPost ? openPostEditor : undefined}
-          onEditReply={openReplyEditor}
-          channelId={channel.id}
-          onReply={(content, mentionPubkeys, mediaTags) =>
-            createReplyMutation.mutateAsync({
-              content,
-              parentEventId: selectedPostId,
-              mentionPubkeys,
-              mediaTags,
-            })
-          }
-          onTargetReached={onTargetReached}
-          profiles={profiles}
-          targetEventId={targetReplyId}
-          thread={threadQuery.data}
-        />
-        {editDialog}
-      </>
+                threadPost != null &&
+                !isForumContentAuthor(
+                  threadPost.pubkey,
+                  effectiveCurrentPubkey,
+                ),
+            },
+            { onSuccess: onClosePost },
+          );
+        }}
+        onDeleteReply={(eventId) => {
+          const reply = threadQuery.data?.replies.find(
+            (candidate) => candidate.eventId === eventId,
+          );
+          deleteReplyMutation.mutate({
+            eventId,
+            moderatorDelete:
+              reply != null &&
+              !isForumContentAuthor(reply.pubkey, effectiveCurrentPubkey),
+          });
+        }}
+        channelId={channel.id}
+        onReply={(content, mentionPubkeys, mediaTags) =>
+          createReplyMutation.mutateAsync({
+            content,
+            parentEventId: selectedPostId,
+            mentionPubkeys,
+            mediaTags,
+          })
+        }
+        onTargetReached={onTargetReached}
+        profiles={profiles}
+        targetEventId={targetReplyId}
+        targetSearchMessageId={targetSearchMessageId}
+        targetSearchQuery={targetSearchQuery}
+        thread={threadQuery.data}
+      />
     );
   }
 
@@ -315,10 +268,6 @@ export function ForumView({
                     isForumContentAuthor(post.pubkey, effectiveCurrentPubkey) ||
                     canModerateContent
                   }
-                  canEdit={
-                    isForumContentAuthor(post.pubkey, effectiveCurrentPubkey) ||
-                    canModerateContent
-                  }
                   currentPubkey={effectiveCurrentPubkey}
                   isActive={selectedPostId === post.eventId}
                   isDeleting={
@@ -335,7 +284,6 @@ export function ForumView({
                       ),
                     });
                   }}
-                  onEdit={openPostEditor}
                   post={post}
                   profiles={profiles}
                 />
@@ -345,7 +293,6 @@ export function ForumView({
           />
         )}
       </div>
-      {editDialog}
     </div>
   );
 }

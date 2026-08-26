@@ -1,0 +1,76 @@
+import * as React from "react";
+
+import { getAgentAddressMentionPubkeys } from "@/features/messages/lib/agentAddressMention.mjs";
+import { getVisibleAgentAddressPubkeys } from "@/features/messages/lib/getVisibleAgentAddressPubkeys";
+import type { TimelineMessage } from "@/features/messages/types";
+import type { UserProfileLookup } from "@/features/profile/lib/identity";
+import { UserProfilePopover } from "@/features/profile/ui/UserProfilePopover";
+import { truncatePubkey } from "@/shared/lib/pubkey";
+import { InlineChip } from "@/shared/ui/InlineChip";
+
+/** Visible send-state prefix for recipients kept in the composer address tray. */
+export function MessageAgentAddressPrefix({
+  profiles,
+  pubkeys,
+}: {
+  profiles?: UserProfileLookup;
+  pubkeys: readonly string[];
+}) {
+  return (
+    <>
+      {pubkeys.map((pubkey) => {
+        const profile = profiles?.[pubkey];
+        const label =
+          profile?.displayName?.trim() ||
+          profile?.name?.trim() ||
+          truncatePubkey(pubkey);
+        return (
+          <React.Fragment key={pubkey}>
+            {/* biome-ignore lint/a11y/useValidAriaRole: UserProfilePopover uses role for agent classification, not as an ARIA attribute. */}
+            <UserProfilePopover
+              botIdenticonValue={label}
+              pubkey={pubkey}
+              role="bot"
+              triggerElement="span"
+            >
+              <InlineChip
+                className="agent-mention-highlight"
+                data-mention=""
+                icon="agent"
+                interactive
+              >
+                {label}
+              </InlineChip>
+            </UserProfilePopover>{" "}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+export function useMessageAgentAddressPrefix({
+  isKnownAgentPubkey,
+  mentionPubkeysByName,
+  message,
+  profiles,
+}: {
+  isKnownAgentPubkey: (pubkey: string) => boolean;
+  mentionPubkeysByName: Readonly<Record<string, string>> | undefined;
+  message: Pick<TimelineMessage, "body" | "tags">;
+  profiles?: UserProfileLookup;
+}) {
+  const pubkeys = React.useMemo(
+    () =>
+      getVisibleAgentAddressPubkeys(
+        message.body,
+        getAgentAddressMentionPubkeys(message.tags).filter(isKnownAgentPubkey),
+        mentionPubkeysByName,
+      ),
+    [isKnownAgentPubkey, mentionPubkeysByName, message.body, message.tags],
+  );
+
+  return pubkeys.length > 0 ? (
+    <MessageAgentAddressPrefix profiles={profiles} pubkeys={pubkeys} />
+  ) : undefined;
+}

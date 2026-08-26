@@ -2,10 +2,16 @@
 
 ## Reporting a Vulnerability
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+**Do not report security vulnerabilities through a public GitHub issue, pull
+request, discussion, or other public channel.**
 
-If you discover a security vulnerability in Maju, please report it by emailing
-**maju@block.xyz**. Include as much detail as possible:
+Use GitHub's private vulnerability reporting form instead:
+
+**[Report a vulnerability privately](https://github.com/heap-cider/maju/security/advisories/new)**
+
+Submitting the form starts a private security advisory with the Maju
+maintainers. Use that advisory for vulnerability details, follow-up questions,
+and coordinated remediation. Include as much detail as possible:
 
 - A description of the vulnerability and its potential impact
 - Steps to reproduce or a proof-of-concept (if available)
@@ -129,4 +135,6 @@ We use `cargo audit` in CI to scan for known vulnerabilities in dependencies.
 ## Disclosure Policy
 
 We follow [coordinated disclosure](https://en.wikipedia.org/wiki/Coordinated_vulnerability_disclosure).
-Reporters will be credited unless they request anonymity.
+We use the private advisory to coordinate validation, remediation, and
+disclosure with the reporter. Reporters will be credited unless they request
+anonymity.

@@ -30,9 +30,6 @@ use crate::state::AppState;
 pub enum ModerationAction {
     /// Delete any message (kind:9005 path).
     DeleteMessage,
-    /// Edit any channel message while preserving the moderator-signed
-    /// kind:40003 event as provenance.
-    EditMessage,
     /// Remove/kick a user from a channel (kind:9001 path).
     Kick,
     /// Ban a user from the community (community owner/admin only).
@@ -189,9 +186,8 @@ mod tests {
 
     /// Every community-wide action a community owner can take. Channel-local
     /// actions (DeleteMessage/Kick) are included — the owner holds them too.
-    const ALL_ACTIONS: [ModerationAction; 9] = [
+    const ALL_ACTIONS: [ModerationAction; 8] = [
         ModerationAction::DeleteMessage,
-        ModerationAction::EditMessage,
         ModerationAction::Kick,
         ModerationAction::Ban,
         ModerationAction::Unban,
@@ -284,7 +280,6 @@ mod tests {
             ModerationAction::Unban,
             ModerationAction::Untimeout,
             ModerationAction::DeleteMessage,
-            ModerationAction::EditMessage,
             ModerationAction::Kick,
             ModerationAction::ResolveReport,
             ModerationAction::ViewQueue,
@@ -309,7 +304,6 @@ mod tests {
             }
             // No community authority: channel role does NOT grant community actions.
             for action in [
-                ModerationAction::EditMessage,
                 ModerationAction::Ban,
                 ModerationAction::Timeout,
                 ModerationAction::Unban,

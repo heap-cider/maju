@@ -67,6 +67,14 @@ COPY --from=planner /build/recipe.json recipe.json
 # scoping to -p maju-relay misses transitive deps and re-builds them later.
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
+# Compile immutable artifact identity into the relay. Defaults preserve local
+# and third-party builds that do not run in provenance-aware CI.
+ARG MAJU_SOURCE_SHA=unknown
+ARG MAJU_BUILD_ID=local
+ARG MAJU_BUILD_URL=unknown
+ENV MAJU_SOURCE_SHA=${MAJU_SOURCE_SHA} \
+    MAJU_BUILD_ID=${MAJU_BUILD_ID} \
+    MAJU_BUILD_URL=${MAJU_BUILD_URL}
 RUN cargo build --release --locked -p maju-relay --bin maju-relay \
                                    -p maju-admin --bin maju-admin \
                                    -p maju-pair-relay --bin maju-pair-relay

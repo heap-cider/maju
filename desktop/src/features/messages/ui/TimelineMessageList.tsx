@@ -22,8 +22,6 @@ import type { MainTimelineEntry } from "@/features/messages/lib/threadPanel";
 import type { ChannelWindowThreadSummary } from "@/features/messages/lib/channelWindowStore";
 import { buildVideoReviewContextsByMessageId } from "@/features/messages/lib/videoReviewContext";
 import type { TimelineMessage } from "@/features/messages/types";
-import { useMyRelayMembershipQuery } from "@/features/community-members/hooks";
-import { canModerateCommunityContent } from "@/features/moderation/lib/contentModeration";
 import type { UserProfileLookup } from "@/features/profile/lib/identity";
 import type { ChannelType } from "@/shared/api/types";
 import { cn } from "@/shared/lib/cn";
@@ -170,12 +168,6 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
   onVirtualizerRangeChanged,
   onVirtualizerScrollerChange,
 }: TimelineMessageListProps) {
-  const relayMembershipQuery = useMyRelayMembershipQuery();
-  // Community moderators may edit; their kind:40003 signer is retained and
-  // rendered as the editor. Deletion stays on the separate kind:9005 path.
-  const canModerateContent = canModerateCommunityContent(
-    relayMembershipQuery.data?.role,
-  );
   const entries = React.useMemo(
     () =>
       mainEntries ??
@@ -251,7 +243,6 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
         case "message":
           return (
             <MessageRowItem
-              canModerateContent={canModerateContent}
               channelId={channelId}
               currentPubkey={currentPubkey}
               entry={item.entry}
@@ -295,7 +286,6 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
     },
     [
       channelId,
-      canModerateContent,
       alwaysShowMessageIdentity,
       currentPubkey,
       followThreadById,

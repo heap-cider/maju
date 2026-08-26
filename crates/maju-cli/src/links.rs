@@ -1,6 +1,6 @@
 //! Canonical `maju://` deep links for Maju entities.
 //!
-//! Maju Desktop renders these links as rich preview cards in chat and
+//! Maju Desktop renders these links as inline chips with hover details in chat and
 //! navigates in-app when they are clicked. The desktop parser lives in
 //! `desktop/src/shared/lib/entityLink.ts` for git entities and
 //! `desktop/src/features/messages/lib/messageLink.ts` for messages. The

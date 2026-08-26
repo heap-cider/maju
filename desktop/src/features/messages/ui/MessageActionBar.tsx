@@ -15,11 +15,11 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { buildMessageLink } from "@/features/messages/lib/messageLink";
 import { removeMessageFromQueryCaches } from "@/features/messages/lib/projectChannelWindow";
 import { EmojiPicker } from "@/features/custom-emoji/ui/EmojiPicker";
-import { useCustomEmoji } from "@/features/custom-emoji/hooks";
 import { getThreadReference } from "@/features/messages/lib/threading";
 import { ReportMessageDialog } from "@/features/moderation/ui/ReportMessageDialog";
 import { MessageModerationMenuItems } from "@/features/moderation/ui/MessageModerationMenuItems";
@@ -27,15 +27,9 @@ import type {
   TimelineMessage,
   TimelineReaction,
 } from "@/features/messages/types";
-import {
-  recordQuickReactionEmoji,
-  useQuickReactionEmojis,
-} from "@/features/messages/ui/useQuickReactionEmojis";
-import { reactionEmojiUrl } from "@/shared/api/customEmoji";
+import { recordQuickReactionEmoji } from "@/features/messages/ui/useQuickReactionEmojis";
 import { cn } from "@/shared/lib/cn";
 import { copyTextToClipboard } from "@/shared/lib/clipboard";
-import { emojiDisplayName } from "@/shared/lib/emojiName";
-import { rewriteRelayUrl } from "@/shared/lib/mediaUrl";
 import { deleteMessage } from "@/shared/api/tauri";
 import { KIND_HUDDLE_STARTED } from "@/shared/constants/kinds";
 import { Button } from "@/shared/ui/button";
@@ -51,10 +45,35 @@ import {
 import { isPositiveEmojiParticle } from "@/shared/ui/EmojiBurstProvider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
-import { toast } from "sonner";
 
 const ACTION_BUTTON_CLASS = "h-8 w-8 rounded-full p-0";
 const ACTION_ICON_CLASS = "!h-4 !w-4";
+
+/** Copying a message link is offered from both the hover action bar and the
+ *  More menu; both paths share this exact link-building + toast behavior. */
+function copyMessageLink(channelId: string, message: TimelineMessage) {
+  const { rootId } = getThreadReference(message.tags ?? []);
+  const link = buildMessageLink({
+    channelId,
+    messageId: message.id,
+    threadRootId: rootId,
+  });
+  copyTextToClipboard(link, "Link copied to clipboard");
+}
+
+/** Gate shared by every copy-link surface: pending sends have no delivered
+ *  event to link to, huddle system rows aren't linkable, and callers without
+ *  a channelId (e.g. inbox preview rows) can't build the link. */
+function canCopyMessageLink(
+  message: TimelineMessage,
+  channelId: string | null | undefined,
+): channelId is string {
+  return (
+    !message.pending &&
+    message.kind !== KIND_HUDDLE_STARTED &&
+    Boolean(channelId)
+  );
+}
 
 function MoreActionsMenu({
   channelId,
@@ -149,7 +168,7 @@ function MoreActionsMenu({
           {onEdit ? (
             <DropdownMenuItem
               data-testid={`edit-message-${message.id}`}
-              onClick={() => {
+              onSelect={() => {
                 editJustSelectedRef.current = true;
                 onEdit(message);
               }}
@@ -248,17 +267,11 @@ function MoreActionsMenu({
             </DropdownMenuItem>
           ) : null}
 
-          {hasCopyActions && channelId ? (
+          {canCopyMessageLink(message, channelId) ? (
             <DropdownMenuItem
               data-testid={`copy-message-link-${message.id}`}
               onClick={() => {
-                const { rootId } = getThreadReference(message.tags ?? []);
-                const link = buildMessageLink({
-                  channelId,
-                  messageId: message.id,
-                  threadRootId: rootId,
-                });
-                copyTextToClipboard(link, "Link copied to clipboard");
+                copyMessageLink(channelId, message);
               }}
             >
               <Link2 className="h-4 w-4" />
@@ -349,51 +362,6 @@ function MoreActionsMenu({
   );
 }
 
-function QuickReactionButton({
-  customEmojiUrl,
-  emoji,
-  onSelect,
-}: {
-  customEmojiUrl?: string;
-  emoji: string;
-  onSelect: (emoji: string) => void;
-}) {
-  const displayName = emojiDisplayName(emoji);
-  const mediaUrl = customEmojiUrl ? rewriteRelayUrl(customEmojiUrl) : null;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          aria-label={`React with ${displayName}`}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-base leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
-          onClick={() => onSelect(emoji)}
-          title={displayName}
-          type="button"
-        >
-          {mediaUrl ? (
-            <img
-              alt={emoji}
-              className="h-5 w-5 object-contain"
-              draggable={false}
-              src={mediaUrl}
-            />
-          ) : (
-            <span aria-hidden="true" className="translate-y-px">
-              {emoji}
-            </span>
-          )}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>{displayName}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-function isCustomEmojiShortcode(emoji: string) {
-  return emoji.startsWith(":") && emoji.endsWith(":");
-}
-
 export const MessageActionBar = React.memo(function MessageActionBar({
   channelId,
   message,
@@ -437,20 +405,6 @@ export const MessageActionBar = React.memo(function MessageActionBar({
 }) {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = React.useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
-  const customEmoji = useCustomEmoji();
-  const quickReactionEmojis = useQuickReactionEmojis(4, customEmoji);
-  const quickReactionItems = React.useMemo(
-    () =>
-      quickReactionEmojis
-        .map((emoji) => ({
-          customEmojiUrl: reactionEmojiUrl(emoji, customEmoji),
-          emoji,
-        }))
-        .filter(
-          (item) => !isCustomEmojiShortcode(item.emoji) || item.customEmojiUrl,
-        ),
-    [customEmoji, quickReactionEmojis],
-  );
   const hasReplyAction = Boolean(onReply);
   const hasReactionAction = Boolean(onReactionSelect);
 
@@ -515,22 +469,6 @@ export const MessageActionBar = React.memo(function MessageActionBar({
     >
       <div className="overflow-hidden rounded-full border border-border/70 bg-background/95 shadow-xs backdrop-blur-sm supports-[backdrop-filter]:bg-background/85">
         <div className="flex items-center gap-0.5 p-1">
-          {hasReactionAction && quickReactionItems.length > 0 ? (
-            <>
-              <div className="hidden items-center gap-0.5 sm:flex">
-                {quickReactionItems.map(({ customEmojiUrl, emoji }) => (
-                  <QuickReactionButton
-                    customEmojiUrl={customEmojiUrl}
-                    emoji={emoji}
-                    key={emoji}
-                    onSelect={handleReactionSelection}
-                  />
-                ))}
-              </div>
-              <div className="mx-0.5 hidden h-4 w-px bg-border/70 sm:block" />
-            </>
-          ) : null}
-
           {hasReactionAction ? (
             <Popover
               onOpenChange={setIsReactionPickerOpen}
@@ -596,6 +534,27 @@ export const MessageActionBar = React.memo(function MessageActionBar({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Reply</TooltipContent>
+            </Tooltip>
+          ) : null}
+
+          {canCopyMessageLink(message, channelId) ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label="Copy link"
+                  className={ACTION_BUTTON_CLASS}
+                  data-testid={`copy-link-message-${message.id}`}
+                  onClick={() => {
+                    copyMessageLink(channelId, message);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Link2 className={ACTION_ICON_CLASS} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Copy link</TooltipContent>
             </Tooltip>
           ) : null}
 

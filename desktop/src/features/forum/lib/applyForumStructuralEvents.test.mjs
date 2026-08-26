@@ -24,7 +24,7 @@ const event = (id, kind, createdAt, targetId, body = "") => ({
   sig: "b".repeat(128),
 });
 
-test("newest forum edit wins and keeps explicit moderator provenance", () => {
+test("newest authorized forum edit wins and keeps editor provenance", () => {
   const result = applyForumStructuralEvents(
     [content("post")],
     [

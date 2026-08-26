@@ -9,6 +9,10 @@ import type {
   TimelineMessage,
   TimelineReaction,
 } from "@/features/messages/types";
+// Pure overlay helper lives in a sibling .mjs so node:test (no TS loader)
+// can exercise the exact same source the renderer uses.
+import { applyEditTagOverlay } from "@/features/messages/lib/applyEditTagOverlay.mjs";
+import { formatTime } from "@/features/messages/lib/dateFormatters";
 import {
   getThreadReference,
   isBroadcastReply,
@@ -37,13 +41,10 @@ import {
   KIND_SYSTEM_MESSAGE,
 } from "@/shared/constants/kinds";
 import { resolveEventAuthorPubkey } from "@/shared/lib/authors";
-import { normalizePubkey } from "@/shared/lib/pubkey";
-import { formatTime } from "@/features/messages/lib/dateFormatters";
-// Pure overlay helper lives in a sibling .mjs so node:test (no TS loader)
-// can exercise the exact same source the renderer uses.
-import { applyEditTagOverlay } from "@/features/messages/lib/applyEditTagOverlay.mjs";
-import { truncatePubkey } from "@/shared/lib/pubkey";
+import { normalizePubkey, truncatePubkey } from "@/shared/lib/pubkey";
+import { channelRoleMap } from "@/shared/lib/rosterDerivations";
 
+const EMPTY_ROLE_MAP: ReadonlyMap<string, string> = new Map();
 const HEX_RE = /^[0-9a-f]+$/i;
 
 export function isTimelineContentEvent(event: RelayEvent) {
@@ -196,7 +197,6 @@ function isAuthorizedMessageEdit(
   edit: RelayEvent,
   target: RelayEvent,
   profiles: UserProfileLookup | undefined,
-  roleByPubkey: ReadonlyMap<string, string>,
   relaySelfPubkey?: string | null,
 ): boolean {
   const author = normalizePubkey(
@@ -209,11 +209,7 @@ function isAuthorizedMessageEdit(
   );
   const signer = normalizePubkey(edit.pubkey);
   if (signer === author) return true;
-  if (normalizePubkey(profiles?.[author]?.ownerPubkey ?? "") === signer) {
-    return true;
-  }
-  const signerRole = roleByPubkey.get(signer);
-  return signerRole === "owner" || signerRole === "admin";
+  return normalizePubkey(profiles?.[author]?.ownerPubkey ?? "") === signer;
 }
 
 export function formatTimelineMessages(
@@ -233,12 +229,9 @@ export function formatTimelineMessages(
   ownerProfiles?: UserProfileLookup,
 ): TimelineMessage[] {
   const currentPubkeyLower = currentPubkey?.toLowerCase();
-  const roleByPubkey = new Map<string, string>();
-  if (members) {
-    for (const member of members) {
-      roleByPubkey.set(member.pubkey.toLowerCase(), member.role);
-    }
-  }
+  // Identity-cached: rosters can be 10k+ members and this formatter re-runs
+  // on every live message; the map is computed once per distinct roster.
+  const roleByPubkey = members ? channelRoleMap(members) : EMPTY_ROLE_MAP;
   const deletedEventIds = new Set<string>();
   for (const event of events) {
     // Both kind:5 and kind:9005 are deletion markers; mirror the relay.
@@ -262,7 +255,7 @@ export function formatTimelineMessages(
   // Build a map of latest authorized edit per original message. Preview
   // suppression is monotonic: any authorized edit carrying the marker wins
   // forever, independent of which edit supplies the latest body.
-  // Keep the edit signer so owner/moderator edits remain visible provenance
+  // Keep the edit signer so verified agent-owner edits remain visible provenance
   // instead of looking like the original author silently rewrote the message.
   // The edit's own tags are kept so the renderer can overlay imeta tags
   // (attachments) from the edit onto the original event — non-imeta tags on
@@ -291,13 +284,7 @@ export function formatTimelineMessages(
     const target = timelineEventsById.get(targetId);
     if (
       !target ||
-      !isAuthorizedMessageEdit(
-        event,
-        target,
-        profiles,
-        roleByPubkey,
-        relaySelfPubkey,
-      )
+      !isAuthorizedMessageEdit(event, target, profiles, relaySelfPubkey)
     ) {
       continue;
     }

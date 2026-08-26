@@ -114,7 +114,7 @@ fn make_tag(parts: &[&str]) -> Result<Tag, CliError> {
 ///
 /// `link_slug` carries the project's d-tag on creates whose slug fits the
 /// `maju://` link charset; the response then also carries a `link` field,
-/// which renders as a rich preview card in Maju Desktop when included in a
+/// which renders as an inline chip with hover details when included in a
 /// chat message — agents announce projects with it (see base_prompt.md).
 async fn submit_project(
     client: &MajuClient,

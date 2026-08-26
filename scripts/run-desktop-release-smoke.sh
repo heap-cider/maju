@@ -103,6 +103,7 @@ else
   RELAY_BIN="${ROOT}/target/ci/maju-relay"
 fi
 log "starting relay at ${RELAY_HTTP_URL}"
+RELAY_PRIVATE_KEY="$(openssl rand -hex 32)"
 env \
   DATABASE_URL="postgres://maju:maju_dev@localhost:5432/${DB_NAME}" \
   REDIS_URL="redis://localhost:6379/${REDIS_DB}" \
@@ -110,6 +111,7 @@ env \
   MAJU_BIND_ADDR="127.0.0.1:${RELAY_PORT}" \
   MAJU_HEALTH_PORT="${HEALTH_PORT}" \
   MAJU_METRICS_PORT="${METRICS_PORT}" \
+  MAJU_RELAY_PRIVATE_KEY="${RELAY_PRIVATE_KEY}" \
   MAJU_REQUIRE_AUTH_TOKEN=false \
   MAJU_RECONCILE_CHANNELS=true \
   MAJU_RATE_LIMIT_HUMAN_MESSAGES_PER_MIN=1000000 \

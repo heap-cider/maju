@@ -101,6 +101,20 @@ test("a far-future edit still rewrites the body of an old message", () => {
   const old = streamMessage({ created_at: 1_700_000_000 });
   const lateEdit = streamEdit(HEX64_A, "edited body", {
     created_at: 1_900_000_000,
+  });
+  const out = formatTimelineMessages([old, lateEdit], null, undefined, null);
+  assert.equal(out.length, 1, "the message should still render");
+  assert.equal(
+    out[0].body,
+    "edited body",
+    "the far-future edit must overlay the old message's body regardless of the time gap",
+  );
+  assert.equal(out[0].edited, true, "the message must be marked edited");
+});
+
+test("a community moderator cannot edit another author's message", () => {
+  const target = streamMessage();
+  const moderatorEdit = streamEdit(HEX64_A, "moderator rewrite", {
     pubkey: PUBKEY_B,
   });
   const members = [
@@ -112,25 +126,22 @@ test("a far-future edit still rewrites the body of an old message", () => {
       displayName: "Owner",
     },
   ];
-  const out = formatTimelineMessages(
-    [old, lateEdit],
+
+  const [message] = formatTimelineMessages(
+    [target, moderatorEdit],
     null,
     undefined,
     null,
     undefined,
     members,
   );
-  assert.equal(out.length, 1, "the message should still render");
+
+  assert.equal(message.body, target.content);
+  assert.equal(message.edited, false);
   assert.equal(
-    out[0].body,
-    "edited body",
-    "the far-future edit must overlay the old message's body regardless of the time gap",
-  );
-  assert.equal(out[0].edited, true, "the message must be marked edited");
-  assert.equal(
-    out[0].editedByPubkey,
-    PUBKEY_B,
-    "the signed editor remains visible as moderation provenance",
+    message.editedByPubkey,
+    undefined,
+    "a community role alone must not authorize an edit",
   );
 });
 

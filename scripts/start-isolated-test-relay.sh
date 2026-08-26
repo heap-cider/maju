@@ -133,6 +133,7 @@ ok "Relay built"
 # survives (same pattern the perf stack uses). Logs to ${RELAY_LOG}.
 RELAY_LOG="${RELAY_LOG:-/tmp/dawn-relay-run.log}"
 TMUX_SESSION="${TMUX_SESSION:-dawn-relay}"
+RELAY_PRIVATE_KEY="$(openssl rand -hex 32)"
 tmux kill-session -t "${TMUX_SESSION}" 2>/dev/null || true
 if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"${RELAY_MAIN}" -sTCP:LISTEN >/dev/null 2>&1; then
   err "Port ${RELAY_MAIN} is already in use; refusing to report a stale relay as this harness."
@@ -151,6 +152,7 @@ tmux new-session -d -s "${TMUX_SESSION}" "cd '${REPO_ROOT}' && env \
   MAJU_S3_ACCESS_KEY=maju_dev \
   MAJU_S3_SECRET_KEY=maju_dev_secret \
   MAJU_S3_BUCKET=maju-media \
+  MAJU_RELAY_PRIVATE_KEY=${RELAY_PRIVATE_KEY} \
   MAJU_REQUIRE_AUTH_TOKEN=false \
   MAJU_RECONCILE_CHANNELS=true \
   './target/${CARGO_TARGET_PROFILE}/maju-relay' > '${RELAY_LOG}' 2>&1"

@@ -23,6 +23,7 @@ import {
 import { resetRenderScopedReactionHydration } from "@/features/messages/lib/renderScopedReactions";
 import { resetBackgroundMediaUploads } from "@/features/messages/lib/backgroundMediaUploadStore";
 import { resetLinkPreviewPreparations } from "@/features/messages/lib/linkPreviewPreparationStore";
+import { resetPersistentAgentAudienceStore } from "@/features/messages/lib/persistentAgentAudience";
 import {
   resetActiveAgentTurnsStore,
   saveActiveAgentTurnsForCommunity,
@@ -84,6 +85,7 @@ async function resetCommunityState({
   resetRenderScopedReactionHydration();
   resetBackgroundMediaUploads();
   resetLinkPreviewPreparations();
+  resetPersistentAgentAudienceStore();
   clearSearchHitEventCache();
   clearMarkdownNodeCache();
   resetMessageLinkMetadataCache();
@@ -95,7 +97,12 @@ function normalizedRelayUrl(relayUrl: string): string {
 }
 
 type CommunityInitResult =
-  | { isReady: true; needsSetup: false; appliedKey: string }
+  | {
+      isReady: true;
+      needsSetup: false;
+      appliedKey: string;
+      identityPubkey: string | null;
+    }
   | {
       isReady: false;
       needsSetup: true;
@@ -387,6 +394,7 @@ export function useCommunityInit(
           isReady: true,
           needsSetup: false,
           appliedKey: communityKey,
+          identityPubkey,
         });
       }
     }

@@ -152,6 +152,8 @@ fi
 
 log "Starting relay..."
 
+TEST_RELAY_PRIVATE_KEY="${MAJU_RELAY_PRIVATE_KEY:-$(openssl rand -hex 32)}"
+
 # Optional NIP-43 membership gating: exported by callers that need a
 # membership-gated relay (e.g. the mesh lifecycle smoke). All three must be
 # set together — the relay fails fast otherwise.
@@ -160,8 +162,8 @@ if [[ "${MAJU_REQUIRE_RELAY_MEMBERSHIP:-}" == "true" ]]; then
   MEMBERSHIP_ENV+=(
     MAJU_REQUIRE_RELAY_MEMBERSHIP=true
     RELAY_OWNER_PUBKEY="${RELAY_OWNER_PUBKEY:?RELAY_OWNER_PUBKEY required with MAJU_REQUIRE_RELAY_MEMBERSHIP=true}"
-    MAJU_RELAY_PRIVATE_KEY="${MAJU_RELAY_PRIVATE_KEY:?MAJU_RELAY_PRIVATE_KEY required with MAJU_REQUIRE_RELAY_MEMBERSHIP=true}"
   )
+  : "${MAJU_RELAY_PRIVATE_KEY:?MAJU_RELAY_PRIVATE_KEY required with MAJU_REQUIRE_RELAY_MEMBERSHIP=true}"
   log "Membership gating enabled (NIP-43)"
 fi
 
@@ -170,6 +172,7 @@ nohup env \
   REDIS_URL=redis://localhost:6379 \
   RELAY_URL=ws://localhost:3000 \
   MAJU_BIND_ADDR=0.0.0.0:3000 \
+  MAJU_RELAY_PRIVATE_KEY="${TEST_RELAY_PRIVATE_KEY}" \
   MAJU_REQUIRE_AUTH_TOKEN=false \
   MAJU_RECONCILE_CHANNELS=true \
   MAJU_GIT_PROBE_WRITERS=8 \

@@ -215,6 +215,12 @@ spec:
                   name: {{ include "maju.envSecretName" . }}
                   key: MAJU_S3_SECRET_KEY
                   optional: true
+            - name: MAJU_KLIPY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maju.envSecretName" . }}
+                  key: MAJU_KLIPY_API_KEY
+                  optional: true
 
             - name: MAJU_HUDDLE_AUDIO_AVAILABLE
               value: {{ include "maju.huddleAudioAvailable" . | quote }}

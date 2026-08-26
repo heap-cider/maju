@@ -336,6 +336,7 @@ export MAJU_GIT_HOOK_HMAC_SECRET="${HMAC_SECRET}"
 export MAJU_BIND_ADDR="${RELAY_HOST}:${RELAY_PORT}"
 export RELAY_URL="${RELAY_WS}"
 export RUST_LOG="maju_relay=warn"
+export MAJU_RELAY_PRIVATE_KEY="${MAJU_RELAY_PRIVATE_KEY:-$(openssl rand -hex 32)}"
 export MAJU_REQUIRE_AUTH_TOKEN=false
 
 # Clean repos dir (isolated test state)

@@ -19,7 +19,6 @@ import {
   type CreateProjectInput,
   useCreateProjectMutation,
 } from "@/features/projects/useCreateProject";
-import { selectProjectRepository } from "@/features/projects/projectModels";
 import { useProjectsRepoSnapshotsQuery } from "@/features/projects/useProjectsRepoSnapshots";
 import { buildProjectSelectionAgentContext } from "@/features/projects/lib/projectDetailAgentContext";
 import type { ProjectSelectionItem } from "@/features/projects/lib/projectSelection";
@@ -63,11 +62,7 @@ import { ProjectsWorkItemsLoadNotice } from "@/features/projects/ui/ProjectsWork
 import { ProjectsListHeaderBar } from "@/features/projects/ui/ProjectsListHeaderBar";
 import { ProjectSectionHeader } from "@/features/projects/ui/ProjectSectionHeader";
 import { ProjectsOverviewToolbarRow } from "@/features/projects/ui/ProjectsOverviewToolbarRow";
-import {
-  ProjectsEmptyState,
-  ProjectsLoadErrorState,
-  ProjectsLoadingState,
-} from "@/features/projects/ui/ProjectsViewStates";
+import { ProjectsEmptyState } from "@/features/projects/ui/ProjectsViewStates";
 import { ProjectSelectionProvider } from "@/features/projects/lib/useProjectSelection";
 import {
   hasLocalCheckout,
@@ -106,14 +101,22 @@ import {
   useProjectPanelWidths,
 } from "@/features/projects/ui/useProjectPanelWidths";
 import { useMediaBreakpoint } from "@/shared/hooks/use-mobile";
+import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
 import { useCommunities } from "@/features/communities/useCommunities";
 import { useIdentityQuery } from "@/shared/api/hooks";
 import { topChromeInset } from "@/shared/layout/chromeLayout";
 import { cn } from "@/shared/lib/cn";
 import { normalizePubkey } from "@/shared/lib/pubkey";
 import { useRelayOrigin } from "@/shared/lib/useRelayOrigin";
+import { Button } from "@/shared/ui/button";
 import { useOptionalSidebar } from "@/shared/ui/sidebar";
 import { useProjectsOverviewAgentContext } from "./useProjectsOverviewAgentContext";
+import {
+  EMPTY_ITEMS,
+  useContextWorkItems,
+  useDeleteProjectHandler,
+  useOpenProjectTerminalHandler,
+} from "./projectsViewWorkItems";
 
 const MANY_PROJECTS_THRESHOLD = 12;
 const PROJECTS_CONTEXT_POD_MIN_VIEWPORT_PX = 1024;
@@ -483,16 +486,21 @@ export function ProjectsView() {
   });
   const handleFilterChange = React.useCallback(
     (nextFilter: ProjectsFilter) => {
-      if (
-        nextFilter === "projects" &&
-        (repositoryScope === "maju" || repositoryScope === "linked")
-      ) {
-        setRepositoryScope("all");
-        writeStoredRepositoryScope("all");
-      }
-      setSelectionAgentContext(null);
-      setFilter(nextFilter);
       writeStoredFilter(nextFilter);
+      // Tab content swaps mount hundreds of rows/cards at once; a transition
+      // lets React keep the click responsive and paint the previous tab until
+      // the new tree is ready instead of blocking the main thread.
+      React.startTransition(() => {
+        if (
+          nextFilter === "projects" &&
+          (repositoryScope === "maju" || repositoryScope === "linked")
+        ) {
+          setRepositoryScope("all");
+          writeStoredRepositoryScope("all");
+        }
+        setSelectionAgentContext(null);
+        setFilter(nextFilter);
+      });
     },
     [repositoryScope, setSelectionAgentContext],
   );
@@ -545,20 +553,9 @@ export function ProjectsView() {
   );
 
   const openTerminal = useOpenProjectTerminal(activeCommunity?.reposDir);
-  const handleOpenTerminal = React.useCallback(
-    (project: Project) => {
-      const repository = selectProjectRepository(project, null);
-      if (!repository) return Promise.resolve();
-      return openTerminal(repository, {
-        // Check the selected repository only — not all members — so the
-        // terminal affordance reflects the repository the button will open.
-        hasLocalCheckout: hasLocalRepositoryCheckout(
-          repository,
-          localRepoNames,
-        ),
-      });
-    },
-    [localRepoNames, openTerminal],
+  const handleOpenTerminal = useOpenProjectTerminalHandler(
+    openTerminal,
+    localRepoNames,
   );
   const handleOpenRepositoryTerminal = React.useCallback(
     (repository: Repository) =>
@@ -571,18 +568,12 @@ export function ProjectsView() {
     [localRepoNames, openTerminal],
   );
 
-  const handleDeleteProject = React.useCallback(
-    async (project: Project) => {
-      try {
-        await deleteProjectMutation.mutateAsync(project);
-        toast.success("Project deleted");
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to delete project",
-        );
-      }
-    },
-    [deleteProjectMutation],
+  const handleDeleteProject = useDeleteProjectHandler(
+    deleteProjectMutation.mutateAsync,
+  );
+
+  const { contextIssues, contextPullRequests } = useContextWorkItems(
+    projectsWorkItemsQuery.data,
   );
 
   const handleCreateProject = React.useCallback(
@@ -606,12 +597,21 @@ export function ProjectsView() {
   );
 
   if (projectsQuery.isLoading) {
-    return <ProjectsLoadingState />;
+    return <ViewLoadingFallback kind="projects" />;
   }
 
   if (projectsQuery.isError) {
     return (
-      <ProjectsLoadErrorState onRetry={() => void projectsQuery.refetch()} />
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+        <p className="text-sm text-red-400">Failed to load projects</p>
+        <Button
+          onClick={() => void projectsQuery.refetch()}
+          size="sm"
+          variant="outline"
+        >
+          Retry
+        </Button>
+      </div>
     );
   }
 
@@ -692,14 +692,16 @@ export function ProjectsView() {
         isLoading={
           repoSnapshotsQuery.isLoading || projectsWorkItemsQuery.isLoading
         }
-        issues={projectsWorkItemsQuery.data?.issues.items ?? []}
+        issues={projectsWorkItemsQuery.data?.issues.items ?? EMPTY_ITEMS}
         onOpenCommit={handleOpenCommit}
         onOpenIssue={handleOpenIssue}
         onOpenProject={handleOpenProject}
         onOpenPullRequest={handleOpenPullRequest}
         profiles={profiles}
         projects={projects}
-        pullRequests={projectsWorkItemsQuery.data?.pullRequests.items ?? []}
+        pullRequests={
+          projectsWorkItemsQuery.data?.pullRequests.items ?? EMPTY_ITEMS
+        }
         snapshots={repoSnapshotsQuery.data?.snapshots}
       />
     </>
@@ -707,8 +709,7 @@ export function ProjectsView() {
 
   const contextPanelProps = {
     filter,
-    issues:
-      projectsWorkItemsQuery.data?.issues.items.map(({ issue }) => issue) ?? [],
+    issues: contextIssues,
     onChatWithAgent: (items: ProjectSelectionItem[]) =>
       setSelectionAgentContext(buildProjectSelectionAgentContext(items)),
     onCreateIssue: () => setCreateIssueOpen(true),
@@ -716,10 +717,7 @@ export function ProjectsView() {
     onCreatePullRequest: () => setCreatePullRequestOpen(true),
     profiles,
     projects,
-    pullRequests:
-      projectsWorkItemsQuery.data?.pullRequests.items.map(
-        ({ pullRequest }) => pullRequest,
-      ) ?? [],
+    pullRequests: contextPullRequests,
     summaries: activitySummariesQuery.data,
   };
   const contextOpen = isNarrowProjectsLayout

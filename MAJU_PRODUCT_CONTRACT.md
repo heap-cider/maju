@@ -135,11 +135,11 @@ inventories, work logs, release notes, speculative ideas, or undecided plans.
 
 ## Community authority
 
-- Community owners, and admins to whom they delegate moderation, may edit or
-  remove channel messages, forum posts, and forum replies regardless of whether
-  a person or an agent authored them.
+- Community owners, and admins to whom they delegate moderation, may remove
+  channel messages, forum posts, and forum replies regardless of whether a
+  person or an agent authored them.
 - Moderation never rewrites or impersonates the original event signature.
-  Owner edits and removals remain explicit, attributable management actions.
+  Removals remain explicit, attributable management actions.
 
 ## Projects
 

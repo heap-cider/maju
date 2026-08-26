@@ -6,7 +6,6 @@ import type { buildVideoReviewContextForMessage } from "@/features/messages/lib/
 import { canManageMessageForCurrentUser } from "@/features/messages/lib/canManageMessage";
 import type { TimelineMessage } from "@/features/messages/types";
 import type { UserProfileLookup } from "@/features/profile/lib/identity";
-import { KIND_HUDDLE_STARTED } from "@/shared/constants/kinds";
 import { cn } from "@/shared/lib/cn";
 import { MessageRow } from "./MessageRow";
 import { MessageThreadSummaryRow } from "./MessageThreadSummaryRow";
@@ -61,7 +60,6 @@ export function SystemRow({
 }
 
 type MessageRowItemProps = {
-  canModerateContent: boolean;
   channelId?: string | null;
   currentPubkey?: string;
   entry: MainTimelineEntry;
@@ -94,7 +92,6 @@ type MessageRowItemProps = {
 };
 
 export function MessageRowItem({
-  canModerateContent,
   channelId,
   currentPubkey,
   entry,
@@ -132,12 +129,7 @@ export function MessageRowItem({
     profiles,
   );
   const canDelete = canManage && onDelete ? onDelete : undefined;
-  const canEdit =
-    message.kind !== KIND_HUDDLE_STARTED &&
-    (canManage || canModerateContent) &&
-    onEdit
-      ? onEdit
-      : undefined;
+  const canEdit = canManage && onEdit ? onEdit : undefined;
 
   if (summary && onOpenThread) {
     const isHighlighted = message.id === highlightedMessageId;

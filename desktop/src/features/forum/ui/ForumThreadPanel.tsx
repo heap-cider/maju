@@ -5,12 +5,9 @@ import {
   resolveUserLabel,
   type UserProfileLookup,
 } from "@/features/profile/lib/identity";
-import type {
-  ForumReplyWithEdits,
-  ForumThreadWithEditsResponse,
-} from "@/features/forum/lib/applyForumStructuralEvents";
 import { UserProfilePopover } from "@/features/profile/ui/UserProfilePopover";
 import { UserAvatar } from "@/shared/ui/UserAvatar";
+import type { ForumThreadResponse, ThreadReply } from "@/shared/api/types";
 import { channelChrome } from "@/shared/layout/chromeLayout";
 import { cn } from "@/shared/lib/cn";
 import { useChannelNavigation } from "@/shared/context/ChannelNavigationContext";
@@ -26,7 +23,7 @@ import { DeleteActionMenu } from "./DeleteActionMenu";
 import { ForumComposer } from "./ForumComposer";
 
 type ForumThreadPanelProps = {
-  thread: ForumThreadWithEditsResponse | undefined;
+  thread: ForumThreadResponse | undefined;
   isLoading: boolean;
   isSendingReply: boolean;
   channelId: string;
@@ -40,17 +37,17 @@ type ForumThreadPanelProps = {
   ) => undefined | Promise<unknown>;
   onDeletePost?: (eventId: string) => void;
   onDeleteReply?: (eventId: string) => void;
-  onEditPost?: (content: ForumThreadWithEditsResponse["post"]) => void;
-  onEditReply?: (reply: ForumReplyWithEdits) => void;
   onTargetReached?: (eventId: string) => void;
   canDeletePost?: boolean;
   canModerateContent?: boolean;
   isDeletingPost?: boolean;
   targetEventId?: string | null;
+  targetSearchMessageId?: string;
+  targetSearchQuery?: string;
 };
 
 function canDeleteReply(
-  reply: ForumReplyWithEdits,
+  reply: ThreadReply,
   currentPubkey: string | undefined,
 ): boolean {
   if (!currentPubkey) return false;
@@ -64,15 +61,15 @@ function ReplyRow({
   profiles,
   channelNames,
   onDelete,
-  onEdit,
+  searchQuery,
 }: {
   canModerateContent?: boolean;
-  reply: ForumReplyWithEdits;
+  reply: ThreadReply;
   currentPubkey?: string;
   profiles?: UserProfileLookup;
   channelNames?: string[];
   onDelete?: (eventId: string) => void;
-  onEdit?: (reply: ForumReplyWithEdits) => void;
+  searchQuery?: string;
 }) {
   const replyAuthorLabel = resolveUserLabel({
     pubkey: reply.pubkey,
@@ -82,16 +79,9 @@ function ReplyRow({
   });
   const replyAvatarUrl =
     profiles?.[reply.pubkey.toLowerCase()]?.avatarUrl ?? null;
-  const canManage =
-    canDeleteReply(reply, currentPubkey) || canModerateContent === true;
-  const editedByLabel = reply.editedByPubkey
-    ? resolveUserLabel({
-        pubkey: reply.editedByPubkey,
-        currentPubkey,
-        profiles,
-        preferResolvedSelfLabel: true,
-      })
-    : null;
+  const showDelete =
+    onDelete &&
+    (canDeleteReply(reply, currentPubkey) || canModerateContent === true);
   const {
     mentionNames: replyMentionNames,
     mentionPubkeysByName: replyMentionPubkeysByName,
@@ -121,21 +111,12 @@ function ReplyRow({
         <span className="text-xs text-muted-foreground">
           {formatRelativeTime(reply.createdAt)}
         </span>
-        {editedByLabel ? (
-          <span
-            className="text-xs text-muted-foreground"
-            title={`Edited by ${editedByLabel}`}
-          >
-            Edited
-          </span>
-        ) : null}
 
-        {canManage && (onDelete || onEdit) ? (
+        {showDelete ? (
           <DeleteActionMenu
             iconSize="sm"
             label="reply"
-            onConfirm={onDelete ? () => onDelete(reply.eventId) : undefined}
-            onEdit={onEdit ? () => onEdit(reply) : undefined}
+            onConfirm={() => onDelete(reply.eventId)}
           />
         ) : null}
       </div>
@@ -150,6 +131,7 @@ function ReplyRow({
           imetaByUrl={parseImetaTags(reply.tags)}
           mentionNames={replyMentionNames}
           mentionPubkeysByName={replyMentionPubkeysByName}
+          searchQuery={searchQuery}
         />
       </div>
     </div>
@@ -167,13 +149,13 @@ export function ForumThreadPanel({
   onReply,
   onDeletePost,
   onDeleteReply,
-  onEditPost,
-  onEditReply,
   onTargetReached,
   canDeletePost,
   canModerateContent,
   isDeletingPost,
   targetEventId,
+  targetSearchMessageId,
+  targetSearchQuery,
 }: ForumThreadPanelProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const { channels } = useChannelNavigation();
@@ -235,14 +217,6 @@ export function ForumThreadPanel({
   });
   const postAvatarUrl =
     profiles?.[post.pubkey.toLowerCase()]?.avatarUrl ?? null;
-  const postEditedByLabel = post.editedByPubkey
-    ? resolveUserLabel({
-        pubkey: post.editedByPubkey,
-        currentPubkey,
-        profiles,
-        preferResolvedSelfLabel: true,
-      })
-    : null;
 
   return (
     <div className={cn("flex h-full flex-col", channelChrome.contentPadding)}>
@@ -288,24 +262,11 @@ export function ForumThreadPanel({
             <span className="text-xs text-muted-foreground">
               {formatRelativeTime(post.createdAt)}
             </span>
-            {postEditedByLabel ? (
-              <span
-                className="text-xs text-muted-foreground"
-                title={`Edited by ${postEditedByLabel}`}
-              >
-                Edited
-              </span>
-            ) : null}
 
-            {(canDeletePost && onDeletePost) || onEditPost ? (
+            {canDeletePost && onDeletePost ? (
               <DeleteActionMenu
                 label="post"
-                onConfirm={
-                  canDeletePost && onDeletePost
-                    ? () => onDeletePost(post.eventId)
-                    : undefined
-                }
-                onEdit={onEditPost ? () => onEditPost(post) : undefined}
+                onConfirm={() => onDeletePost(post.eventId)}
               />
             ) : null}
           </div>
@@ -320,6 +281,11 @@ export function ForumThreadPanel({
               imetaByUrl={parseImetaTags(post.tags)}
               mentionNames={postMentionNames}
               mentionPubkeysByName={postMentionPubkeysByName}
+              searchQuery={
+                targetSearchMessageId === post.eventId
+                  ? targetSearchQuery
+                  : undefined
+              }
             />
           </div>
         </div>
@@ -337,9 +303,13 @@ export function ForumThreadPanel({
               currentPubkey={currentPubkey}
               key={reply.eventId}
               onDelete={onDeleteReply}
-              onEdit={onEditReply}
               profiles={profiles}
               reply={reply}
+              searchQuery={
+                targetSearchMessageId === reply.eventId
+                  ? targetSearchQuery
+                  : undefined
+              }
             />
           ))}
 

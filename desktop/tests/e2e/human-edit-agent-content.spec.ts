@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 
 import { installMockBridge } from "../helpers/bridge";
-import { waitForAnimations } from "../helpers/animations";
 
 // Fixed pubkey for the owned managed agent seeded in these tests.
 // Must not collide with any existing e2eBridge constant.
@@ -176,11 +175,10 @@ test("owner does NOT see Edit or Delete for an unowned agent's message", async (
   ).toHaveCount(0);
 });
 
-test("community owner can edit and delete an unowned agent message", async ({
+test("community owner cannot edit but can delete an unowned agent message", async ({
   page,
 }) => {
   const messageId = "mock-agents-charlie";
-  const editedContent = `Moderated by community owner ${Date.now()}`;
 
   await page.goto("/");
   await page.getByTestId("channel-agents").click();
@@ -188,57 +186,36 @@ test("community owner can edit and delete an unowned agent message", async ({
   await expect(row).toBeVisible({ timeout: 10_000 });
 
   await openMoreActionsMenu(page, messageId);
-  await page.getByTestId(`edit-message-${messageId}`).click();
-  const input = page.getByTestId("message-input");
-  await expect(input).not.toBeEmpty({ timeout: 5_000 });
-  await input.click();
-  await page.keyboard.press("ControlOrMeta+A");
-  await page.keyboard.type(editedContent);
-  await page.keyboard.press("Enter");
-  await expect(row).toContainText(editedContent);
-
-  await openMoreActionsMenu(page, messageId);
+  await expect(page.getByTestId(`edit-message-${messageId}`)).toHaveCount(0);
   await page.getByTestId(`moderate-delete-message-${messageId}`).click();
+
   const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible();
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
   await dialog.getByRole("button", { name: "Delete" }).click();
-  await expect(row).toBeHidden();
+  await expect(row).toBeHidden({ timeout: 5_000 });
 });
 
-test("community owner can edit and delete an unowned forum post", async ({
+test("community owner cannot edit but can delete an unowned forum post", async ({
   page,
 }) => {
   const postId = "mock-forum-release-thread";
-  const edited = `Release checklist — edited by owner ${Date.now()}`;
 
   await page.goto("/");
   await page.getByTestId("channel-watercooler").click();
+  await expect(page.getByTestId("chat-title")).toHaveText("watercooler");
 
-  const card = page.locator(`[data-forum-event-id="${postId}"]`);
-  await expect(card).toContainText("Release checklist");
-  await card.hover();
-  await card.getByRole("button", { name: "More actions for post" }).click();
-  await page.getByTestId("edit-forum-post").click();
-  const editor = page.getByTestId("edit-forum-content");
-  await expect(editor).toBeFocused();
-  await waitForAnimations(page);
-  await page.screenshot({
-    path: "test-results/moderation/forum-edit-dialog.png",
-  });
-  await editor.fill(edited);
-  await page.getByTestId("save-forum-edit").click();
-  await expect(card).toContainText(edited);
-  await expect(card.getByText("Edited", { exact: true })).toHaveAttribute(
-    "title",
-    /Edited by/,
-  );
+  const post = page.locator(`[data-forum-event-id="${postId}"]`);
+  await expect(post).toBeVisible({ timeout: 10_000 });
+  await post.hover();
+  await post.getByTestId("forum-actions-post").click();
 
-  await card.hover();
-  await card.getByRole("button", { name: "More actions for post" }).click();
+  await expect(page.getByTestId("edit-forum-post")).toHaveCount(0);
   await page.getByRole("menuitem", { name: "Delete post" }).click();
+
   const dialog = page.getByRole("alertdialog");
-  await dialog.getByRole("button", { name: "Delete" }).click();
-  await expect(card).toBeHidden();
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  await dialog.getByRole("button", { name: "Delete post" }).click();
+  await expect(post).toBeHidden({ timeout: 5_000 });
 });
 
 // ─── Thread-panel gate ────────────────────────────────────────────────────────

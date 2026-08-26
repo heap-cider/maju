@@ -1,288 +1,87 @@
 # Maju Entity Links
 
-Status: **partially implemented**. Done on this branch:
-
-- Slice 0 — HTTPS relay git clone URLs (`{relay-origin}/git/<pubkey>/<repo>`)
-  render as Maju repository preview cards in chat
-  (`desktop/src/shared/lib/linkPreview.ts`).
-- Slice 1 — `maju://pr|issue|repo|project` deep links: `entityLink.ts`
-  builders/parser, preview cards with relay title enrichment (repo and
-  project titles resolve from their announcement events), in-timeline click
-  navigation to `/projects/$projectId`.
-- Slice 2 — OS-level deep links: the `repo`/`project`/`pr`/`issue` hosts in
-  `desktop/src-tauri/src/deep_link.rs` emit `deep-link-entity`, and
-  `useEntityDeepLinks` routes them through the same handler as in-timeline
-  clicks.
-- Slice 3 (create-command part) — `crates/maju-cli/src/links.rs`, `link`
-  output field on `pr open` / `issues create` / `repos create` /
-  `projects create`, base prompt guidance, cross-language golden-format tests.
-- Sharing from the UI — `lib/projectShareLinks.ts` maps the Projects read
-  models onto links, surfaced as "Copy link" in the project, repository,
-  issue, and pull request row menus and as a copy button in the project,
-  issue, and pull request detail headers.
-
-Still unimplemented: `link` on get commands and the follow-ups in slice 4.
-
-## Problem
-
-When a message contains a GitHub URL, the desktop client renders a rich
-preview card ("GitHub · PR heap-cider/maju #4020") below the message. Those cards
-are produced entirely client-side by URL parsing in
-`desktop/src/shared/lib/linkPreview.ts` and rendered by
-`desktop/src/shared/ui/link-preview-attachment.tsx`.
-
-Maju-hosted entities have no equivalent. There is **no link format at all**
-for a Maju repository, project, pull request, or issue:
-
-- The only rich deep link today is `maju://message?channel=…&id=…`
-  (`desktop/src/features/messages/lib/messageLink.ts`), rendered as an inline
-  pill via `remarkMessageLinks.ts` + `MessageLinkPill.tsx`.
-- OS-level deep links (`desktop/src-tauri/src/deep_link.rs`,
-  `desktop/src/shared/deep-link.ts`) support `connect`, `join`,
-  `add-community`, `message`, and `nostr-bind` — no git entities.
-- `maju pr open` / `maju issues create` return raw event ids; there is no URL
-  in their output and no guidance in the agent base prompt
-  (`crates/maju-acp/src/base_prompt.md`) for referencing Maju work items in
-  chat. Agents can only say "PR up" with a hex id.
-- The relay-served web client only has `/repos/$repoId`; no PR/issue pages.
-
-So an agent that opens a PR on a Maju-hosted repository cannot produce
-anything clickable, while the same agent opening a GitHub PR gets a card for
-free.
-
-## Goals
-
-1. A canonical, shareable link format for Maju repositories, projects, pull
-   requests, and issues.
-2. Rich preview cards in the desktop message timeline for those links, with
-   parity to (and better data than) the GitHub cards — titles come from the
-   actual Nostr events, not URL text.
-3. Clicking a link navigates in-app to the existing project detail views.
-4. CLI output includes the link so agents (and the base prompt) can emit it
-   when announcing work.
-
-## Non-goals (v1)
-
-- Web (browser) pages for PRs/issues — the web client has no such views yet,
-  so links are app-only, same as `maju://message` today.
-- Cross-community links. Like `maju://message`, links are interpreted against
-  the community the message was received in. A `relay=` query parameter is
-  reserved for a future cross-community version but not emitted or consumed.
-- Generic OpenGraph unfurling for arbitrary URLs — that is the separate
-  `proto/rich-link-previews` prototype and stays orthogonal.
-- Mobile rendering. Mobile should degrade gracefully (plain link) in v1;
-  pill/card parity is a follow-up.
+Maju uses canonical `maju://` deep links for repositories, projects, pull
+requests, and issues. They are shareable inside a community and open the
+matching Projects view in Maju Desktop.
 
 ## Link format
 
-Extend the existing `maju://` scheme, mirroring `maju://message`:
-
-```
-maju://repo?owner=<pubkey-hex>&d=<repo-dtag>[&tab=<tab>]
+```text
+maju://repo?owner=<pubkey-hex>&d=<repo-dtag>[&tab=<tab>][&commit=<git-hash>]
 maju://project?owner=<pubkey-hex>&d=<project-dtag>[&tab=<tab>]
 maju://pr?id=<event-id-hex>&owner=<pubkey-hex>&d=<repo-dtag>
 maju://issue?id=<event-id-hex>&owner=<pubkey-hex>&d=<repo-dtag>
 ```
 
-- `owner` is the 64-char lowercase hex pubkey of the repository/project
-  announcement author (the NIP-34 / NIP-MP coordinate owner).
-- `d` is the addressable `d`-tag. For `repo`/`project` links the
-  (`owner`, `d`) pair is the full `30617:<owner>:<d>` /
-  `30621:<owner>:<d>` coordinate.
-- `tab` (coordinate links only, optional) selects a workspace tab instead
-  of the default readme overview: `files`, `commits`, `issues`, `prs`,
-  `contributors`, or `channels`. The overview has no spelling (canonical links omit the
-  parameter), unknown values are rejected, and event links accept no `tab`.
-  The desktop's copy-link button emits it automatically when a non-overview
-  tab is active, so "link to the PR list" is just the project link copied
-  from the Pull Request tab.
-- For `pr`/`issue` links, `id` identifies the kind `1618` / `1621` event;
-  `owner` + `d` are the routing coordinate that lets the client navigate
-  (and render a fallback card) without an event lookup. **v1 decision:** the
-  implemented parser requires all three parameters — the CLI always emits
-  them, and accepting hint-less links would force an event lookup before any
-  navigation. A future revision can relax this without breaking existing
+- `owner` is the lowercase 64-character public key of the repository or
+  project announcement author.
+- `d` is the addressable event's `d` tag.
+- `id` is the lowercase 64-character pull request or issue event id.
+- `tab` may select `files`, `commits`, `issues`, `prs`, `contributors`, or
+  `channels` for repository and project links.
+- `commit` is accepted only for repository links on the `commits` tab and is a
+  40- or 64-character hexadecimal Git object id.
+
+The link is community-relative. The receiving client resolves it against the
+community where the message appears. Cross-community `relay=` parameters are
+not emitted or accepted.
+
+## Chat presentation
+
+Bare entity links render as compact inline chips. Explicitly labelled Markdown
+links keep the author's label as an inline link. Hovering either presentation
+shows relay-backed context such as the entity title and containing project.
+
+Maju does not add a second attachment card for these links. This keeps the
+entity visible at the exact point where the author placed it and avoids showing
+the same destination twice.
+
+Clicking the chip or link navigates in-app. Right-clicking offers Open link and
+Copy link. An HTTPS clone URL for the active relay with the shape
+`/git/<owner-pubkey>/<repo>` is normalized to the corresponding repository deep
+link and uses the same in-app behavior.
+
+## Navigation
+
+Repository-scoped links resolve through the canonical
+`30617:<owner>:<d>` coordinate. Project links use
+`30621:<owner>:<d>`.
+
+- A repository opens its project workspace and optional selected tab or
+  commit.
+- A pull request or issue opens the containing repository workspace with that
+  event selected.
+- A project opens the project workspace and optional selected tab.
+
+The OS deep-link handler validates the same canonical format before focusing
+the app and routes accepted links through the same navigation path as links
+clicked in a message.
+
+## CLI and agent guidance
+
+The create commands below include a `link` field in their JSON response:
+
+- `maju pr open`
+- `maju issues create`
+- `maju repos create`
+- `maju projects create`
+
+Agents should include that value verbatim when announcing the created item.
+Maju-hosted pull requests and issues do not have an invented public HTTPS page;
+the `maju://` link and a repository's clone URL are the shareable references.
+
+Rust builders live in `crates/maju-cli/src/links.rs`. Their TypeScript mirror
+lives in `desktop/src/shared/lib/entityLink.ts`. Golden-format tests on both
+sides must stay compatible.
+
+## Security
+
+- Builders and parsers validate all identifiers before rendering a clickable
+  target.
+- Invalid links remain plain text and never navigate.
+- Hover metadata is loaded through the authenticated relay client with
+  explicit event-kind filters.
+- Relay-provided titles and descriptions are rendered as text, never as raw
+  HTML.
+- OS deep links are untrusted input and pass through the same parser as chat
   links.
-
-Validation rules match the existing codebase: `owner` and `id` are
-`/^[a-f0-9]{64}$/`; `d` follows addressable d-tag rules already enforced in
-`projectModels.ts` / `maju-sdk`.
-
-### HTTPS URLs
-
-Agents naturally paste HTTPS clone URLs
-(`{relay-origin}/git/<pubkey>/<repo>`) when announcing work, so those are
-recognized **first** — implemented on this branch. Detection keys on the
-path shape (`/git/` + 64-hex pubkey segment) rather than a host allow-list,
-since relay hosts differ per community. The preview href is normalized to
-the canonical `maju://repo?owner=…&d=…` deep link (the raw transport URL is
-not a browsable page), so clone-URL cards and inline clone-URL anchors get
-the same in-app click navigation as explicit entity links, and both
-spellings of the same repository dedupe to one card.
-
-PRs, issues, and projects have no HTTPS page to link to (the web client has
-no such routes), which is why they use the `maju://` scheme above: it is
-community-relative by construction, matches the established `maju://message`
-precedent, and requires no new relay surface. If web views land later, the
-desktop can additionally recognize those `{relay-origin}/…` URLs with the
-same card treatment.
-
-## Rendering in chat (desktop)
-
-Two presentations, consistent with how GitHub links and message links behave
-today:
-
-1. **Autolinked bare URL** (`<maju://pr?…>` or bare in text): render an
-   **attachment card** below the message in the existing `AttachmentGroup`,
-   exactly like GitHub cards. Provider label `Maju`, type label
-   `PR` / `issue` / `repo` / `project`.
-2. **Explicitly labeled markdown link** (`[fix the tooltip](maju://pr?…)`):
-   keep the author's label inline (same rule as
-   `resolveMessageLinkRenderTarget` in `messageLink.ts`), still clickable.
-
-### Card content and enrichment
-
-Unlike GitHub (title derived from URL path only), Maju entities live on the
-same relay, so the card can show real data:
-
-| Entity  | Title source                              | Fallback            |
-|---------|-------------------------------------------|---------------------|
-| PR      | `subject` tag of the kind `1618` event    | `PR <id-prefix>`    |
-| Issue   | `subject` tag of the kind `1621` event    | `issue <id-prefix>` |
-| Repo    | `name` tag of the kind `30617` event      | `d`-tag             |
-| Project | `name` tag of the kind `30621` event      | `d`-tag             |
-
-Enrichment is a single relay query by event id (PR/issue) or coordinate
-(repo/project) through the existing `relayClient`, cached per event id.
-Kind filters must always be included in the query (relay p-gate). Cards
-render immediately with the fallback title and upgrade in place when the
-lookup resolves — same progressive pattern as
-`useResolvedLinkPreviews.ts` uses for Google titles.
-
-Open/merged/closed status chips (from kind `1630`–`1633` status events) are
-a nice-to-have and explicitly deferred to a follow-up.
-
-### New module
-
-`desktop/src/shared/lib/entityLink.ts` (placed in `shared/lib` rather than
-the projects feature so `linkPreview.ts` — also `shared/lib` — can import
-it without a feature→shared boundary violation):
-
-- `buildRepoLink`, `buildProjectLink`, `buildPullRequestLink`,
-  `buildIssueLink`
-- `parseEntityLink(url): EntityLinkParseResult` (discriminated union, same
-  shape as `parseMessageLink`)
-- `isEntityLink(href)` cheap pre-check for the markdown renderer
-- `isLinkableCoordinate(owner, dtag)` — addressable d-tags allow a wider
-  charset (and 1024 bytes) than the link format's
-  `[a-zA-Z0-9._-]{1,64}`, so callers that build links from read models check
-  first and hide the share affordance instead of surfacing a builder throw
-
-Detection: extend `extractSupportedLinkPreviews` in `linkPreview.ts` with a
-`maju://` pattern (new `SupportedLinkPreviewKind` members
-`maju-pull-request`, `maju-issue`, `maju-repository`, `maju-project`), or —
-if mixing schemes into the URL regex is awkward — a parallel extractor
-composed in `markdown.tsx`. Code blocks / spoiler / image-link masking rules
-are shared either way, and the existing `MAX_PREVIEWS` cap applies across
-both sources.
-
-## Click handling and OS deep links
-
-**In-timeline click** *(implemented)*: navigate via
-`useAppNavigation.goProject()`. The `/projects/$projectId` route id is the
-canonical `30617:<owner>:<d>` coordinate (see `entityLinkProjectRouteId` in
-`shared/lib/entityLink.ts`). Route resolution on the `feat/multi-repository-projects`
-branch (#4671) resolves this coordinate to the correct project and repository
-regardless of container grouping — **#4671 must merge before #4695** to avoid
-unresolved routes at runtime:
-
-- `pr` / `issue` → `/projects/30617:<owner>:<d>?pullRequestId=<id>` (or `issueId`).
-- `repo` → `/projects/30617:<owner>:<d>`.
-
-If resolution fails (entity not visible in this community), show the same
-kind of toast fallback used for unresolvable message links.
-
-**OS-level** *(implemented)*: the `repo` / `project` / `pr` / `issue` hosts
-in `desktop/src-tauri/src/deep_link.rs` validate the link's canonical form
-(so a malformed link does not raise and focus the window for a navigation
-that would then be declined), then emit `deep-link-entity` with the URL
-verbatim. `useEntityDeepLinks` — sibling to `useMessageDeepLinks.ts`, mounted
-in `AppShell` for the main window only — re-parses it with `parseEntityLink`
-and reuses `useOpenEntityLink`, so a link opened from the OS lands on the
-same view as one clicked in a message.
-
-## CLI (`maju-cli`)
-
-Add a `link` field to the JSON output of the write commands that create
-linkable entities:
-
-- `maju pr open` → `{ event_id, accepted, message, link }`
-- `maju issues create` → same
-- `maju repos create` → link built from owner pubkey + `d`-tag
-- `maju projects create` → same
-
-The builder lives in one Rust helper (e.g. `crates/maju-cli/src/links.rs`)
-so the format has exactly one definition on the Rust side; the TypeScript
-`entityLink.ts` is its mirror and both are covered by shared-format tests
-(golden strings asserted on both sides, like the NIP-MP fixture pattern).
-
-`maju pr get` / `maju issues get` / `maju repos get` also include `link` in
-their output so agents can link to existing entities, not just ones they
-just created.
-
-## Agent guidance
-
-One addition to `crates/maju-acp/src/base_prompt.md`, next to the existing
-`--channel` rule for PR opens:
-
-> When you announce a pull request, issue, repository, or project in a
-> channel message, include the `link` value from the command output as a
-> bare URL on its own line so it renders as a preview card.
-
-No persona changes needed — the base prompt applies to all managed agents.
-
-## Interaction with existing work
-
-- **`proto/rich-link-previews`** (generic OpenGraph cards): orthogonal.
-  Entity links never hit the network beyond a relay event query; no overlap
-  in code paths except the shared `AttachmentGroup` rendering slot.
-- **`feat/multi-repository-projects` (NIP-MP)**: independent. Entity links
-  reference single repositories/PRs/issues by coordinate/event id; the
-  PR→project resolution step simply uses whatever project read models exist
-  on `main` at implementation time.
-
-## Implementation plan (suggested PR slices)
-
-0. **HTTPS clone-URL repo cards** *(done, this branch)* — recognize relay
-   `/git/<pubkey>/<repo>` URLs in `linkPreview.ts`, `Maju` provider card
-   with the `MajuMark` logo, href normalized to the `maju://repo` deep link
-   for in-app navigation.
-1. **Link core + cards** *(done, this branch)* — `entityLink.ts`, detection
-   in `linkPreview.ts`, `Maju` card variant in
-   `link-preview-attachment.tsx`, in-timeline click navigation, relay title
-   enrichment (with `resetLinkPreviewTitleCache()` wired into
-   `resetCommunityState()`). Unit tests (`entityLink.test.mjs`, extended
-   `linkPreview.test.mjs`).
-2. **OS deep links** *(done, this branch)* — `deep_link.rs` +
-   `useEntityDeepLinks` + `deep-link.ts` parity tests.
-3. **CLI + agent prompt** *(create commands done, this branch)* — `links.rs`
-   helper, `link` output field on `pr open` / `issues create` /
-   `repos create` / `projects create`, base prompt paragraph, cross-language
-   golden-format test. Still open: `link` on the get commands.
-4. **Follow-ups (separate)** — status chips on PR/issue cards, mobile
-   pill/card rendering, web PR/issue routes + HTTPS link recognition,
-   cross-community `relay=` parameter.
-
-## Security considerations
-
-- All identifiers are validated before use (`owner`/`id` strict hex-64,
-  `d`-tag charset rules). Parse failures render the raw text as a plain,
-  non-clickable string — never an anchor with an unvalidated href.
-- Title enrichment queries go through the already-authenticated
-  `relayClient` with explicit `kinds` filters; no new HTTP surface and no
-  outbound fetches to third parties.
-- Card titles come from event tags authored by arbitrary users; they must be
-  rendered as text (existing card components already do this — verify no
-  `dangerouslySetInnerHTML` in the new variant).
-- Deep links arriving from the OS are untrusted input; the new listener must
-  apply the same validation as the in-timeline parser before navigating.

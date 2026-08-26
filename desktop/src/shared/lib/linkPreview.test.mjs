@@ -236,30 +236,28 @@ test("parseSupportedLinkPreview rejects malformed maju:// entity links", () => {
   }
 });
 
-test("extractSupportedLinkPreviews picks up maju:// project links in prose", () => {
+test("extractSupportedLinkPreviews excludes Maju entity links while keeping external links", () => {
+  const entityLinks = [
+    `maju://project?owner=${MAJU_OWNER}&d=maju-world`,
+    `maju://repo?owner=${MAJU_OWNER}&d=maju-world`,
+    `maju://issue?id=${MAJU_EVENT_ID}&owner=${MAJU_OWNER}&d=maju-world`,
+    `maju://pr?id=${MAJU_EVENT_ID}&owner=${MAJU_OWNER}&d=maju-world`,
+  ];
+
   assert.deepEqual(
     extractSupportedLinkPreviews(
-      `tracking here: maju://project?owner=${MAJU_OWNER}&d=maju-world`,
-    ).map((preview) => [preview.kind, preview.typeLabel, preview.title]),
-    [["maju-project", "project", "maju-world"]],
+      `${entityLinks.join(" ")} https://example.com/story`,
+    ).map((preview) => preview.href),
+    ["https://example.com/story"],
   );
 });
 
-test("extractSupportedLinkPreviews picks up maju:// links in prose", () => {
+test("extractSupportedLinkPreviews excludes markdown-labeled Maju entity links", () => {
   assert.deepEqual(
     extractSupportedLinkPreviews(
-      `PR is up: maju://pr?id=${MAJU_EVENT_ID}&owner=${MAJU_OWNER}&d=maju-world — review please.`,
-    ).map((preview) => [preview.kind, preview.title]),
-    [["maju-pull-request", "maju-world #c3b589fa"]],
-  );
-});
-
-test("extractSupportedLinkPreviews uses markdown labels for maju:// links", () => {
-  assert.deepEqual(
-    extractSupportedLinkPreviews(
-      `[Add header links](maju://pr?id=${MAJU_EVENT_ID}&owner=${MAJU_OWNER}&d=maju-world)`,
-    ).map((preview) => preview.title),
-    ["Add header links"],
+      `[Project](maju://project?owner=${MAJU_OWNER}&d=maju-world)`,
+    ),
+    [],
   );
 });
 
@@ -324,21 +322,13 @@ test("extractSupportedLinkPreviews returns unique supported links in order", () 
   );
 });
 
-test("extractSupportedLinkPreviews picks up bare Maju clone URLs in prose", () => {
+test("extractSupportedLinkPreviews excludes same-relay Maju clone URLs", () => {
   assert.deepEqual(
     extractSupportedLinkPreviews(
       `master pushed; clone: https://maju.block.builderlab.xyz/git/${MAJU_OWNER}/maju-world-galaxy and review please.`,
       "https://maju.block.builderlab.xyz",
     ),
-    [
-      {
-        kind: "maju-repository",
-        href: `maju://repo?owner=${MAJU_OWNER}&d=maju-world-galaxy`,
-        provider: "Maju",
-        title: "maju-world-galaxy",
-        typeLabel: "repo",
-      },
-    ],
+    [],
   );
   // Without a relay origin the URL is treated as an ordinary external link.
   assert.deepEqual(
@@ -349,39 +339,13 @@ test("extractSupportedLinkPreviews picks up bare Maju clone URLs in prose", () =
   );
 });
 
-test("extractSupportedLinkPreviews uses markdown labels for Maju repo links", () => {
+test("extractSupportedLinkPreviews excludes markdown-labeled Maju clone URLs", () => {
   assert.deepEqual(
     extractSupportedLinkPreviews(
       `[Maju World](https://relay.example/git/${MAJU_OWNER}/maju-world-galaxy)`,
       "https://relay.example",
-    ).map((preview) => preview.title),
-    ["Maju World"],
-  );
-});
-
-test("extractSupportedLinkPreviews dedupes clone URL variants of one repo", () => {
-  assert.deepEqual(
-    extractSupportedLinkPreviews(
-      [
-        `https://relay.example/git/${MAJU_OWNER}/maju-world-galaxy`,
-        `https://relay.example/git/${MAJU_OWNER}/maju-world-galaxy.git`,
-      ].join(" "),
-      "https://relay.example",
-    ).map((preview) => preview.href),
-    [`maju://repo?owner=${MAJU_OWNER}&d=maju-world-galaxy`],
-  );
-});
-
-test("clone URLs and maju://repo links for the same repo dedupe to one card", () => {
-  assert.deepEqual(
-    extractSupportedLinkPreviews(
-      [
-        `https://relay.example/git/${MAJU_OWNER}/maju-world-galaxy`,
-        `maju://repo?owner=${MAJU_OWNER}&d=maju-world-galaxy`,
-      ].join(" "),
-      "https://relay.example",
-    ).map((preview) => preview.href),
-    [`maju://repo?owner=${MAJU_OWNER}&d=maju-world-galaxy`],
+    ),
+    [],
   );
 });
 

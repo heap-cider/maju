@@ -120,12 +120,12 @@ async fn seed_community_role(keys: &Keys, role: &str) {
     .expect("seed community role");
 }
 
-/// A community owner can edit and remove an unrelated agent's message without being
-/// the message author, the agent's NIP-OA owner, or a member of its channel.
-/// An ordinary community member cannot perform either moderation action.
+/// A community owner cannot edit an unrelated agent's message, but may remove
+/// it through the separate moderation-delete capability. An ordinary community
+/// member cannot perform either action.
 #[tokio::test]
 #[ignore]
-async fn test_community_owner_can_edit_and_delete_unrelated_agent_message() {
+async fn test_community_owner_cannot_edit_but_can_delete_unrelated_agent_message() {
     let community_owner = Keys::generate();
     let ordinary_member = Keys::generate();
     let unrelated_agent = Keys::generate();
@@ -178,7 +178,7 @@ async fn test_community_owner_can_edit_and_delete_unrelated_agent_message() {
     let mut owner_client = MajuTestClient::connect(&relay_url(), &community_owner)
         .await
         .expect("connect community owner");
-    let edited = owner_client
+    let denied_owner_edit = owner_client
         .send_event(
             EventBuilder::new(Kind::Custom(40003), "community owner edit")
                 .tags(tags())
@@ -186,11 +186,10 @@ async fn test_community_owner_can_edit_and_delete_unrelated_agent_message() {
                 .unwrap(),
         )
         .await
-        .expect("community owner edit");
+        .expect("community owner edit attempt");
     assert!(
-        edited.accepted,
-        "community owner edit rejected: {}",
-        edited.message
+        !denied_owner_edit.accepted,
+        "community owner must not edit unrelated agent content"
     );
 
     let denied = member_client
