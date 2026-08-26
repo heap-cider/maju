@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.26
+
+- Adopt Buzz `desktop-v0.5.19` through `desktop-v0.5.20` while preserving Maju's empty-project creation flow, cross-device representative runner, owner-only option A, community-scoped identities, and moderator delete-without-edit policy.
+- Keep selected agents visible across messages, stabilize mentions and editing, improve search and image browsing, make interface zoom consistent, and reduce repeated work during channel, thread, and Projects navigation.
+- Add Android huddles, participant actions, profile and camera improvements, public-channel discovery and joining, and reliable default-channel membership after invitations.
+- Strengthen relay operations with a stable signing key, complete versioned-object deletion, ACP permission mediation, replaceable-event cleanup, build identity and image eligibility checks, and optional KLIPY GIF search that remains disabled unless an operator supplies a key.
+
 ## v0.2.25
 
 - Keep rapid community switches latest-selection-wins across the Desktop and Tauri backend, and bind every Agent definition, team, and identity event to the relay socket that actually delivered it.
