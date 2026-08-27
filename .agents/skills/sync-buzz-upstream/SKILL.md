@@ -5,9 +5,10 @@ description: Inspect and synchronize a new block/buzz release into Maju without 
 
 # Sync Buzz Upstream
 
-Treat Buzz as a read-only source. Preserve Maju's naming, current product
-contract, supported releases, and repository ownership while reviewing upstream
-releases.
+Treat Buzz as Maju's read-only product default. Preserve only fork normalization
+and the narrow differences listed in `MAJU_PRODUCT_CONTRACT.md`. A difference in
+current Maju code, tests, documentation, or history is not a product decision by
+itself.
 
 ## Analyze a release
 
@@ -47,27 +48,34 @@ releases.
    for a same-version smoke test.
 5. Review every reported change. The analyzer translates `buzz`, `Buzz`, and
    `BUZZ` in upstream paths and text to their Maju equivalents before comparing
-   them with the current worktree. Independently check each user-visible change
-   against `MAJU_PRODUCT_CONTRACT.md`; a clean text comparison does not make a
-   product-contract conflict safe.
+   them with the current worktree. Classify merge state separately from product
+   state:
+
+   - Merge: `clean`, `text-overlap`, `already-applied`, or `binary-review`.
+   - Product: `upstream-default`, `fork-normalization`, `contract-delta`, or
+     `new-decision-required`.
+
+   A text overlap is a merge task, not evidence of a product conflict. Use this
+   order for product judgment:
+
+   1. Preserve the exact behavior required by a contract delta.
+   2. Translate names, packages, repositories, distribution, and supported
+      artifacts as fork normalization.
+   3. Adopt every other compatible Buzz change, including bug fixes, security
+      fixes, performance work, refactors, and UX changes.
+   4. Ask the user only when Buzz creates a new choice the contract cannot
+      answer.
+
    Judge source synchronization separately from release support. Maju not
    shipping a macOS, iOS, or Linux desktop build does not by itself make shared
    upstream code a conflict. Apply compatible shared code while continuing to
    exclude unsupported release artifacts and pipelines.
-6. Present four groups to the user:
-   - `safe-to-apply`: Maju still matches the normalized old Buzz file and the
-     upstream behavior does not contradict the Maju product contract.
-   - `already-applied`: Maju already matches the normalized new Buzz file.
-   - `conflict`: Maju changed the same text file or path, or the upstream
-     behavior contradicts or would make stale a current Maju product decision.
-   - `manual-review`: divergent binary or unsupported file transition.
-7. Keep the report simple. Summarize changes that need no decision, then explain
-   only actual conflicts and judgment calls with four short points: user effect,
-   Buzz's change, Maju's current difference, and the recommended choice. Name
-   the relevant product-contract heading or state that none applies. When Buzz
-   fixes the same problem at its source and no Maju product decision conflicts,
-   recommend the Buzz fix instead of keeping a Maju-only workaround. Wait for
-   explicit user approval before applying anything.
+6. Start the report with `New product decisions required: N`. Summarize
+   user-visible changes, contract deltas, and real decisions in the main report.
+   Put merge counts and text overlaps in a short appendix.
+7. Do not treat an analysis request as permission to edit. When application is
+   already authorized, pause only for `new-decision-required`; continue without
+   another approval when `N = 0`.
 8. Before calling a runtime problem Maju-specific, compare the exact Buzz tag
    with the normalized Maju code and reproduce or trace both paths. Distinguish
    an upstream bug, an agent/tool permission policy, and a real Maju fork
@@ -75,24 +83,24 @@ releases.
 
 ## Apply approved changes
 
-1. Re-read `MAJU_PRODUCT_CONTRACT.md`, then apply only the approved items to
-   Maju-native names and paths. Never restore Buzz identifiers merely to reduce
-   the diff.
+1. Re-read `MAJU_PRODUCT_CONTRACT.md`, apply the compatible Buzz delta by
+   default, and preserve only contract deltas and fork normalization. Never
+   restore Buzz identifiers merely to reduce the diff.
 2. Do not send issues, pull requests, patches, or messages to Buzz.
-3. If Buzz now fixes a problem Maju fixed earlier, compare both approaches. Use
-   the approved upstream root fix when it preserves the product contract; keep
-   the Maju implementation only when there is a concrete Maju-specific reason.
-4. Update `MAJU_PRODUCT_CONTRACT.md` only when the user explicitly approved a
-   change to a Maju product decision. Do not rewrite the contract merely to make
-   an upstream change appear compatible. Keep only the resulting current
-   decision, without adding synchronization history or implementation details.
+3. If Buzz now fixes a problem Maju fixed earlier, use the upstream root fix
+   unless an exact contract delta requires the Maju implementation.
+4. Update `MAJU_PRODUCT_CONTRACT.md` only for an explicit owner decision. Write
+   the smallest user-visible outcome and add no inferred meaning.
 5. Run the quality gates required by the affected areas in `AGENTS.md`.
-6. Re-run the analyzer, inspect remaining conflicts, and audit the resulting
-   behavior against every relevant product-contract heading.
+6. Re-run the analyzer and audit every remaining Maju-only behavior. Each must
+   map to fork normalization, a contract delta, an unsupported release artifact,
+   or a documented non-applicable upstream change.
 7. Update the synchronized Buzz version in `AGENTS.md` only after the approved
    changes, contract audit, and tests are complete.
-8. Report applied, skipped, conflicting, and remaining changes separately,
-   including any approved product-contract update.
+8. Hand release work the target Buzz tag, preserved contract deltas, excluded
+   artifacts, exact commit, and test results. Report only the analysis,
+   PR/blocker, and verified completion milestones unless a real failure needs
+   attention.
 
 ## Analyzer guarantees
 

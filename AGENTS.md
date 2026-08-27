@@ -3,24 +3,28 @@
 - Read [`MAJU_PRODUCT_CONTRACT.md`](MAJU_PRODUCT_CONTRACT.md) before work that
   changes product behavior, information architecture, UI/UX, supported release
   targets, deployment experience, or the way Maju follows Buzz.
-- That file is the single current source of truth for Maju-specific functional
-  decisions. It does not replace code or tests and must never be treated as
-  evidence that a decision is already implemented.
+- That file is an allowlist of current Maju fork invariants and intentional
+  product differences. Buzz is the default for behavior that is not listed.
+- Code, tests, documentation, changelogs, and history do not create a product
+  decision merely because they differ from Buzz.
 - Update the contract in the same change whenever a user-visible Maju-specific
   decision is added, removed, or redefined. A bug fix that merely restores an
   existing decision does not need a duplicate entry.
-- Keep the contract current-only. Replace or delete stale decisions; do not add
-  development details, autobiographical history, changelogs, speculative ideas,
-  or undecided plans.
-- Buzz synchronization must preserve the contract. If an upstream change would
-  contradict it or make it stale, classify that change as a conflict and obtain
-  the user's agreement before changing either Maju or the contract.
+- Keep each decision to the smallest user-visible outcome the owner chose,
+  normally one short bullet. Put implementation details, inferred consequences,
+  edge cases, and history in code, tests, or engineering documentation instead.
+- Buzz synchronization preserves only the exact differences listed in the
+  contract. Ask the user only when Buzz creates a product choice the current
+  contract does not answer.
 
 ---
 
 # Maju Fork Policy
 
 - Maju is an unofficial fork of [`block/buzz`](https://github.com/block/buzz).
+- Buzz is Maju's default product behavior. Preserve a Maju difference only when
+  `MAJU_PRODUCT_CONTRACT.md` names that narrow difference or the owner decides
+  it during the current synchronization.
 - The Maju-hosted Git repository is the writable development source and should
   be `origin` in normal project checkouts. Public GitHub
   (`heap-cider/maju`) is only the build and release destination; publish there
@@ -35,14 +39,15 @@
   Use the project-local `sync-buzz-upstream` skill to inspect and normalize the
   upstream release delta first.
 - Compare upstream changes after translating Buzz names and paths to their Maju
-  equivalents. Classify results as safe to apply, conflicting, intentionally
-  excluded, or requiring user judgment.
+  equivalents. Keep merge overlap separate from product judgment; a file edited
+  by both projects is not by itself a product conflict.
 - Analysis and dry runs must not modify the worktree. Apply only the changes the
-  user approves, then run the relevant quality gates before updating the last
-  synchronized Buzz version above.
-- Do not propose sending general fixes back to Buzz. If Maju fixed something
-  first and Buzz later resolves it at the source, explain the difference and
-  obtain the user's agreement before replacing Maju's direction or code.
+  user authorized, pausing only for a genuinely new product decision, then run
+  the relevant quality gates before updating the last synchronized Buzz version
+  above.
+- Do not propose sending general fixes back to Buzz. If Buzz resolves a problem
+  at the source, adopt that fix unless an exact product-contract item requires
+  different Maju behavior.
 - Do not treat GitHub branches or pull requests as Maju's development source.
   Prepare and merge work in Maju, then use `release-maju` only when publishing
   a verified public release.

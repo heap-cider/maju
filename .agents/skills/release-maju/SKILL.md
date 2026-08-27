@@ -12,6 +12,9 @@ publication workflows. Never require or create a persistent GitHub remote.
 
 - Read the Maju Product Contract and Fork Policy in `AGENTS.md`, then read
   `MAJU_PRODUCT_CONTRACT.md` and the artifact details in `RELEASING.md`.
+- When release follows a Buzz sync, consume its target tag, preserved contract
+  deltas, excluded artifacts, exact commit, and test results. Do not reopen the
+  completed product decisions.
 - Activate the repository Hermit environment before Git, hooks, or release
   commands.
 - Require a clean worktree and an exact, current `origin/main`. Confirm
@@ -24,6 +27,9 @@ publication workflows. Never require or create a persistent GitHub remote.
   the two commit IDs when either `main` or the tag differs.
 - Public release does not authorize deployment to a running relay. Deploy only
   when the user separately asks for it.
+- On every resumed run, read the current Maju main and PR, tag, GitHub workflow
+  and release, and any authorized deployment state before changing them.
+  Continue from the first incomplete step and do not repeat a completed action.
 
 ## Prepare the release in Maju
 
@@ -43,8 +49,11 @@ publication workflows. Never require or create a persistent GitHub remote.
    originating channel when one exists. Read every commit ID from Git; never
    type or infer it. Verify the opened PR records the exact remote branch tip
    and merge base before reporting it.
-6. Report the Maju PR link and stop. Do not publish or tag until that PR is
-   actually merged.
+6. Report the Maju PR link and stop unless the user already authorized an
+   end-to-end release and the current identity can complete the required owner
+   actions. In that case, verify the exact PR head and base, complete the normal
+   merge, and continue without asking again. Never publish or tag before the PR
+   is actually merged.
 
 ## Publish the merged release
 
@@ -73,7 +82,9 @@ publication workflows. Never require or create a persistent GitHub remote.
    public `ghcr.io/heap-cider/maju:<version>` image and the rolling desktop
    updater metadata.
 8. Report the Maju commit and tag, GitHub release URL, workflow results, and
-   published artifact set. Report deployment separately only if requested.
+   published artifact set. Separate newly enabled behavior, operator-disabled
+   code, internal changes, pre-existing features, and unsupported release
+   targets. Report deployment separately only if requested.
 
 ## Retry a failed publisher
 
