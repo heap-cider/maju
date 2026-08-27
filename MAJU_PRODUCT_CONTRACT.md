@@ -31,6 +31,9 @@ engineering documentation.
 
 - Within one community, the same owner's same agent definition uses one stable
   agent identity across devices.
+- An agent definition belongs to at most one team. Adding a team to a channel
+  reuses each member's existing stable identity and adds only missing channel
+  memberships; it never creates another agent identity.
 - If that agent is enabled on several online devices, exactly one device is the
   representative runner. Another device must not start a duplicate while that
   representative is available.
