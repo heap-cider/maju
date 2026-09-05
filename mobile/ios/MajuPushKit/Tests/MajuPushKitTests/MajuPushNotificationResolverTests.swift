@@ -130,9 +130,13 @@ final class MajuPushNotificationResolverTests: XCTestCase {
   }
 
   func testResolveSucceedsAndMutatesGatewayContent() throws {
-    let event = try JSONDecoder().decode(
-      VerifiedNostrEvent.self,
-      from: Data(Self.fixtureEvent.utf8)
+    // Sign the final message content so branding changes cannot invalidate the fixture.
+    let event = try Self.signedEvent(
+      privateKey: Self.profilePrivateKey,
+      createdAt: Self.now,
+      kind: 9,
+      tags: [["h", Self.channelID]],
+      content: "  Hello   [Maju](https://relay.example)  "
     )
     URLProtocolStub.handler = { request in
       Self.response(request, status: 200, data: try JSONEncoder().encode([event]))
@@ -750,10 +754,6 @@ final class MajuPushNotificationResolverTests: XCTestCase {
       sig: "signature"
     )
   }
-
-  private static let fixtureEvent = #"""
-    {"kind":9,"created_at":1785551670,"tags":[["h","123e4567-e89b-42d3-a456-426614174000"]],"content":"  Hello   [Maju](https://maju.block.xyz)  ","pubkey":"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5","id":"233ccf24ec7c94808f9ef08b0c986b6df1bc3843ff72a9f8d016e2a77c77429b","sig":"d39dcd413839b872ed75a979b2c1542247fde636709966905c9e424e227a43897dc67b71ec84178a3faad0634f9bcdf0b48a56ebac84a2ac6e58124b8b6476e6"}
-    """#
 
   static func response(
     _ request: URLRequest,
