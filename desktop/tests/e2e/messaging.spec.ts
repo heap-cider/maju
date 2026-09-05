@@ -2541,6 +2541,8 @@ test("sends a thread message to its parent channel with a root-thread link", asy
   const rootRow = timeline.locator(`[data-message-id="${rootId}"]`);
   await expect(rootRow).toContainText(rootContent);
 
+  // Keep both channel sends in the same second to cover buffered live arrivals.
+  await page.clock.setFixedTime(new Date(Date.now() + 1_000));
   await page.getByTestId("message-input").fill(priorChannelMessage);
   await page.getByTestId("send-message").click();
   const priorChannelRow = timeline

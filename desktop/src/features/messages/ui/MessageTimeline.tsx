@@ -875,7 +875,7 @@ const MessageTimelineBase = React.forwardRef<
           )}
         </div>
 
-        {!isAtBottom ? (
+        {!isAtBottom || bufferedTimeline.pendingCount > 0 ? (
           <div
             className={cn(
               "pointer-events-none absolute inset-x-0 bottom-4 z-50 flex justify-center px-4",
