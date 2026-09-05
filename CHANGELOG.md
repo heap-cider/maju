@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.27
+
+- Bring Maju from Buzz `desktop-v0.5.20` to `desktop-v0.5.22`, following Buzz defaults except for the explicit Maju product contract.
+- Add voice messages, shared team catalogs and agent descriptions, and improve project home, mentions, quick reactions, and hidden-DM recovery.
+- Preserve community-scoped agent data, one stable identity per definition, one team per definition, and a single representative runner across devices; keep Antigravity and live ACP model settings.
+- Remove the separate device settings page and Maju-only editing/deletion extensions, and restore optional project-creation metadata and the upstream key-backup export behavior.
+- Improve Windows process handling, relay authentication and database operations, adopt the new migrations and diagnostics, and refresh the bundled dependencies.
+
 ## v0.2.26
 
 - Adopt Buzz `desktop-v0.5.19` through `desktop-v0.5.20` while preserving Maju's empty-project creation flow, cross-device representative runner, owner-only option A, community-scoped identities, and moderator delete-without-edit policy.
