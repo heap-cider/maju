@@ -38,15 +38,7 @@ jobs:
       - name: Install desktop dependencies
         run: just desktop-install-ci
       - name: Create sidecar placeholders
-        run: |
-          TARGET=$(rustc -vV | sed -n 's|host: ||p')
-          mkdir -p desktop/src-tauri/binaries
-          touch "desktop/src-tauri/binaries/maju-acp-$TARGET"
-          touch "desktop/src-tauri/binaries/maju-agent-$TARGET"
-          touch "desktop/src-tauri/binaries/maju-backend-kubernetes-$TARGET"
-          touch "desktop/src-tauri/binaries/maju-dev-mcp-$TARGET"
-          touch "desktop/src-tauri/binaries/git-credential-nostr-$TARGET"
-          touch "desktop/src-tauri/binaries/maju-$TARGET"
+        run: just _ensure-sidecar-stubs
       # Mesh rev is derived from Cargo.lock so a dependency bump needs no
       # lockstep edit here; the cache key tracks it automatically.
       - name: Resolve mesh-llm rev
@@ -88,7 +80,7 @@ jobs:
           path: ${{ github.workspace }}/.cache/mesh-llama
           key: mesh-llama-${{ runner.os }}-metal-${{ steps.mesh_rev.outputs.rev }}
       - name: Build Tauri app
-        run: cd desktop && pnpm tauri build
+        run: cd desktop && pnpm tauri build --no-bundle
         env:
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
           MACOSX_DEPLOYMENT_TARGET: "10.15"

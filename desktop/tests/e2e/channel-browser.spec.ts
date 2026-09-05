@@ -80,11 +80,11 @@ test("channel browser sorts alphabetically or by member count", async ({
   await expect(rows).toHaveText([
     /#agents/,
     /#all-replies/,
-    /#maju/,
     /#deep-history/,
     /#design/,
     /#engineering/,
     /#general/,
+    /#maju/,
     /#random/,
     /#sales/,
     /#secret-projects/,
@@ -406,6 +406,7 @@ test("Enter with no matches jumps to create", async ({ page }) => {
 
   await openChannelBrowser(page);
   await page.getByTestId("channel-browser-search").fill(channelName);
+  await expect(page.getByText("No channels match your search")).toBeVisible();
   await page.keyboard.press("Enter");
 
   await expect(page.getByTestId("create-channel-name")).toHaveValue(
@@ -527,8 +528,9 @@ test("keyboard navigation works in channel browser", async ({ page }) => {
   await openChannelBrowser(page);
   await expect(page.getByTestId("channel-browser-dialog")).toBeVisible();
 
-  // Filter to unjoined channels only to get a predictable list
+  // Wait for deferred filtering before Enter selects from the displayed list.
   await page.getByTestId("channel-browser-search").fill("design");
+  await expect(page.locator('[data-testid^="browse-channel-"]')).toHaveCount(1);
   await expect(page.getByTestId("browse-channel-design")).toBeVisible();
 
   // Press Enter to join the selected (first) channel

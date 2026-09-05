@@ -138,7 +138,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p desktop/src-tauri/binaries
-          for bin in maju-acp maju-agent maju-dev-mcp git-credential-nostr maju; do
+          for bin in maju-acp maju-antigravity-acp maju-agent maju-dev-mcp git-credential-nostr maju; do
             touch "desktop/src-tauri/binaries/${bin}-${TARGET}.exe"
           done
       - name: Clippy (workspace)
