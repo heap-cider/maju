@@ -1343,12 +1343,8 @@ async fn cancelled_turn_with_usage_emits_notification_before_response() {
     let (gate_tx, gate_rx) = oneshot::channel::<()>();
     let gate_rx = Arc::new(tokio::sync::Mutex::new(Some(gate_rx)));
 
-    // Round 1: tool call with usage — sets turn_input/output_tokens.
-    // Round 2: gated — blocked until cancel fires, then released so the
-    // in-flight TCP request can resolve. The queue is empty for round 2, so the
-    // agent receives the fallback "no canned response" body which it treats as
-    // an LLM error; the cancel check at the round boundary fires first because
-    // the gate is only released after cancel is enqueued.
+    // Round 1 supplies usage. Hold the round-2 response until the agent has
+    // acknowledged cancellation, so its fallback error cannot win that race.
     let responses = vec![openai_tool_call_with_usage(
         "call_cancel_test",
         "fake__noop",
@@ -1384,8 +1380,7 @@ async fn cancelled_turn_with_usage_emits_notification_before_response() {
                     }
                 }
                 // For request 2+ (round 2), wait for the gate to open before
-                // responding. This ensures cancel is sent before round 2 resolves,
-                // making stopReason: cancelled deterministic.
+                // responding. The test releases it after cancel is acknowledged.
                 if req_num >= 2 {
                     let rx = gate.lock().await.take();
                     if let Some(rx) = rx {
@@ -1428,10 +1423,9 @@ async fn cancelled_turn_with_usage_emits_notification_before_response() {
     })
     .await;
 
-    // Now send cancel and release the round-2 gate. Cancel is enqueued before
-    // round 2 can respond, so the turn exits with stopReason: cancelled.
+    // Writing cancel to stdin does not prove the agent has processed it yet.
     let c_id = h.send("session/cancel", json!({"sessionId": sid})).await;
-    let _ = gate_tx.send(()); // unblock round 2
+    let mut gate_tx = Some(gate_tx);
 
     let mut saw_usage_before_prompt_response = false;
     let mut saw_usage = false;
@@ -1441,6 +1435,9 @@ async fn cancelled_turn_with_usage_emits_notification_before_response() {
         let v = h.recv().await;
         if v["id"] == json!(c_id) {
             saw_cancel_ok = true;
+            if let Some(gate_tx) = gate_tx.take() {
+                let _ = gate_tx.send(());
+            }
         } else if is_usage_update(&v) {
             saw_usage = true;
             if !saw_prompt_response {
