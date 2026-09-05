@@ -291,6 +291,8 @@ test("shows executable guidance for diff trigger conditions", async ({
 test("captures workflow library across responsive viewports", async ({
   page,
 }) => {
+  // Three workflow creations and multiple viewport captures exceed the default on CI.
+  test.setTimeout(60_000);
   await navigateToWorkflows(page);
   await createWorkflow(page, "Notify reviewers when source files change", {
     description: "Watches diff events for src/ changes",

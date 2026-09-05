@@ -108,13 +108,31 @@ impl MajuTestClient {
 
     /// Performs NIP-42 authentication with a NIP-OA `auth` tag, establishing
     /// the agent→owner relationship in the relay's DB.  Call this as the
-    /// *agent* connection; the tag must be signed by `owner_keys`.
+    /// *agent* connection; the tag must be signed by `owner_keys`. Each call
+    /// supplies a fresh device session and representative-runner identity.
     pub async fn authenticate_with_nip_oa(
         &mut self,
         agent_keys: &Keys,
         auth_tag: &Tag,
     ) -> Result<(), TestClientError> {
-        self.inner.authenticate(agent_keys, Some(auth_tag)).await?;
+        let device_id = uuid::Uuid::new_v4().to_string();
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let runner_id = uuid::Uuid::new_v4().to_string();
+        let device_tag = Tag::parse([
+            "maju-device",
+            "1",
+            &device_id,
+            &session_id,
+            &runner_id,
+            "Integration tests",
+            std::env::consts::OS,
+            env!("CARGO_PKG_VERSION"),
+            "agent",
+        ])
+        .map_err(|error| TestClientError::EventBuilder(error.to_string()))?;
+        self.inner
+            .authenticate(agent_keys, [auth_tag, &device_tag])
+            .await?;
         Ok(())
     }
 

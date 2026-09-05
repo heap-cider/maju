@@ -66,17 +66,18 @@ impl NostrWsConnection {
 
     /// Performs NIP-42 authentication using `keys` against the connected relay.
     ///
-    /// Pass `auth_tag` to include a NIP-OA authorization tag in the AUTH event.
-    pub async fn authenticate(
+    /// Includes the supplied authorization tags in the signed AUTH event.
+    /// An optional NIP-OA tag remains supported, as do device-session tags.
+    pub async fn authenticate<'a>(
         &mut self,
         keys: &Keys,
-        auth_tag: Option<&Tag>,
+        auth_tags: impl IntoIterator<Item = &'a Tag>,
     ) -> Result<(), WsClientError> {
         let challenge = self
             .wait_for_auth_challenge(Duration::from_secs(AUTH_CHALLENGE_TIMEOUT_SECS))
             .await?;
 
-        let auth_event = build_auth_event(&challenge, &self.relay_url, keys, auth_tag)?;
+        let auth_event = build_auth_event(&challenge, &self.relay_url, keys, auth_tags)?;
         let event_id = auth_event.id.to_hex();
 
         self.send_raw(&json!(["AUTH", auth_event])).await?;
