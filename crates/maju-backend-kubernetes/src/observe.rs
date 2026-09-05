@@ -556,7 +556,7 @@ mod tests {
             PullFailure::ArchMismatch,
         ] {
             let msg = pull_failure_message(failure, &image);
-            assert!(msg.contains("ghcr.io"), "{msg}");
+            assert!(msg.contains("registry.example"), "{msg}");
             assert!(msg.contains(&image), "{msg}");
             for secret in ["Bearer", "password", "nsec1", "token"] {
                 assert!(!msg.contains(secret), "leaked {secret}: {msg}");
