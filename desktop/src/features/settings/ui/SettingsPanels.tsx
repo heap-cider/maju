@@ -9,7 +9,6 @@ import {
   Download,
   FlaskConical,
   Keyboard,
-  Laptop,
   LayoutTemplate,
   MessagesSquare,
   MonitorCog,
@@ -63,7 +62,6 @@ import {
   ThreadLayoutSetting,
 } from "./AppearanceSettingsControls";
 import { ChannelTemplatesSettingsCard } from "./ChannelTemplatesSettingsCard";
-import { DevicesSettingsCard } from "./DevicesSettingsCard";
 import { ExperimentalFeaturesCard } from "./ExperimentalFeaturesCard";
 import { KeyboardShortcutsCard } from "./KeyboardShortcutsCard";
 import { MeshComputeSettingsCard } from "@/features/mesh-compute/ui/MeshComputeSettingsCard";
@@ -85,7 +83,6 @@ import { VoiceSettingsCard } from "./VoiceSettingsCard";
 
 export type SettingsSection =
   | "profile"
-  | "devices"
   | "notifications"
   | "voice"
   | "experimental"
@@ -106,7 +103,6 @@ export const DEFAULT_SETTINGS_SECTION: SettingsSection = "profile";
 
 const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "profile",
-  "devices",
   "notifications",
   "voice",
   "experimental",
@@ -164,11 +160,6 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     value: "profile",
     label: "Profile",
     icon: UserRound,
-  },
-  {
-    value: "devices",
-    label: "내 기기",
-    icon: Laptop,
   },
   {
     value: "notifications",
@@ -820,8 +811,6 @@ export function renderSettingsSection(
           fallbackDisplayName={props.fallbackDisplayName}
         />
       );
-    case "devices":
-      return <DevicesSettingsCard />;
     case "notifications":
       return (
         <NotificationSettingsCard

@@ -5,6 +5,7 @@ use crate::managed_agents::{BackendKind, ManagedAgentRecord, RespondTo};
 /// state right after creation, before any snapshot apply.
 pub(super) fn sample_record() -> ManagedAgentRecord {
     ManagedAgentRecord {
+        description: None,
         pubkey: "p".repeat(64),
         name: "agent".into(),
         persona_id: Some("test-persona".into()),
@@ -55,6 +56,7 @@ pub(super) fn sample_record() -> ManagedAgentRecord {
         source_team: None,
         source_team_persona_slug: None,
         catalog_source: None,
+        team_catalog_source: None,
         definition_respond_to: None,
         definition_respond_to_allowlist: Vec::new(),
         definition_parallelism: None,
@@ -142,6 +144,7 @@ fn preview_passes_through_unchanged_when_persona_missing() {
 
 pub(super) fn sample_persona() -> AgentDefinition {
     AgentDefinition {
+        description: None,
         id: "test-persona".to_string(),
         display_name: "Test Persona".to_string(),
         avatar_url: Some("https://example.com/avatar.png".to_string()),
@@ -156,6 +159,7 @@ pub(super) fn sample_persona() -> AgentDefinition {
         source_team: None,
         source_team_persona_slug: Some("test-slug".to_string()),
         catalog_source: None,
+        team_catalog_source: None,
         env_vars: BTreeMap::from([
             ("KEY".to_string(), "secret-value".to_string()),
             (
@@ -330,6 +334,7 @@ fn content_matches_nip_ap_vector() {
     const VECTOR: &str = r#"{"display_name":"Test Agent","system_prompt":"You are a test assistant.","avatar_url":"https://example.com/avatar.png","runtime":"goose","model":"claude-opus-4","provider":"anthropic","name_pool":["Alpha","Beta"]}"#;
 
     let content = PersonaEventContent {
+        description: None,
         display_name: "Test Agent".to_string(),
         system_prompt: Some("You are a test assistant.".to_string()),
         avatar_url: Some("https://example.com/avatar.png".to_string()),
@@ -384,6 +389,7 @@ fn content_matches_nip_ap_vector() {
     // signed content, so a second implementer following the spec computes
     // the same NIP-01 id.
     let record = AgentDefinition {
+        description: None,
         id: "test-agent".to_string(),
         display_name: "Test Agent".to_string(),
         avatar_url: Some("https://example.com/avatar.png".to_string()),
@@ -398,6 +404,7 @@ fn content_matches_nip_ap_vector() {
         source_team: None,
         source_team_persona_slug: None,
         catalog_source: None,
+        team_catalog_source: None,
         env_vars: BTreeMap::new(),
         respond_to: None,
         respond_to_allowlist: Vec::new(),
@@ -415,6 +422,7 @@ fn content_matches_nip_ap_vector() {
 #[test]
 fn round_trip_minimal_persona() {
     let record = AgentDefinition {
+        description: None,
         id: "minimal".to_string(),
         display_name: "Minimal".to_string(),
         avatar_url: None,
@@ -429,6 +437,7 @@ fn round_trip_minimal_persona() {
         source_team: Some("team-1".to_string()),
         source_team_persona_slug: None,
         catalog_source: None,
+        team_catalog_source: None,
         env_vars: BTreeMap::new(),
         respond_to: None,
         respond_to_allowlist: Vec::new(),
@@ -512,6 +521,7 @@ fn behavioral_defaults_survive_record_round_trip() {
 #[test]
 fn quad_absent_definition_hash_stable_across_activation() {
     let record = AgentDefinition {
+        description: None,
         id: "quad-absent".to_string(),
         display_name: "Test".to_string(),
         avatar_url: None,
@@ -526,6 +536,7 @@ fn quad_absent_definition_hash_stable_across_activation() {
         source_team: None,
         source_team_persona_slug: None,
         catalog_source: None,
+        team_catalog_source: None,
         env_vars: BTreeMap::new(),
         respond_to: None,
         respond_to_allowlist: Vec::new(),
@@ -563,6 +574,7 @@ fn persona_from_event_content_for_test(content: PersonaEventContent) -> AgentDef
         );
     }
     AgentDefinition {
+        description: content.description,
         id: "staged".to_string(),
         display_name: content.display_name,
         avatar_url: content.avatar_url,
@@ -577,6 +589,7 @@ fn persona_from_event_content_for_test(content: PersonaEventContent) -> AgentDef
         source_team: None,
         source_team_persona_slug: None,
         catalog_source: None,
+        team_catalog_source: None,
         env_vars,
         respond_to: content.respond_to,
         respond_to_allowlist: content.respond_to_allowlist,
@@ -589,6 +602,7 @@ fn persona_from_event_content_for_test(content: PersonaEventContent) -> AgentDef
 #[test]
 fn persona_content_hash_is_deterministic() {
     let content = PersonaEventContent {
+        description: None,
         display_name: "Test".to_string(),
         avatar_url: None,
         system_prompt: Some("Hello".to_string()),
@@ -610,6 +624,7 @@ fn persona_content_hash_is_deterministic() {
 #[test]
 fn persona_content_hash_changes_on_edit() {
     let content1 = PersonaEventContent {
+        description: None,
         display_name: "Test".to_string(),
         avatar_url: None,
         system_prompt: Some("Hello".to_string()),
@@ -630,24 +645,8 @@ fn persona_content_hash_changes_on_edit() {
     );
 }
 
-#[test]
-fn persona_content_hash_changes_on_acp_config_edit() {
-    let key = crate::managed_agents::env_vars::ACP_CONFIG_OPTIONS_ENV;
-    let mut before = sample_persona();
-    before
-        .env_vars
-        .insert(key.to_string(), r#"{"thought_level":"low"}"#.to_string());
-    let mut after = before.clone();
-    after
-        .env_vars
-        .insert(key.to_string(), r#"{"thought_level":"high"}"#.to_string());
-
-    assert_ne!(
-        persona_content_hash(&persona_event_content(&before)),
-        persona_content_hash(&persona_event_content(&after)),
-        "a synchronized ACP selection must mark running instances for restart",
-    );
-}
+#[path = "content_hash_tests.rs"]
+mod content_hash;
 
 // ── PersonaSnapshot.runtime ───────────────────────────────────────────────
 
@@ -895,15 +894,13 @@ mod flush_barrier {
         .custom_created_at(nostr::Timestamp::from(1))
         .sign_with_keys(&keys)
         .unwrap();
-        let state = build_app_state();
-        *state.keys.lock().unwrap() = keys;
-
-        let fresh = resign_with_fresh_timestamp(&stale, &state).unwrap();
+        let fresh = resign_with_fresh_timestamp(&stale, &keys).unwrap();
 
         assert!(fresh.created_at.as_secs() > stale.created_at.as_secs());
         assert_eq!(fresh.kind, stale.kind);
         assert_eq!(fresh.content, stale.content);
         assert_eq!(fresh.tags, stale.tags);
+        assert_eq!(fresh.pubkey, keys.public_key());
         assert!(fresh.verify_id());
         assert!(fresh.verify_signature());
         assert_ne!(fresh.as_json(), stale.as_json());

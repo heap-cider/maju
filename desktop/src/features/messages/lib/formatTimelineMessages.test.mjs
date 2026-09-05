@@ -112,39 +112,6 @@ test("a far-future edit still rewrites the body of an old message", () => {
   assert.equal(out[0].edited, true, "the message must be marked edited");
 });
 
-test("a community moderator cannot edit another author's message", () => {
-  const target = streamMessage();
-  const moderatorEdit = streamEdit(HEX64_A, "moderator rewrite", {
-    pubkey: PUBKEY_B,
-  });
-  const members = [
-    {
-      pubkey: PUBKEY_B,
-      role: "owner",
-      isAgent: false,
-      joinedAt: "2026-01-01T00:00:00Z",
-      displayName: "Owner",
-    },
-  ];
-
-  const [message] = formatTimelineMessages(
-    [target, moderatorEdit],
-    null,
-    undefined,
-    null,
-    undefined,
-    members,
-  );
-
-  assert.equal(message.body, target.content);
-  assert.equal(message.edited, false);
-  assert.equal(
-    message.editedByPubkey,
-    undefined,
-    "a community role alone must not authorize an edit",
-  );
-});
-
 test("a far-future deletion still hides an old message", () => {
   const old = streamMessage({ created_at: 1_700_000_000 });
   const lateDeletion = deletionEvent(9005, HEX64_A, {

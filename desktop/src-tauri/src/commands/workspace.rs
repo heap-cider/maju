@@ -174,6 +174,7 @@ pub async fn apply_workspace(
     nsec: Option<String>,
     repos_dir: Option<String>,
     agent_managed_profiles: Option<bool>,
+    thread_scoped_acp_sessions: Option<bool>,
     app: AppHandle,
 ) -> Result<AppliedWorkspaceInfo, String> {
     let state = app.state::<AppState>();
@@ -284,8 +285,15 @@ pub async fn apply_workspace(
         // experiment before launch-time restore can spawn any agents. Missing
         // means the stable behavior: desktop remains authoritative.
         state
-            .managed_agent_profile_reconcile_enabled
+            .managed_agent_profile_reconcile_enabled()
             .store(!agent_managed_profiles.unwrap_or(false), Ordering::Release);
+        // Persisted frontend experiment state must land before launch-time
+        // restore so every restored agent starts with the selected ACP policy.
+        // Missing preserves the stable channel-scoped behavior.
+        state.thread_scoped_acp_sessions_enabled().store(
+            thread_scoped_acp_sessions.unwrap_or(false),
+            Ordering::Release,
+        );
 
         // Retire only records the scoped migration proved were either orphaned
         // in this community or later copies of the same definition identity.
@@ -293,8 +301,6 @@ pub async fn apply_workspace(
         let mut repair_queued = true;
         for pubkey in &scope_repair.agent_pubkeys {
             repair_queued &= super::agents::tombstone_managed_agent_pending(&app, &state, pubkey);
-            repair_queued &=
-                super::agents::archive_managed_agent_pending(&app, &state, pubkey, None);
         }
         for team_id in &scope_repair.team_ids {
             repair_queued &= super::teams::tombstone_team_pending(&app, &state, team_id);
@@ -388,6 +394,7 @@ pub async fn apply_workspace(
             )
             .map_err(|error| format!("scoped event-sync store unavailable: {error}"))?;
             crate::event_sync::run_event_sync_blocking(
+                restore_app.clone(),
                 scope.owner_keys,
                 scope.db_path,
                 store_dir,

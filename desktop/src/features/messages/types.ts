@@ -45,9 +45,6 @@ export type TimelineMessage = {
   accent?: boolean;
   pending?: boolean;
   edited?: boolean;
-  /** Pubkey that signed the winning kind:40003 edit event. When it differs
-   * from `pubkey`, the edit was performed by the verified owner of an agent. */
-  editedByPubkey?: string;
   highlighted?: boolean;
   kind?: number;
   tags?: string[][];

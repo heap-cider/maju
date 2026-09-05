@@ -7,7 +7,7 @@ import {
 } from "@/features/profile/lib/identity";
 import { UserProfilePopover } from "@/features/profile/ui/UserProfilePopover";
 import { UserAvatar } from "@/shared/ui/UserAvatar";
-import type { ForumPostWithEdits } from "@/features/forum/lib/applyForumStructuralEvents";
+import type { ForumPost } from "@/shared/api/types";
 import { cn } from "@/shared/lib/cn";
 import { resolveMentionProps } from "@/shared/lib/resolveMentionNames";
 import { Markdown } from "@/shared/ui/markdown";
@@ -18,16 +18,14 @@ import { formatRelativeTime } from "../lib/time";
 import { DeleteActionMenu } from "./DeleteActionMenu";
 
 type ForumPostCardProps = {
-  post: ForumPostWithEdits;
+  post: ForumPost;
   currentPubkey?: string;
   profiles?: UserProfileLookup;
   isActive?: boolean;
   canDelete?: boolean;
-  canEdit?: boolean;
   isDeleting?: boolean;
-  onClick: (post: ForumPostWithEdits) => void;
+  onClick: (post: ForumPost) => void;
   onDelete?: (eventId: string) => void;
-  onEdit?: (post: ForumPostWithEdits) => void;
 };
 
 export function ForumPostCard({
@@ -36,11 +34,9 @@ export function ForumPostCard({
   profiles,
   isActive,
   canDelete,
-  canEdit,
   isDeleting,
   onClick,
   onDelete,
-  onEdit,
 }: ForumPostCardProps) {
   const authorLabel = resolveUserLabel({
     pubkey: post.pubkey,
@@ -48,15 +44,8 @@ export function ForumPostCard({
     profiles,
     preferResolvedSelfLabel: true,
   });
-  const editedByLabel = post.editedByPubkey
-    ? resolveUserLabel({
-        pubkey: post.editedByPubkey,
-        currentPubkey,
-        profiles,
-        preferResolvedSelfLabel: true,
-      })
-    : null;
   const avatarUrl = profiles?.[post.pubkey.toLowerCase()]?.avatarUrl ?? null;
+  const authorIsAgent = profiles?.[post.pubkey.toLowerCase()]?.isAgent === true;
   const { mentionNames, mentionPubkeysByName } = resolveMentionProps(
     post.tags,
     profiles,
@@ -77,7 +66,6 @@ export function ForumPostCard({
   return (
     // biome-ignore lint/a11y/useSemanticElements: Cannot use <button> because DeleteActionMenu renders a nested <button> via DropdownMenuTrigger, which is invalid HTML
     <div
-      data-forum-event-id={post.eventId}
       role="button"
       tabIndex={0}
       className={cn(
@@ -96,14 +84,19 @@ export function ForumPostCard({
       <div className="flex items-center gap-2">
         {/* biome-ignore lint/a11y/noStaticElementInteractions: presentation wrapper stops click propagation to parent card */}
         <div onClick={(e) => e.stopPropagation()} role="presentation">
-          <UserProfilePopover pubkey={post.pubkey}>
+          <UserProfilePopover
+            pubkey={post.pubkey}
+            role={authorIsAgent ? "bot" : undefined}
+          >
             <button
               className="flex items-center gap-2 rounded-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               type="button"
             >
               <UserAvatar
+                accent={authorIsAgent}
                 avatarUrl={avatarUrl}
                 displayName={authorLabel}
+                shape={authorIsAgent ? "squircle" : "circle"}
                 size="sm"
               />
               <span className="truncate text-sm font-medium text-foreground hover:underline">
@@ -115,16 +108,8 @@ export function ForumPostCard({
         <span className="text-xs text-muted-foreground">
           {formatRelativeTime(post.createdAt)}
         </span>
-        {editedByLabel ? (
-          <span
-            className="text-xs text-muted-foreground"
-            title={`Edited by ${editedByLabel}`}
-          >
-            Edited
-          </span>
-        ) : null}
 
-        {(canDelete && onDelete) || (canEdit && onEdit) ? (
+        {canDelete && onDelete ? (
           // biome-ignore lint/a11y/noStaticElementInteractions: presentation wrapper only stops click propagation to parent card link
           <div
             className="ml-auto"
@@ -133,10 +118,7 @@ export function ForumPostCard({
           >
             <DeleteActionMenu
               label="post"
-              onConfirm={
-                canDelete && onDelete ? () => onDelete(post.eventId) : undefined
-              }
-              onEdit={canEdit && onEdit ? () => onEdit(post) : undefined}
+              onConfirm={() => onDelete(post.eventId)}
             />
           </div>
         ) : null}

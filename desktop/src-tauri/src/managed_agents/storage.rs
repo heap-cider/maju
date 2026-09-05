@@ -32,7 +32,7 @@ fn agent_secret_store() -> Option<&'static SecretStore> {
     }
 }
 
-pub fn managed_agents_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub fn managed_agents_base_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()
@@ -42,7 +42,9 @@ pub fn managed_agents_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-pub(crate) fn managed_agents_store_path(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn managed_agents_store_path<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+) -> Result<PathBuf, String> {
     Ok(super::active_agent_store_dir(app)?.join("managed-agents.json"))
 }
 
@@ -265,14 +267,18 @@ fn load_agent_store_from_path(path: &Path) -> Result<Vec<ManagedAgentRecord>, St
     })
 }
 
-fn load_agent_store(app: &AppHandle) -> Result<Vec<ManagedAgentRecord>, String> {
+fn load_agent_store<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Vec<ManagedAgentRecord>, String> {
     load_agent_store_from_path(&managed_agents_store_path(app)?)
 }
 
 /// Load the keyed agent *instances*. Key-less definitions (former personas,
 /// folded into the same store) are filtered out so every pre-fold call site
 /// keeps seeing exactly the records it always did.
-pub fn load_managed_agents(app: &AppHandle) -> Result<Vec<ManagedAgentRecord>, String> {
+pub fn load_managed_agents<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Vec<ManagedAgentRecord>, String> {
     let mut records = load_agent_store(app)?;
     records.retain(|record| !record.pubkey.is_empty());
     hydrate_keys(&mut records);
@@ -296,7 +302,9 @@ pub(crate) fn load_managed_agents_from_path(
 /// Load the key-less agent *definitions* (former personas) from the unified
 /// store. The persona compatibility shim (`load_personas`) presents these in
 /// the legacy shape via `to_definition_view`.
-pub(crate) fn load_agent_definitions(app: &AppHandle) -> Result<Vec<ManagedAgentRecord>, String> {
+pub(crate) fn load_agent_definitions<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Vec<ManagedAgentRecord>, String> {
     let mut records = load_agent_store(app)?;
     records.retain(|record| record.pubkey.is_empty());
     Ok(records)
@@ -395,7 +403,10 @@ fn hydrate_keys_with(store: &impl KeyStore, records: &mut [ManagedAgentRecord]) 
 /// [`load_managed_agents`], and this re-reads the definition half from disk
 /// before the wholesale rewrite so a definition is never dropped by an
 /// instance-side save (and vice versa via [`save_agent_definitions`]).
-pub fn save_managed_agents(app: &AppHandle, records: &[ManagedAgentRecord]) -> Result<(), String> {
+pub fn save_managed_agents<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    records: &[ManagedAgentRecord],
+) -> Result<(), String> {
     save_managed_agents_to_path(&managed_agents_store_path(app)?, records)
 }
 
@@ -426,8 +437,8 @@ pub(crate) fn save_managed_agents_to_path(
 
 /// Save the key-less agent *definitions*, preserving the keyed instances —
 /// the definition-side mirror of [`save_managed_agents`].
-pub(crate) fn save_agent_definitions(
-    app: &AppHandle,
+pub(crate) fn save_agent_definitions<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     definitions: &[ManagedAgentRecord],
 ) -> Result<(), String> {
     let mut instances = load_agent_store(app)?;
@@ -440,8 +451,8 @@ pub(crate) fn save_agent_definitions(
 /// Serialize definitions + instances into the single unified store file.
 /// Definitions sort first (by slug) for stable diffs; instances keep the
 /// name/pubkey order their save path established.
-fn write_agent_store(
-    app: &AppHandle,
+fn write_agent_store<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     definitions: Vec<ManagedAgentRecord>,
     instances: Vec<ManagedAgentRecord>,
 ) -> Result<(), String> {
@@ -694,6 +705,10 @@ pub(crate) fn atomic_write_json_restricted(path: &Path, payload: &[u8]) -> Resul
         .map_err(|e| format!("commit {}: {e}", resolved.display()))
 }
 
+#[path = "storage/transaction.rs"]
+mod transaction;
+pub(crate) use transaction::{commit_stores_with_snapshots, snapshot_store};
+
 /// Maximum log file size before rotation (10 MB).
 const MAX_LOG_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
@@ -781,7 +796,7 @@ pub(crate) fn append_log_marker(path: &Path, message: &str) -> Result<(), String
     writeln!(file, "{message}").map_err(|error| format!("failed to write log marker: {error}"))
 }
 
-fn agent_pids_dir(app: &AppHandle) -> Result<PathBuf, String> {
+fn agent_pids_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let dir = managed_agents_base_dir(app)?.join("agent-pids");
     fs::create_dir_all(&dir)
         .map_err(|error| format!("failed to create agent-pids dir: {error}"))?;
@@ -801,7 +816,10 @@ pub fn write_agent_runtime_receipt(
     atomic_write_json_restricted(&path, &payload)
 }
 
-pub fn remove_agent_runtime_receipt(app: &AppHandle, key: &ManagedAgentRuntimeKey) {
+pub fn remove_agent_runtime_receipt<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    key: &ManagedAgentRuntimeKey,
+) {
     if let Ok(dir) = agent_pids_dir(app) {
         let _ = fs::remove_file(dir.join(format!("{}.json", key.runtime_id())));
     }
@@ -834,7 +852,7 @@ pub fn read_all_agent_runtime_receipts(
 }
 
 /// Remove the PID file for an agent (e.g. on normal stop).
-pub fn remove_agent_pid_file(app: &AppHandle, pubkey: &str) {
+pub fn remove_agent_pid_file<R: tauri::Runtime>(app: &AppHandle<R>, pubkey: &str) {
     if let Ok(dir) = agent_pids_dir(app) {
         let _ = fs::remove_file(dir.join(format!("{pubkey}.pid")));
     }

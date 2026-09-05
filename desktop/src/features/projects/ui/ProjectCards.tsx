@@ -5,6 +5,7 @@ import {
   Folders,
   GitCommit,
   GitPullRequest,
+  Plus,
   TerminalSquare,
   Trash2,
 } from "lucide-react";
@@ -84,7 +85,10 @@ export function ProjectPeopleStack({
             <UserProfilePopover pubkey={pubkey} triggerElement="span">
               <button
                 aria-label={`View ${label}'s profile`}
-                className="inline-flex rounded-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                className={cn(
+                  "inline-flex focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
+                  profile?.isAgent ? "rounded-[30%]" : "rounded-full",
+                )}
                 type="button"
               >
                 <UserAvatar
@@ -94,6 +98,7 @@ export function ProjectPeopleStack({
                   avatarUrl={profile?.avatarUrl ?? null}
                   className="ring-2 ring-card"
                   displayName={label}
+                  shape={profile?.isAgent ? "squircle" : "circle"}
                   size="xs"
                 />
               </button>
@@ -304,12 +309,13 @@ function RepositoryUnavailableIndicator({
   );
 }
 
-export function EmptyState({ onCreate }: { onCreate: () => void }) {
+export function EmptyState({
+  onCreateProject,
+}: {
+  onCreateProject: () => void;
+}) {
   return (
-    <div
-      className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center"
-      data-testid="projects-empty-state"
-    >
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center">
       <Folders className="h-10 w-10 text-muted-foreground/40" />
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">No projects yet</p>
@@ -317,7 +323,8 @@ export function EmptyState({ onCreate }: { onCreate: () => void }) {
           Projects published to this relay will appear here.
         </p>
       </div>
-      <Button className="mt-3" onClick={onCreate}>
+      <Button onClick={onCreateProject} size="sm" type="button">
+        <Plus className="h-4 w-4" />
         Create project
       </Button>
     </div>

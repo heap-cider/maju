@@ -14,12 +14,11 @@ import {
   Trash2,
 } from "lucide-react";
 import * as React from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { buildMessageLink } from "@/features/messages/lib/messageLink";
-import { removeMessageFromQueryCaches } from "@/features/messages/lib/projectChannelWindow";
 import { EmojiPicker } from "@/features/custom-emoji/ui/EmojiPicker";
+import { useCustomEmoji } from "@/features/custom-emoji/hooks";
 import { getThreadReference } from "@/features/messages/lib/threading";
 import { ReportMessageDialog } from "@/features/moderation/ui/ReportMessageDialog";
 import { MessageModerationMenuItems } from "@/features/moderation/ui/MessageModerationMenuItems";
@@ -27,10 +26,15 @@ import type {
   TimelineMessage,
   TimelineReaction,
 } from "@/features/messages/types";
-import { recordQuickReactionEmoji } from "@/features/messages/ui/useQuickReactionEmojis";
+import {
+  recordQuickReactionEmoji,
+  useQuickReactionEmojis,
+} from "@/features/messages/ui/useQuickReactionEmojis";
+import { reactionEmojiUrl } from "@/shared/api/customEmoji";
 import { cn } from "@/shared/lib/cn";
 import { copyTextToClipboard } from "@/shared/lib/clipboard";
-import { deleteMessage } from "@/shared/api/tauri";
+import { emojiDisplayName } from "@/shared/lib/emojiName";
+import { rewriteRelayUrl } from "@/shared/lib/mediaUrl";
 import { KIND_HUDDLE_STARTED } from "@/shared/constants/kinds";
 import { Button } from "@/shared/ui/button";
 import { HashArrowIn } from "@/shared/ui/icons";
@@ -45,6 +49,7 @@ import {
 import { isPositiveEmojiParticle } from "@/shared/ui/EmojiBurstProvider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
+import { ProtectedMessageAction } from "@protected-feature-components";
 
 const ACTION_BUTTON_CLASS = "h-8 w-8 rounded-full p-0";
 const ACTION_ICON_CLASS = "!h-4 !w-4";
@@ -108,10 +113,7 @@ function MoreActionsMenu({
   isFollowingThread?: boolean;
   isUnread?: boolean;
 }) {
-  const queryClient = useQueryClient();
-  const [deleteMode, setDeleteMode] = React.useState<
-    "author" | "moderator" | null
-  >(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [isReportDialogOpen, setIsReportDialogOpen] = React.useState(false);
   // Set true the moment the user picks "Edit message". The
   // `onCloseAutoFocus` handler on `DropdownMenuContent` reads it to
@@ -298,7 +300,7 @@ function MoreActionsMenu({
               className="text-destructive focus:text-destructive"
               data-testid={`delete-message-${message.id}`}
               onClick={() => {
-                setDeleteMode("author");
+                setIsDeleteDialogOpen(true);
               }}
             >
               <Trash2 className="h-4 w-4" />
@@ -308,45 +310,18 @@ function MoreActionsMenu({
 
           {canReport ? (
             <MessageModerationMenuItems
-              canOfferDelete={!onDelete}
               channelId={channelId}
               message={message}
-              onDeleteMessage={() => setDeleteMode("moderator")}
             />
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {onDelete || canReport ? (
+      {onDelete ? (
         <DeleteMessageConfirmDialog
-          onConfirm={() => {
-            if (deleteMode === "author") {
-              onDelete?.(message);
-              return;
-            }
-            if (deleteMode === "moderator" && channelId) {
-              void deleteMessage(channelId, message.id, true)
-                .then(() => {
-                  removeMessageFromQueryCaches(
-                    queryClient,
-                    channelId,
-                    message.id,
-                  );
-                  toast.success("Message deleted");
-                })
-                .catch((error: unknown) => {
-                  toast.error(
-                    error instanceof Error
-                      ? error.message
-                      : "Failed to delete message",
-                  );
-                });
-            }
-          }}
-          onOpenChange={(open) => {
-            if (!open) setDeleteMode(null);
-          }}
-          open={deleteMode !== null}
+          onConfirm={() => onDelete(message)}
+          onOpenChange={setIsDeleteDialogOpen}
+          open={isDeleteDialogOpen}
         />
       ) : null}
 
@@ -360,6 +335,51 @@ function MoreActionsMenu({
       ) : null}
     </>
   );
+}
+
+function QuickReactionButton({
+  customEmojiUrl,
+  emoji,
+  onSelect,
+}: {
+  customEmojiUrl?: string;
+  emoji: string;
+  onSelect: (emoji: string) => void;
+}) {
+  const displayName = emojiDisplayName(emoji);
+  const mediaUrl = customEmojiUrl ? rewriteRelayUrl(customEmojiUrl) : null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          aria-label={`React with ${displayName}`}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-base leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+          onClick={() => onSelect(emoji)}
+          title={displayName}
+          type="button"
+        >
+          {mediaUrl ? (
+            <img
+              alt={emoji}
+              className="h-5 w-5 object-contain"
+              draggable={false}
+              src={mediaUrl}
+            />
+          ) : (
+            <span aria-hidden="true" className="translate-y-px">
+              {emoji}
+            </span>
+          )}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{displayName}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function isCustomEmojiShortcode(emoji: string) {
+  return emoji.startsWith(":") && emoji.endsWith(":");
 }
 
 export const MessageActionBar = React.memo(function MessageActionBar({
@@ -405,6 +425,20 @@ export const MessageActionBar = React.memo(function MessageActionBar({
 }) {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = React.useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
+  const customEmoji = useCustomEmoji();
+  const quickReactionEmojis = useQuickReactionEmojis(3, customEmoji);
+  const quickReactionItems = React.useMemo(
+    () =>
+      quickReactionEmojis
+        .map((emoji) => ({
+          customEmojiUrl: reactionEmojiUrl(emoji, customEmoji),
+          emoji,
+        }))
+        .filter(
+          (item) => !isCustomEmojiShortcode(item.emoji) || item.customEmojiUrl,
+        ),
+    [customEmoji, quickReactionEmojis],
+  );
   const hasReplyAction = Boolean(onReply);
   const hasReactionAction = Boolean(onReactionSelect);
 
@@ -469,6 +503,19 @@ export const MessageActionBar = React.memo(function MessageActionBar({
     >
       <div className="overflow-hidden rounded-full border border-border/70 bg-background/95 shadow-xs backdrop-blur-sm supports-[backdrop-filter]:bg-background/85">
         <div className="flex items-center gap-0.5 p-1">
+          {hasReactionAction && quickReactionItems.length > 0 ? (
+            <div className="hidden items-center gap-0.5 sm:flex">
+              {quickReactionItems.map(({ customEmojiUrl, emoji }) => (
+                <QuickReactionButton
+                  customEmojiUrl={customEmojiUrl}
+                  emoji={emoji}
+                  key={emoji}
+                  onSelect={handleReactionSelection}
+                />
+              ))}
+            </div>
+          ) : null}
+
           {hasReactionAction ? (
             <Popover
               onOpenChange={setIsReactionPickerOpen}
@@ -514,6 +561,16 @@ export const MessageActionBar = React.memo(function MessageActionBar({
                 />
               </PopoverContent>
             </Popover>
+          ) : null}
+
+          <ProtectedMessageAction channelId={channelId} message={message} />
+
+          {hasReactionAction && quickReactionItems.length > 0 ? (
+            <div
+              aria-hidden="true"
+              className="mx-0.5 hidden h-4 w-px bg-border/70 sm:block"
+              data-testid="message-action-divider"
+            />
           ) : null}
 
           {hasReplyAction ? (

@@ -132,6 +132,7 @@ export function useAppNavigation() {
       projectId: string,
       behavior?: NavigationBehavior & {
         commitHash?: string;
+        filePath?: string;
         pullRequestId?: string;
         issueId?: string;
         repositoryId?: string;
@@ -152,6 +153,7 @@ export function useAppNavigation() {
             ...(behavior?.commitHash
               ? { commitHash: behavior.commitHash }
               : {}),
+            ...(behavior?.filePath ? { filePath: behavior.filePath } : {}),
             ...(behavior?.pullRequestId
               ? { pullRequestId: behavior.pullRequestId }
               : {}),
@@ -272,7 +274,7 @@ export function useAppNavigation() {
         autoSend?: string;
         /** Navigate even when the destination matches the current href.
          * Used by desktop-notification activation so a click is never
-         * silently swallowed (block/buzz#3509). */
+         * silently swallowed (block/maju#3509). */
         force?: boolean;
         messageId?: string;
         /** Preserve an active search highlight; ordinary navigation clears it. */
@@ -434,7 +436,7 @@ export function useAppNavigation() {
       behavior?: {
         /** Navigate even when the destination matches the current href.
          * Used by desktop-notification activation so a click is never
-         * silently swallowed (block/buzz#3509). */
+         * silently swallowed (block/maju#3509). */
         force?: boolean;
         /** Search text to highlight after opening this result. */
         query?: string;

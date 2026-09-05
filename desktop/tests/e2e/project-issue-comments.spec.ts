@@ -21,6 +21,7 @@ async function openMajuProject(page: import("@playwright/test").Page) {
     .first();
   await expect(projectEntry).toBeVisible({ timeout: 10_000 });
   await projectEntry.click();
+  await page.getByTestId("project-home-context-repo-maju").click();
 }
 
 test("issue detail can open agent chat or seed a channel question", async ({
@@ -114,11 +115,11 @@ test("issue discussion ignores an author-claimed origin channel", async ({
     "project-context-related-channel",
   );
   await expect(relatedChannel).toHaveCount(1);
-  await expect(relatedChannel).toContainText("#general");
+  await expect(relatedChannel).toContainText("#maju");
   await expect(channelChoices).not.toContainText("#random");
   await relatedChannel.click();
 
-  await expect(page.getByTestId("chat-title")).toHaveText("general");
+  await expect(page.getByTestId("chat-title")).toHaveText("maju");
   const issueDraftChip = page
     .getByTestId("message-input")
     .locator('[data-composer-maju-link=""]', {

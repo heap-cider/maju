@@ -1,4 +1,4 @@
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Trash2 } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -12,16 +12,11 @@ import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 
 type DeleteActionMenuProps = {
   label: string;
-  onConfirm?: () => void;
-  onEdit?: () => void;
+  onConfirm: () => void;
   iconSize?: "sm" | "md";
 };
 
-export function DeleteActionMenu({
-  label,
-  onConfirm,
-  onEdit,
-}: DeleteActionMenuProps) {
+export function DeleteActionMenu({ label, onConfirm }: DeleteActionMenuProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const iconClass = "h-4 w-4";
 
@@ -30,9 +25,7 @@ export function DeleteActionMenu({
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button
-            aria-label={`More actions for ${label}`}
             className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            data-testid={`forum-actions-${label}`}
             tabIndex={-1}
             type="button"
           >
@@ -40,34 +33,21 @@ export function DeleteActionMenu({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {onEdit ? (
-            <DropdownMenuItem
-              data-testid={`edit-forum-${label}`}
-              onClick={onEdit}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit {label}
-            </DropdownMenuItem>
-          ) : null}
-          {onConfirm ? (
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => setIsOpen(true)}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete {label}
-            </DropdownMenuItem>
-          ) : null}
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => setIsOpen(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete {label}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {onConfirm ? (
-        <DeleteConfirmDialog
-          label={label}
-          onConfirm={onConfirm}
-          onOpenChange={setIsOpen}
-          open={isOpen}
-        />
-      ) : null}
+      <DeleteConfirmDialog
+        label={label}
+        onConfirm={onConfirm}
+        onOpenChange={setIsOpen}
+        open={isOpen}
+      />
     </div>
   );
 }

@@ -35,6 +35,39 @@ fn ensure_access_policy_change_supported(
     Ok(())
 }
 
+/// Proof token returned by `apply_record_field_updates`. Zero-size and
+/// `#[must_use]`; consumed by `stamp_record_updated_at`, so removing the
+/// `apply_record_field_updates` call from `update_managed_agent` leaves
+/// `applied` undefined at the timestamp site — a compile error.
+#[derive(Debug)]
+#[must_use]
+pub(crate) struct RecordFieldsApplied(());
+
+/// Apply the saved native ACP option map and runtime env inside the locked update.
+/// The returned token binds this operation to the subsequent timestamp write.
+pub(crate) fn apply_record_field_updates(
+    record: &mut ManagedAgentRecord,
+    env_vars: Option<&std::collections::BTreeMap<String, String>>,
+    inherit_transition: bool,
+) -> Result<RecordFieldsApplied, String> {
+    crate::managed_agents::apply_env_vars_then_effort_transition(
+        record,
+        env_vars.cloned(),
+        inherit_transition,
+    );
+    Ok(RecordFieldsApplied(()))
+}
+
+/// Stamp `record.updated_at` with the current ISO timestamp, consuming the
+/// `RecordFieldsApplied` proof token. Removing `apply_record_field_updates`
+/// from `update_managed_agent` leaves `applied` undefined here — a compile error.
+pub(crate) fn stamp_record_updated_at(
+    record: &mut ManagedAgentRecord,
+    _applied: RecordFieldsApplied,
+) {
+    record.updated_at = crate::util::now_iso();
+}
+
 /// Flush a retained managed-agent policy, preserving any earlier profile error.
 pub(crate) async fn flush_managed_agent_policy(
     app: &AppHandle,
@@ -115,15 +148,17 @@ pub async fn update_managed_agent(
         // Harness edit: the persona's runtime is authoritative, so an explicit
         // `agent_command_override` is persisted ONLY when the user picks a
         // command that diverges from the persona, and the empty/whitespace
-        // "Inherit from persona" sentinel clears both the pin and the
-        // materialized record runtime. A name-only edit
+        // "Inherit from persona" sentinel clears the pin, the materialized
+        // record runtime, AND the per-instance effort override (column here,
+        // env aliases after `env_vars` is applied below). A name-only edit
         // (`agent_command == None`) leaves the pin intact. `harness_override`
         // threads the user's explicit intent — see `apply_agent_command_update`
         // and `update_time_agent_command_override` for the full resolution
         // rules.
+        let mut inherit_transition = false;
         if let Some(agent_command) = input.agent_command {
             let personas = load_personas(&app).unwrap_or_default();
-            crate::managed_agents::apply_agent_command_update(
+            inherit_transition = crate::managed_agents::apply_agent_command_update(
                 record,
                 &personas,
                 &agent_command,
@@ -136,9 +171,16 @@ pub async fn update_managed_agent(
         // mcp_command is intentionally not applied here — the effective MCP
         // command is always catalog-derived (known_acp_runtime at spawn time)
         // and the per-record field is never read by the runtime.
-        if let Some(env_vars) = input.env_vars {
-            crate::managed_agents::validate_user_env_keys(&env_vars)?;
-            record.env_vars = env_vars;
+        //
+        // Apply the caller-supplied `env_vars` (validated first), then — only on
+        // the pin→inherit transition — strip the record effort env aliases. The
+        // order is load-bearing: stripping AFTER the env replacement is what
+        // stops a same-request `env_vars` map from reintroducing a stale effort
+        // alias while the instance inherits its harness. The column was already
+        // cleared inside `apply_agent_command_update`. See
+        // `apply_env_vars_then_effort_transition` for the pinned invariant.
+        if let Some(ref env_vars) = input.env_vars {
+            crate::managed_agents::validate_user_env_keys(env_vars)?;
         }
 
         // Native provider/model fields are authoritative. Keep the typed marker
@@ -211,7 +253,11 @@ pub async fn update_managed_agent(
             record.respond_to_allowlist = prospective_allowlist;
         }
 
-        record.updated_at = now_iso();
+        // Save the complete draft before any access-policy restart snapshots it.
+        let applied =
+            apply_record_field_updates(record, input.env_vars.as_ref(), inherit_transition)?;
+
+        stamp_record_updated_at(record, applied);
 
         save_managed_agents(&app, &records)?;
 
@@ -244,8 +290,16 @@ pub async fn update_managed_agent(
                 .avatar_url
                 .clone()
                 .or_else(|| managed_agent_avatar_url(&effective_command));
+            let about = crate::managed_agents::record_effective_description(record, &personas);
             let auth_tag = record.auth_tag.clone();
-            Some((agent_keys, relay_url, display_name, avatar_url, auth_tag))
+            Some((
+                agent_keys,
+                relay_url,
+                display_name,
+                avatar_url,
+                about,
+                auth_tag,
+            ))
         } else {
             None
         };
@@ -291,13 +345,14 @@ pub async fn update_managed_agent(
     // A rename is committed only when profile sync succeeds; otherwise restore
     // the complete pre-edit record so Desktop and the relay keep one
     // authoritative name.
-    if let Some((agent_keys, relay_url, display_name, avatar_url, auth_tag)) = sync_params {
+    if let Some((agent_keys, relay_url, display_name, avatar_url, about, auth_tag)) = sync_params {
         if let Err(sync_error) = sync_managed_agent_profile(
             &state,
             &relay_url,
             &agent_keys,
             &display_name,
             avatar_url.as_deref(),
+            about.as_deref(),
             auth_tag.as_deref(),
         )
         .await
@@ -356,5 +411,6 @@ pub async fn update_managed_agent(
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 #[path = "agent_models_update_tests.rs"]
 mod tests;

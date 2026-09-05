@@ -462,28 +462,20 @@ fn model_discovery_ignores_stale_record_for_linked_agent() {
     )
     .expect("sample managed agent record");
 
-    let persona = crate::managed_agents::AgentDefinition {
-        id: "persona-1".to_string(),
-        display_name: "Persona".to_string(),
-        avatar_url: None,
-        system_prompt: "You are a persona.".to_string(),
-        runtime: Some("goose".to_string()),
-        model: Some("persona-model".to_string()),
-        provider: Some("anthropic".to_string()),
-        name_pool: Vec::new(),
-        is_builtin: false,
-        is_active: true,
-        shared: false,
-        source_team: None,
-        source_team_persona_slug: None,
-        catalog_source: None,
-        env_vars: BTreeMap::new(),
-        respond_to: None,
-        respond_to_allowlist: Vec::new(),
-        parallelism: None,
-        created_at: "".to_string(),
-        updated_at: "".to_string(),
-    };
+    let persona: crate::managed_agents::AgentDefinition = serde_json::from_str(
+        r#"{
+            "id": "persona-1",
+            "display_name": "Persona",
+            "system_prompt": "You are a persona.",
+            "runtime": "goose",
+            "model": "persona-model",
+            "provider": "anthropic",
+            "is_active": true,
+            "created_at": "",
+            "updated_at": ""
+        }"#,
+    )
+    .expect("sample persona");
 
     // agent_model_discovery_config is the single helper get_agent_models
     // consumes — the stale record bytes must lose to the persona's current
@@ -510,11 +502,46 @@ fn model_discovery_ignores_stale_record_for_linked_agent() {
 
 // ---------------------------------------------------------------------------
 // Databricks provider detection
-// ---------------------------------------------------------------------------
-//
+
+#[test]
+fn merged_filter_value_overrides_inherited_process_value_even_when_blank() {
+    let env = BTreeMap::from([("DATABRICKS_MODEL_FILTER".to_string(), "   ".to_string())]);
+    assert_eq!(
+        env_value_or_process_if_absent(&env, "DATABRICKS_MODEL_FILTER"),
+        Some(String::new())
+    );
+}
+
+#[test]
+fn absent_filter_value_uses_process_value_when_available() {
+    const TEST_FILTER_ENV: &str = "MAJU_TEST_DATABRICKS_MODEL_FILTER";
+    let original = std::env::var(TEST_FILTER_ENV).ok();
+    std::env::set_var(TEST_FILTER_ENV, "process-*");
+    let value = env_value_or_process_if_absent(&BTreeMap::new(), TEST_FILTER_ENV);
+    match original {
+        Some(value) => std::env::set_var(TEST_FILTER_ENV, value),
+        None => std::env::remove_var(TEST_FILTER_ENV),
+    }
+    assert_eq!(value.as_deref(), Some("process-*"));
+}
+
+#[test]
+fn databricks_filtered_empty_response_is_authoritative() {
+    let filter = maju_agent_pkg::config::DatabricksModelFilter::parse(Some("allowed-*")).unwrap();
+    let response = databricks_models_response(
+        "databricks_v2",
+        Vec::new(),
+        Some("configured".into()),
+        filter.as_ref(),
+    )
+    .expect("active filter permits an empty authoritative catalog");
+    assert!(response.models.is_empty());
+    assert!(!response.supports_switching);
+    assert_eq!(response.selected_model.as_deref(), Some("configured"));
+}
+
 // Parse/filter/pagination tests live in crates/maju-agent/src/catalog.rs
 // (they moved there with the Option C refactor).
-
 // ---------------------------------------------------------------------------
 // Dead-knob guards: mcp_command and turn_timeout_seconds
 // ---------------------------------------------------------------------------
@@ -810,189 +837,5 @@ fn openrouter_filter_preserves_selected_model() {
     assert_eq!(result.selected_model.as_deref(), Some("openai/gpt-5.5-pro"));
 }
 
-#[test]
-fn openrouter_credential_redaction_env_records_key() {
-    let env = BTreeMap::from([(
-        "OPENROUTER_API_KEY".to_string(),
-        "sk-or-v1-secret-key-12345".to_string(),
-    )]);
-    let redaction =
-        redaction_env_with_value(&env, "OPENROUTER_API_KEY", "sk-or-v1-secret-key-12345");
-    assert_eq!(
-        redaction.get("OPENROUTER_API_KEY").map(String::as_str),
-        Some("sk-or-v1-secret-key-12345"),
-        "redaction env must record the API key for error body redaction"
-    );
-}
-
-#[test]
-fn openrouter_saved_agent_model_discovery_resolves_provider() {
-    let record: crate::managed_agents::ManagedAgentRecord = serde_json::from_str(
-        r#"{
-            "pubkey": "abcd1234",
-            "name": "test-agent",
-            "private_key_nsec": "nsec1fake",
-            "relay_url": "wss://localhost:3000",
-            "acp_command": "maju-acp",
-            "agent_command": "maju-agent",
-            "agent_command_override": "maju-agent",
-            "agent_args": [],
-            "mcp_command": "",
-            "turn_timeout_seconds": 320,
-            "system_prompt": null,
-            "model": "anthropic/claude-sonnet-4",
-            "provider": "openrouter",
-            "env_vars": {
-                "OPENROUTER_API_KEY": "sk-or-test-key",
-                "MAJU_PRIVATE_KEY": "must-not-leak"
-            },
-            "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z",
-            "last_started_at": null,
-            "last_stopped_at": null,
-            "last_exit_code": null,
-            "last_error": null
-        }"#,
-    )
-    .expect("sample openrouter managed agent record");
-
-    let discovery = agent_model_discovery_config(
-        &record,
-        &[],
-        &crate::managed_agents::GlobalAgentConfig::default(),
-    )
-    .expect("discovery config should resolve for an openrouter record");
-    assert_eq!(discovery.provider.as_deref(), Some("openrouter"));
-    assert_eq!(
-        discovery.model.as_deref(),
-        Some("anthropic/claude-sonnet-4")
-    );
-    assert_eq!(
-        discovery.env.get("OPENROUTER_API_KEY").map(String::as_str),
-        Some("sk-or-test-key")
-    );
-    assert!(!discovery.env.contains_key("MAJU_PRIVATE_KEY"));
-}
-
-/// B5/T4: unsaved-agent ("draft") discovery mirrors the saved-agent path —
-/// `draft_agent_model_discovery_env` must derive the provider env var from
-/// form input the same way `agent_model_discovery_config` derives it from a
-/// persisted record's harness descriptor, and preserve caller-supplied env
-/// (including the OpenRouter API key) unmodified.
-#[test]
-fn openrouter_draft_agent_model_discovery_derives_provider_env() {
-    let env_vars = BTreeMap::from([(
-        "OPENROUTER_API_KEY".to_string(),
-        "sk-or-draft-key".to_string(),
-    )]);
-
-    let merged = draft_agent_model_discovery_env(
-        "maju-agent",
-        Some("openrouter"),
-        &BTreeMap::new(),
-        &env_vars,
-    );
-
-    assert_eq!(
-        merged.get("MAJU_AGENT_PROVIDER").map(String::as_str),
-        Some("openrouter"),
-        "provider env var must be derived from form input for a known ACP runtime"
-    );
-    assert_eq!(
-        merged.get("OPENROUTER_API_KEY").map(String::as_str),
-        Some("sk-or-draft-key"),
-        "caller-supplied env vars must survive the merge"
-    );
-}
-
-#[test]
-fn draft_agent_model_discovery_env_omits_provider_when_absent() {
-    let merged =
-        draft_agent_model_discovery_env("maju-agent", None, &BTreeMap::new(), &BTreeMap::new());
-    assert!(
-        !merged.contains_key("MAJU_AGENT_PROVIDER"),
-        "no provider must be derived when the caller supplies none"
-    );
-}
-
-/// The three-tier precedence this merge exists to preserve: main's inline
-/// `derived → definition_env → env_vars` layering was folded into
-/// `draft_agent_model_discovery_env`, so pin the order at every collision
-/// boundary rather than trusting the two single-tier tests above.
-///
-/// `SHARED` collides across all three tiers, so the user value proves the
-/// full chain; the pairwise keys prove each adjacent boundary independently
-/// (a merge that dropped only the middle tier would still satisfy `SHARED`).
-/// `MAJU_PRIVATE_KEY` proves a reserved key cannot ride in on a harness
-/// definition, which is the tier a user never types.
-#[test]
-fn draft_agent_model_discovery_env_layers_all_three_tiers_in_order() {
-    // Tier 2 (middle): harness definition env — overlays the runtime-derived
-    // floor, loses to user env.
-    let definition_env = BTreeMap::from([
-        ("SHARED".to_string(), "from-definition".to_string()),
-        // Collides with tier 1: `maju-agent`'s own provider env var, which the
-        // `provider` argument derives below.
-        ("MAJU_AGENT_PROVIDER".to_string(), "openai".to_string()),
-        ("USER_OVER_DEF".to_string(), "from-definition".to_string()),
-        ("DEFINITION_ONLY".to_string(), "from-definition".to_string()),
-        // Reserved: must never reach the child, even from a definition.
-        ("MAJU_PRIVATE_KEY".to_string(), "must-not-leak".to_string()),
-    ]);
-    // Tier 3 (top): user-entered env — wins over everything.
-    let env_vars = BTreeMap::from([
-        ("SHARED".to_string(), "from-user".to_string()),
-        ("USER_OVER_DEF".to_string(), "from-user".to_string()),
-        ("USER_ONLY".to_string(), "from-user".to_string()),
-    ]);
-
-    // Tier 1 (floor): `Some("openrouter")` derives MAJU_AGENT_PROVIDER.
-    let merged = draft_agent_model_discovery_env(
-        "maju-agent",
-        Some("openrouter"),
-        &definition_env,
-        &env_vars,
-    );
-
-    let expected: &[(&str, Option<&str>)] = &[
-        // Collides in all three tiers — the top tier wins.
-        ("SHARED", Some("from-user")),
-        // Tier 2 over tier 1: the definition's value survives, proving the
-        // derived provider is the floor and not layered on top.
-        ("MAJU_AGENT_PROVIDER", Some("openai")),
-        // Tier 3 over tier 2.
-        ("USER_OVER_DEF", Some("from-user")),
-        // Single-tier keys pass through untouched.
-        ("DEFINITION_ONLY", Some("from-definition")),
-        ("USER_ONLY", Some("from-user")),
-        // Reserved keys never survive the definition tier. Doubly enforced —
-        // the explicit `is_reserved_env_key` filter here and `merged_user_env`'s
-        // own `retain` — so this pins the contract, not either mechanism.
-        ("MAJU_PRIVATE_KEY", None),
-    ];
-    for (key, want) in expected {
-        assert_eq!(
-            merged.get(*key).map(String::as_str),
-            *want,
-            "env key `{key}` must resolve to {want:?} after three-tier layering"
-        );
-    }
-}
-
-#[test]
-fn databricks_static_token_error_redacts_echoed_token() {
-    let token = "secret-databricks-token";
-    let redaction_env = BTreeMap::from([("DATABRICKS_TOKEN".to_string(), token.to_string())]);
-
-    let error = databricks_static_token_error(
-        &format!("Databricks rejected bearer {token}"),
-        &redaction_env,
-    );
-
-    assert!(error.contains("[REDACTED]"), "got: {error}");
-    assert!(!error.contains(token), "token leaked in error: {error}");
-    assert!(
-        error.contains("update it in agent settings"),
-        "error lost its remediation: {error}"
-    );
-}
+#[path = "agent_models_tests/provider_discovery.rs"]
+mod provider_discovery;

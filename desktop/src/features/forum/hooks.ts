@@ -3,31 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getForumPosts, getForumThread } from "@/shared/api/forum";
 import { useFocusedRefetchInterval } from "@/shared/lib/useDocumentVisible";
 import { useRelaySelfQuery } from "@/features/moderation/hooks";
-import { fetchStructuralAuxForMessages } from "@/features/messages/lib/auxBackfill";
-import { applyForumStructuralEvents } from "@/features/forum/lib/applyForumStructuralEvents";
+import { deleteMessage, sendChannelMessage } from "@/shared/api/tauri";
 import type {
-  ForumPostsWithEditsResponse,
-  ForumThreadWithEditsResponse,
-} from "@/features/forum/lib/applyForumStructuralEvents";
-import {
-  deleteMessage,
-  editMessage,
-  sendChannelMessage,
-} from "@/shared/api/tauri";
-import type { Channel } from "@/shared/api/types";
+  Channel,
+  ForumPostsResponse,
+  ForumThreadResponse,
+} from "@/shared/api/types";
 import { KIND_FORUM_COMMENT, KIND_FORUM_POST } from "@/shared/constants/kinds";
-
-async function fetchForumStructuralEvents(
-  channelId: string,
-  eventIds: string[],
-) {
-  try {
-    return await fetchStructuralAuxForMessages(channelId, eventIds);
-  } catch (error) {
-    console.error("Failed to load forum edits", channelId, error);
-    return [];
-  }
-}
 
 /** Keeps focused polling for forum posts at the established 15-second cadence. */
 export const FORUM_POSTS_REFETCH_INTERVAL_MS = 15_000;
@@ -42,6 +24,7 @@ export const forumFocusRefetchPolicy = {
   staleTime: FORUM_FOCUS_STALE_TIME_MS,
   refetchOnWindowFocus: false,
 } as const;
+
 export function forumPostsQueryKey(channelId: string) {
   return ["forum-posts", channelId] as const;
 }
@@ -59,25 +42,10 @@ export function useForumPostsQuery(channel: Channel | null) {
   const enabled = channel !== null && channel.channelType === "forum";
   const relaySelfPubkey = useRelaySelfQuery(enabled).data;
 
-  return useQuery<ForumPostsWithEditsResponse>({
+  return useQuery<ForumPostsResponse>({
     enabled,
     queryKey: [...forumPostsQueryKey(channelId), relaySelfPubkey ?? null],
-    queryFn: async () => {
-      const response = await getForumPosts(
-        channelId,
-        50,
-        undefined,
-        relaySelfPubkey,
-      );
-      const structuralEvents = await fetchForumStructuralEvents(
-        channelId,
-        response.posts.map((post) => post.eventId),
-      );
-      return {
-        ...response,
-        posts: applyForumStructuralEvents(response.posts, structuralEvents),
-      };
-    },
+    queryFn: () => getForumPosts(channelId, 50, undefined, relaySelfPubkey),
     refetchInterval,
     ...forumFocusRefetchPolicy,
   });
@@ -94,73 +62,22 @@ export function useForumThreadQuery(
   const enabled = channelId !== null && eventId !== null;
   const relaySelfPubkey = useRelaySelfQuery(enabled).data;
 
-  return useQuery<ForumThreadWithEditsResponse>({
+  return useQuery<ForumThreadResponse>({
     enabled,
     queryKey: [
       ...forumThreadQueryKey(channelId ?? "", eventId ?? ""),
       relaySelfPubkey ?? null,
     ],
-    queryFn: async () => {
-      const response = await getForumThread(
+    queryFn: () =>
+      getForumThread(
         channelId ?? "",
         eventId ?? "",
         undefined,
         undefined,
         relaySelfPubkey,
-      );
-      const structuralEvents = await fetchForumStructuralEvents(
-        channelId ?? "",
-        [
-          response.post.eventId,
-          ...response.replies.map((reply) => reply.eventId),
-        ],
-      );
-      const post = applyForumStructuralEvents(
-        [response.post],
-        structuralEvents,
-      )[0];
-      return {
-        ...response,
-        post: post ?? response.post,
-        replies: applyForumStructuralEvents(response.replies, structuralEvents),
-      };
-    },
+      ),
     refetchInterval,
     ...forumFocusRefetchPolicy,
-  });
-}
-
-export function useEditForumContentMutation(channel: Channel | null) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      eventId,
-      content,
-      tags,
-    }: {
-      eventId: string;
-      content: string;
-      tags: string[][];
-    }) => {
-      if (!channel) throw new Error("No channel selected.");
-      await editMessage(
-        channel.id,
-        eventId,
-        content,
-        tags.filter((tag) => tag[0] === "imeta"),
-        tags.filter((tag) => tag[0] === "emoji"),
-      );
-    },
-    onSuccess: () => {
-      if (!channel) return;
-      void queryClient.invalidateQueries({
-        queryKey: forumPostsQueryKey(channel.id),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["forum-thread", channel.id],
-      });
-    },
   });
 }
 
@@ -204,17 +121,11 @@ export function useDeleteForumPostMutation(channel: Channel | null) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      eventId,
-      moderatorDelete = false,
-    }: {
-      eventId: string;
-      moderatorDelete?: boolean;
-    }) => {
+    mutationFn: async ({ eventId }: { eventId: string }) => {
       if (!channel) {
         throw new Error("No channel selected.");
       }
-      await deleteMessage(channel.id, eventId, moderatorDelete);
+      await deleteMessage(channel.id, eventId);
     },
     onSuccess: () => {
       if (channel) {
@@ -233,17 +144,11 @@ export function useDeleteForumReplyMutation(
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      eventId,
-      moderatorDelete = false,
-    }: {
-      eventId: string;
-      moderatorDelete?: boolean;
-    }) => {
+    mutationFn: async ({ eventId }: { eventId: string }) => {
       if (!channel) {
         throw new Error("No channel selected.");
       }
-      await deleteMessage(channel.id, eventId, moderatorDelete);
+      await deleteMessage(channel.id, eventId);
     },
     onSuccess: () => {
       if (channel) {

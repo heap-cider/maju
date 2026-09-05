@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Uninstalls stale worktree-suffixed Maju debug builds from booted iOS
-# simulators and connected Android devices/emulators. Production installs
-# (com.maju.majuMobile / xyz.block.maju.mobile, no suffix) are never touched:
-# only identifiers with a worktree suffix appended after the production id
-# are matched. Run `just mobile-clean` (or this script directly); pass
-# --dry-run to list what would be removed without uninstalling.
+# simulators and connected Android devices/emulators. Unsuffixed app installs
+# (`xyz.block.maju.dogfood.mobile` and `xyz.block.maju.mobile`) are never
+# touched. Only identifiers with a worktree suffix appended after the dogfood
+# or production id are matched. Run `just mobile-clean` (or this script
+# directly); pass --dry-run to list what would be removed without uninstalling.
 set -euo pipefail
 
-ios_prefix="com.maju.majuMobile."
+ios_prefix="xyz.block.maju.dogfood.mobile."
 android_prefix="xyz.block.maju.mobile."
 
 dry_run=0

@@ -11,8 +11,6 @@
 use maju_core_pkg::kind::{KIND_IA_ARCHIVE_REQUEST, KIND_IA_UNARCHIVE_REQUEST};
 use nostr::{EventBuilder, EventId, Kind, Tag};
 use uuid::Uuid;
-mod moderation;
-pub use moderation::{build_delete_compat, build_moderation_delete};
 
 mod message_tags;
 
@@ -381,6 +379,19 @@ pub fn build_message_edit(
         tags.push(tag(vec!["link-preview", "none"])?);
     }
     Ok(EventBuilder::new(Kind::Custom(40003), content).tags(tags))
+}
+
+/// Kind 5 — NIP-09 deletion. The `h` tag is non-standard for NIP-09 but is
+/// required so channel-scoped subscriptions observe the delete.
+pub fn build_delete_compat(
+    channel_id: Uuid,
+    target_event_id: EventId,
+) -> Result<EventBuilder, String> {
+    let tags = vec![
+        tag(vec!["h", &channel_id.to_string()])?,
+        tag(vec!["e", &target_event_id.to_hex()])?,
+    ];
+    Ok(EventBuilder::new(Kind::Custom(5), "").tags(tags))
 }
 
 // ── Reactions ────────────────────────────────────────────────────────────────

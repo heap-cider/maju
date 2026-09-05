@@ -58,12 +58,8 @@ async function openMoreActionsMenu(
   });
 }
 
-test.beforeEach(async ({ page }, testInfo) => {
+test.beforeEach(async ({ page }) => {
   await installMockBridge(page, {
-    relayRequiresMembership: true,
-    relayRole: testInfo.title.startsWith("community owner")
-      ? "owner"
-      : "member",
     managedAgents: [
       {
         // OwnedBot: a managed agent owned by the mock identity.
@@ -173,49 +169,6 @@ test("owner does NOT see Edit or Delete for an unowned agent's message", async (
   await expect(
     page.getByTestId(`delete-message-${charlieMessageId}`),
   ).toHaveCount(0);
-});
-
-test("community owner cannot edit but can delete an unowned agent message", async ({
-  page,
-}) => {
-  const messageId = "mock-agents-charlie";
-
-  await page.goto("/");
-  await page.getByTestId("channel-agents").click();
-  const row = page.locator(`[data-message-id="${messageId}"]`);
-  await expect(row).toBeVisible({ timeout: 10_000 });
-
-  await openMoreActionsMenu(page, messageId);
-  await expect(page.getByTestId(`edit-message-${messageId}`)).toHaveCount(0);
-  await page.getByTestId(`moderate-delete-message-${messageId}`).click();
-
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible({ timeout: 5_000 });
-  await dialog.getByRole("button", { name: "Delete" }).click();
-  await expect(row).toBeHidden({ timeout: 5_000 });
-});
-
-test("community owner cannot edit but can delete an unowned forum post", async ({
-  page,
-}) => {
-  const postId = "mock-forum-release-thread";
-
-  await page.goto("/");
-  await page.getByTestId("channel-watercooler").click();
-  await expect(page.getByTestId("chat-title")).toHaveText("watercooler");
-
-  const post = page.locator(`[data-forum-event-id="${postId}"]`);
-  await expect(post).toBeVisible({ timeout: 10_000 });
-  await post.hover();
-  await post.getByTestId("forum-actions-post").click();
-
-  await expect(page.getByTestId("edit-forum-post")).toHaveCount(0);
-  await page.getByRole("menuitem", { name: "Delete post" }).click();
-
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible({ timeout: 5_000 });
-  await dialog.getByRole("button", { name: "Delete post" }).click();
-  await expect(post).toBeHidden({ timeout: 5_000 });
 });
 
 // ─── Thread-panel gate ────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 //! Unit tests for `commands/agent_config.rs` (split to keep `agent_config.rs`
-//! under the 1000-line file-size ratchet).
+//! under the 1500-line file-size ratchet).
 //!
 //! Included via `#[path = "agent_config_tests.rs"] mod tests;` at the bottom of
 //! `agent_config.rs`, so `use super::*` gives access to all items in that module.
@@ -47,7 +47,7 @@ fn with_no_goose_config<T>(body: impl FnOnce() -> T) -> T {
 }
 
 fn goose_runtime() -> &'static KnownAcpRuntime {
-    &KnownAcpRuntime {
+    static RUNTIME: KnownAcpRuntime = KnownAcpRuntime {
         id: "goose",
         label: "Goose",
         commands: &["goose"],
@@ -73,17 +73,21 @@ fn goose_runtime() -> &'static KnownAcpRuntime {
         config_file_format: Some("yaml"),
         supports_acp_native_config: true,
         thinking_env_var: Some("GOOSE_THINKING_EFFORT"),
+        effort_normalization: Some(&crate::managed_agents::GOOSE_EFFORT_NORMALIZATION),
+        effort_accepted_values: None,
         max_tokens_env_var: Some("GOOSE_MAX_TOKENS"),
         context_limit_env_var: Some("GOOSE_CONTEXT_LIMIT"),
         max_rounds_env_var: None,
         required_normalized_fields: &["model", "provider"],
         login_hint: None,
         auth_probe_args: None,
-    }
+    };
+    &RUNTIME
 }
 
 fn agent_record() -> ManagedAgentRecord {
     ManagedAgentRecord {
+        description: None,
         pubkey: "agent".to_string(),
         name: "Agent".to_string(),
         persona_id: Some("persona-1".to_string()),
@@ -131,6 +135,7 @@ fn agent_record() -> ManagedAgentRecord {
         source_team: None,
         source_team_persona_slug: None,
         catalog_source: None,
+        team_catalog_source: None,
         definition_respond_to: None,
         definition_respond_to_allowlist: Vec::new(),
         definition_parallelism: None,
@@ -143,6 +148,7 @@ fn agent_record() -> ManagedAgentRecord {
 
 fn persona_with_model(model: &str) -> AgentDefinition {
     AgentDefinition {
+        description: None,
         id: "persona-1".to_string(),
         display_name: "Persona".to_string(),
         avatar_url: None,
@@ -157,6 +163,7 @@ fn persona_with_model(model: &str) -> AgentDefinition {
         source_team: None,
         source_team_persona_slug: None,
         catalog_source: None,
+        team_catalog_source: None,
         env_vars: Default::default(),
         respond_to: None,
         respond_to_allowlist: Vec::new(),

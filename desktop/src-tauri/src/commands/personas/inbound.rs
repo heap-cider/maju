@@ -16,6 +16,11 @@ use crate::{
 
 #[cfg(test)]
 mod inbound_tests;
+// Gated off Windows: the F1 seam test builds a real `AppState` via
+// `build_app_state()`, which pulls native DLLs unavailable on the Windows CI
+// runner (same constraint as `persona_events::tests::flush_barrier`).
+#[cfg(all(test, not(target_os = "windows")))]
+mod catalog_reconcile_tests;
 
 #[derive(Debug)]
 enum InboundRuntimeRefresh {
@@ -126,6 +131,7 @@ pub async fn reconcile_inbound_persona_event(
                 cached_binary_path.as_deref(),
                 None,
                 None,
+                None,
             )
             .await
             .map_err(|error| {
@@ -139,10 +145,10 @@ pub async fn reconcile_inbound_persona_event(
     Ok(())
 }
 
-fn reconcile_inbound_persona_event_blocking(
+fn reconcile_inbound_persona_event_blocking<R: tauri::Runtime>(
     event_json: String,
     arrival_relay_url: String,
-    app: AppHandle,
+    app: AppHandle<R>,
 ) -> Result<Option<InboundRuntimeRefresh>, String> {
     use crate::managed_agents::{
         agent_events::managed_agent_content_from_event,
@@ -150,22 +156,24 @@ fn reconcile_inbound_persona_event_blocking(
         load_teams,
         persona_events::persona_from_event,
         retention::{
-            inbound_event_outcome, open_retention_db, retain_inbound_event, InboundOutcome,
-            RetainedEvent,
+            commit_inbound_with_store, inbound_event_outcome, open_retention_db,
+            retain_inbound_event, InboundOutcome, RetainedEvent,
         },
         save_managed_agents, save_teams,
         team_events::team_content_from_event,
     };
-    use maju_core_pkg::kind::{KIND_DELETION, KIND_MANAGED_AGENT, KIND_PERSONA, KIND_TEAM};
+    use maju_core_pkg::kind::{
+        KIND_DELETION, KIND_MANAGED_AGENT, KIND_PERSONA, KIND_TEAM, KIND_TEAM_CATALOG,
+    };
     use nostr::JsonUtil;
 
     let state = app.state::<AppState>();
     let event = parse_verified_inbound_event(&event_json)?;
 
-    // The live filter subscribes to 30175/30176/30177 (upserts) plus kind:5
-    // (NIP-09 deletions). d-tags are NOT unique across kinds, so every path
-    // below dispatches on kind FIRST and only ever touches its own store — a
-    // cross-kind d-tag collision can never link a team to a persona or agent.
+    // The live filter subscribes to 30175/30176/30177/30178 (upserts) plus
+    // kind:5 (NIP-09 deletions). d-tags are NOT unique across kinds, so every
+    // path below dispatches on kind FIRST and only ever touches its own store —
+    // a cross-kind d-tag collision can never link a team to a persona or agent.
     let kind = event.kind.as_u16() as u32;
 
     // kind:5 deletion: a tombstone removes the local record at the coordinate
@@ -176,7 +184,14 @@ fn reconcile_inbound_persona_event_blocking(
         return Ok(None);
     }
 
-    if !matches!(kind, KIND_PERSONA | KIND_TEAM | KIND_MANAGED_AGENT) {
+    // Non-deletion upserts (30175/76/77) and the owner's own 30178 catalog head
+    // share one scope + connection resolved below. A 30178 head carries no
+    // local record, so it routes to witness retention through the shared
+    // dispatcher; the store-bearing kinds fall through to their spine.
+    if !matches!(
+        kind,
+        KIND_PERSONA | KIND_TEAM | KIND_MANAGED_AGENT | KIND_TEAM_CATALOG
+    ) {
         return Ok(None);
     }
 
@@ -250,45 +265,95 @@ fn reconcile_inbound_persona_event_blocking(
         raw_event: event.as_json(),
         pending_sync: false,
     };
-    // Managed-agent access changes can fail while stopping a runtime. Preflight
-    // the retention decision now, but do not advance the durable head until the
-    // local store has been saved; otherwise replay sees the failed revocation as
-    // already consumed and can never retry it. Persona/team paths retain first
-    // as before because they have no fallible runtime transition.
-    if kind == KIND_MANAGED_AGENT
-        && inbound_event_outcome(&conn, &inbound_retained_event)? == InboundOutcome::Skipped
-    {
-        return Ok(None);
-    }
-    if kind != KIND_MANAGED_AGENT
-        && retain_inbound_event(&conn, &inbound_retained_event)? == InboundOutcome::Skipped
-    {
+    // kind:30178 catalog head: retain the owner's own publication witness and
+    // stop. Retention-only — no local JSON store, no refresh, and no publish
+    // (two devices would otherwise ping-pong identical heads). This is the
+    // SINGLE production routing decision for a catalog arrival, resolved on the
+    // shared arrival scope + connection above. `catalog_reconcile_tests.rs`
+    // drives this decision through the real entrypoint, so removing this
+    // invocation turns that regression RED.
+    if retain_inbound_catalog_witness(&conn, &inbound_retained_event)? {
         return Ok(None);
     }
 
+    // Advance the durable retention head only AFTER the fallible local-store
+    // save succeeds (`commit_inbound_with_store`). If the head advanced first
+    // and the save then failed, replay of the identical relay event would read
+    // the head as already consumed (equal `created_at` reads as stale,
+    // `retention.rs`) and the projection would be lost forever. The
+    // managed-agent arm keeps its own preflight so a runtime transition is
+    // never attempted for a skipped event.
     let mut runtime_refresh = None;
     match kind {
         KIND_PERSONA => {
-            let mut personas = load_personas(&app)?;
-            // `inbound_persona` is `Some` for KIND_PERSONA (set above).
-            apply_inbound_persona(
-                &mut personas,
-                inbound_persona.expect("persona parsed above"),
-            );
-            save_personas(&app, &personas)?;
+            let outcome = commit_inbound_with_store(&conn, &inbound_retained_event, || {
+                let mut personas = load_personas(&app)?;
+                // `inbound_persona` is `Some` for KIND_PERSONA (set above).
+                apply_inbound_persona(
+                    &mut personas,
+                    inbound_persona.expect("persona parsed above"),
+                );
+                save_personas(&app, &personas)
+            })?;
+            if outcome == InboundOutcome::Skipped {
+                return Ok(None);
+            }
+            // A persona edit changes every shared catalog head it is a member
+            // of. Refresh those heads on THIS device so the projection tracks
+            // the inbound edit — matching the local `update_persona` path.
+            // Idempotent: the refresh skips a republish when the rebuilt head
+            // is byte-identical to the retained one, so the editing device's
+            // own published head does not trigger a churn republish here. The
+            // team-membership match keys off the local persona `id`, so resolve
+            // it from the just-saved store by d-tag.
+            let personas = load_personas(&app)?;
+            if let Some(persona_id) = personas
+                .iter()
+                .find(|record| persona_d_tag(record) == d_tag)
+                .map(|record| record.id.clone())
+            {
+                drop(personas);
+                super::super::teams::refresh_team_catalog_heads_for_persona(
+                    &app,
+                    &state,
+                    &persona_id,
+                );
+            }
         }
         KIND_TEAM => {
-            let mut teams = load_teams(&app)?;
-            commit_inbound_team(
-                &mut teams,
-                d_tag,
-                team_content_from_event(&event)?,
-                |teams| save_teams(&app, teams),
-                || load_managed_agents(&app),
-                |records| save_managed_agents(&app, records),
-            )?;
+            let team_id = d_tag.clone();
+            let outcome = commit_inbound_with_store(&conn, &inbound_retained_event, || {
+                let mut teams = load_teams(&app)?;
+                commit_inbound_team(
+                    &mut teams,
+                    d_tag,
+                    team_content_from_event(&event)?,
+                    |teams| save_teams(&app, teams),
+                    || load_managed_agents(&app),
+                    |records| save_managed_agents(&app, records),
+                )
+            })?;
+            if outcome == InboundOutcome::Skipped {
+                return Ok(None);
+            }
+            // A team edit changes its shared catalog projection. Refresh (or
+            // retract, if a member is now missing) THIS device's retained head
+            // so the community catalog tracks the inbound edit. Idempotent — a
+            // rebuild byte-identical to the retained head does not republish,
+            // so the editing device's own published head causes no churn.
+            let teams = load_teams(&app)?;
+            let personas = load_personas(&app)?;
+            if let Some(team) = teams.iter().find(|record| record.id == team_id) {
+                super::super::teams::refresh_team_catalog_head(&app, &state, team, &personas);
+            }
         }
         KIND_MANAGED_AGENT => {
+            // Preflight before the runtime transition: a skipped event must not
+            // stop a running agent. The durable head is still advanced only
+            // after `save_managed_agents` below.
+            if inbound_event_outcome(&conn, &inbound_retained_event)? == InboundOutcome::Skipped {
+                return Ok(None);
+            }
             let mut agents = load_managed_agents(&app)?;
             let was_known = agents.iter().any(|record| record.pubkey == d_tag);
             let inbound = inbound_managed_agent.ok_or_else(|| {
@@ -368,7 +433,6 @@ fn reconcile_inbound_persona_event_blocking(
             save_managed_agents(&app, &agents)?;
             for pubkey in discarded {
                 super::super::agents::tombstone_managed_agent_pending(&app, &state, &pubkey);
-                super::super::agents::archive_managed_agent_pending(&app, &state, &pubkey, None);
             }
             let outcome = retain_inbound_event(&conn, &inbound_retained_event)?;
             debug_assert_ne!(outcome, InboundOutcome::Skipped);
@@ -384,6 +448,47 @@ fn reconcile_inbound_persona_event_blocking(
     Ok(runtime_refresh)
 }
 
+/// Retain an inbound kind:30178 catalog head as this device's publication
+/// witness — retention-only, never a local store write or a republish. Returns
+/// `true` when the event was a catalog head this fn handled (so the caller
+/// stops), `false` for any other kind (the caller falls through to its spine).
+///
+/// This is the single production routing decision for a catalog arrival: the
+/// blocking reconcile calls it on the shared arrival connection, and the
+/// `pending/tests.rs` cross-device regressions drive the SAME fn — so disabling
+/// the retention here (the `KIND_TEAM_CATALOG` arm) turns those tests RED. A
+/// test that retained through `retain_inbound_event` directly could not witness
+/// a regression in this routing.
+///
+/// The owner's own catalog heads are the worklist for two recovery paths on a
+/// second device: the boot reconcile (`event_sync::reconcile_team_catalog_heads`)
+/// enumerates retained 30178 rows, and the interactive
+/// `refresh_or_retract_shared_head_at` guard-returns `Noop` without one. Device
+/// B therefore never retains Device A's publication and both paths stay blind,
+/// so B's later edit or delete cannot supersede A's discoverable head.
+///
+/// Deliberately NOT symmetric with the persona/team upsert spine:
+/// - No local JSON store — a 30178 head is a pure relay projection with no
+///   `TeamRecord`/`AgentDefinition` counterpart on disk.
+/// - No refresh or publish triggered by the arrival. A 30178 arrival is either
+///   this device's own echo or the other device's publication; rebuilding and
+///   republishing on either would make two devices ping-pong identical heads.
+///   Retention advances the witness and stops.
+///
+/// Newest-wins resolution matches the other inbound arms: `retain_inbound_event`
+/// skips an event no newer than the retained row.
+pub(crate) fn retain_inbound_catalog_witness(
+    conn: &rusqlite::Connection,
+    inbound: &crate::managed_agents::retention::RetainedEvent,
+) -> Result<bool, String> {
+    use maju_core_pkg::kind::KIND_TEAM_CATALOG;
+    if inbound.kind != KIND_TEAM_CATALOG {
+        return Ok(false);
+    }
+    crate::managed_agents::retention::retain_inbound_event(conn, inbound)?;
+    Ok(true)
+}
+
 fn validate_inbound_persona_definition(persona: &AgentDefinition) -> Result<(), String> {
     crate::managed_agents::validate_agent_definition_text(
         &persona.display_name,
@@ -391,7 +496,9 @@ fn validate_inbound_persona_definition(persona: &AgentDefinition) -> Result<(), 
     )
     .map_err(|error| format!("Inbound persona definition is unsafe: {error}"))?;
     crate::managed_agents::validate_user_env_keys(&persona.env_vars)
-        .map_err(|error| format!("Inbound persona ACP options are invalid: {error}"))
+        .map_err(|error| format!("Inbound persona ACP options are invalid: {error}"))?;
+    crate::managed_agents::validate_agent_description_text(persona.description.as_deref())
+        .map_err(|error| format!("Inbound persona definition is unsafe: {error}"))
 }
 
 fn validate_inbound_managed_agent_definition(
@@ -453,27 +560,32 @@ fn parse_deletion_coordinate(event: &nostr::Event) -> Option<(u32, String)> {
 /// store mutation — but removes rather than patches. Unknown/malformed
 /// coordinates no-op, as does a tombstone whose arrival community is no longer
 /// active.
-fn reconcile_inbound_tombstone(
+fn reconcile_inbound_tombstone<R: tauri::Runtime>(
     event: &nostr::Event,
     arrival_relay_url: &str,
-    app: &AppHandle,
+    app: &AppHandle<R>,
     state: &AppState,
 ) -> Result<(), String> {
     use crate::managed_agents::{
         load_managed_agents, load_teams,
         retention::{
-            open_retention_db, retain_inbound_event, tombstone_retention_d_tag, InboundOutcome,
-            RetainedEvent,
+            commit_inbound_tombstone_with_store, open_retention_db, tombstone_retention_d_tag,
+            InboundOutcome, RetainedEvent,
         },
         save_managed_agents, save_teams,
     };
-    use maju_core_pkg::kind::{KIND_DELETION, KIND_MANAGED_AGENT, KIND_PERSONA, KIND_TEAM};
+    use maju_core_pkg::kind::{
+        KIND_DELETION, KIND_MANAGED_AGENT, KIND_PERSONA, KIND_TEAM, KIND_TEAM_CATALOG,
+    };
     use nostr::JsonUtil;
 
     let Some((target_kind, target_d_tag)) = parse_deletion_coordinate(event) else {
         return Ok(()); // no routable coordinate — nothing to delete
     };
-    if !matches!(target_kind, KIND_PERSONA | KIND_TEAM | KIND_MANAGED_AGENT) {
+    if !matches!(
+        target_kind,
+        KIND_PERSONA | KIND_TEAM | KIND_MANAGED_AGENT | KIND_TEAM_CATALOG
+    ) {
         return Ok(()); // deletion for a kind we don't track locally
     }
 
@@ -493,42 +605,90 @@ fn reconcile_inbound_tombstone(
         return Ok(());
     };
     let conn = open_retention_db(&scope.db_path)?;
-    let outcome = retain_inbound_event(
+    let owner_hex = event.pubkey.to_hex();
+    let inbound_tombstone = RetainedEvent {
+        kind: KIND_DELETION,
+        pubkey: owner_hex.clone(),
+        d_tag: tombstone_retention_d_tag(target_kind, &target_d_tag),
+        content: event.content.to_string(),
+        created_at: event.created_at.as_secs() as i64,
+        raw_event: event.as_json(),
+        pending_sync: false,
+    };
+
+    // Teams reference a member by its local persona `id`, which differs from
+    // the d-tag for pack personas. Capture the id before the removal so the
+    // post-tombstone member-loss refresh can find the affected teams — after
+    // the closure runs, the persona is gone from the store.
+    let deleted_persona_id = (target_kind == KIND_PERSONA)
+        .then(|| load_personas(app))
+        .transpose()?
+        .and_then(|personas| {
+            personas
+                .iter()
+                .find(|record| persona_d_tag(record) == target_d_tag)
+                .map(|record| record.id.clone())
+        });
+
+    // Resolve the tombstone against BOTH its own kind:5 row AND the covered
+    // `(target_kind, owner, d_tag)` head, purging the head atomically with the
+    // tombstone commit only after the fallible JSON save — the relay's
+    // coordinate-deletion contract (see `commit_inbound_tombstone_with_store`).
+    // The removal uses the SAME per-kind match rule the apply fns use: persona
+    // by `persona_d_tag`, team by `id`, managed-agent by `pubkey`.
+    let outcome = commit_inbound_tombstone_with_store(
         &conn,
-        &RetainedEvent {
-            kind: KIND_DELETION,
-            pubkey: event.pubkey.to_hex(),
-            d_tag: tombstone_retention_d_tag(target_kind, &target_d_tag),
-            content: event.content.to_string(),
-            created_at: event.created_at.as_secs() as i64,
-            raw_event: event.as_json(),
-            pending_sync: false,
+        &inbound_tombstone,
+        target_kind,
+        &owner_hex,
+        &target_d_tag,
+        || match target_kind {
+            KIND_PERSONA => {
+                let mut personas = load_personas(app)?;
+                personas.retain(|record| persona_d_tag(record) != target_d_tag);
+                save_personas(app, &personas)
+            }
+            KIND_TEAM => {
+                let mut teams = load_teams(app)?;
+                teams.retain(|record| record.id != target_d_tag);
+                save_teams(app, &teams)
+            }
+            KIND_MANAGED_AGENT => {
+                let mut agents = load_managed_agents(app)?;
+                agents.retain(|record| record.pubkey != target_d_tag);
+                save_managed_agents(app, &agents)
+            }
+            // A 30178 catalog head has no local JSON record — it lives only in
+            // the retention store as this device's publication witness. The
+            // covered-head purge inside `commit_inbound_tombstone_with_store`
+            // removes the retained row; there is nothing else to delete.
+            KIND_TEAM_CATALOG => Ok(()),
+            _ => unreachable!("target kind gated above"),
         },
     )?;
     if outcome == InboundOutcome::Skipped {
         return Ok(());
     }
 
-    // Remove the local record using the SAME per-kind match rule the apply fns
-    // use: persona by `persona_d_tag`, team by `id`, managed-agent by `pubkey`.
+    // Converge the catalog after a tracked removal, matching the local delete
+    // paths. A team tombstone must also retract its separate 30178 catalog
+    // coordinate (the 30176 tombstone does not cover it). A persona tombstone
+    // triggers the member-loss → supersede-or-retract path on every team that
+    // listed it. A 30178 tombstone already purged the retained head above, so
+    // it needs no further catalog work. Best-effort — each helper logs and
+    // swallows so a retention hiccup never blocks the disk-authoritative delete.
     match target_kind {
-        KIND_PERSONA => {
-            let mut personas = load_personas(app)?;
-            personas.retain(|record| persona_d_tag(record) != target_d_tag);
-            save_personas(app, &personas)?;
-        }
         KIND_TEAM => {
-            let mut teams = load_teams(app)?;
-            teams.retain(|record| record.id != target_d_tag);
-            save_teams(app, &teams)?;
+            super::super::teams::tombstone_team_catalog_head(app, state, &target_d_tag);
         }
-        KIND_MANAGED_AGENT => {
-            let mut agents = load_managed_agents(app)?;
-            agents.retain(|record| record.pubkey != target_d_tag);
-            save_managed_agents(app, &agents)?;
+        KIND_PERSONA => {
+            if let Some(persona_id) = &deleted_persona_id {
+                super::super::teams::refresh_team_catalog_heads_for_persona(app, state, persona_id);
+            }
         }
-        _ => unreachable!("target kind gated above"),
+        _ => {}
     }
+
     try_regenerate_nest(app);
 
     // Refresh the live UI on inbound deletion — a removal is as user-visible as
@@ -582,6 +742,7 @@ fn apply_inbound_persona(personas: &mut Vec<AgentDefinition>, inbound: AgentDefi
             }
             local.display_name = inbound.display_name;
             local.avatar_url = inbound.avatar_url;
+            local.description = inbound.description;
             local.system_prompt = inbound.system_prompt;
             local.runtime = inbound.runtime;
             local.model = inbound.model;
@@ -718,6 +879,7 @@ fn apply_inbound_managed_agent(
         respond_to: inbound.respond_to,
         respond_to_allowlist: inbound.respond_to_allowlist,
         display_name: None,
+        description: None,
         slug: None,
         runtime: None,
         name_pool: Vec::new(),
@@ -727,6 +889,7 @@ fn apply_inbound_managed_agent(
         source_team: None,
         source_team_persona_slug: None,
         catalog_source: None,
+        team_catalog_source: None,
         definition_respond_to: None,
         definition_respond_to_allowlist: Vec::new(),
         definition_parallelism: None,
@@ -744,103 +907,8 @@ fn agent_owner_auth_tag(owner_keys: &nostr::Keys, agent_pubkey: &str) -> Result<
         .map_err(|e| format!("failed to compute NIP-OA auth tag: {e}"))
 }
 
-/// In-memory core of the inbound `KIND_TEAM` reconcile: capture the matched
-/// team's roster *before* applying the inbound projection, apply it, persist
-/// teams authoritatively, then propagate the prior→current membership delta to
-/// live instances best-effort — the same binding semantics the local
-/// create/update commands use. Without this, a 30176 team edit from another
-/// device lands on `teams.json` but never touches `ManagedAgentRecord.team_id`:
-/// an added persona's running instances stay unbound (member in roster, not in
-/// behavior) and a removed persona's instances keep drawing the old team's
-/// instructions at spawn until restart.
-///
-/// A no-match insert has no prior roster, so its whole roster is the added
-/// delta — symmetric with `commit_team_create`. Injected persistence keeps it
-/// `AppHandle`-free so the prior-roster capture and delta direction are
-/// unit-testable; a `persist_teams` error propagates, agent IO is best-effort
-/// (mirrors the local command path: the authoritative team write already
-/// landed, and boot repair is the designed retry for a stale binding).
-fn commit_inbound_team(
-    teams: &mut Vec<TeamRecord>,
-    d_tag: String,
-    inbound: TeamEventContent,
-    persist_teams: impl FnOnce(&[TeamRecord]) -> Result<(), String>,
-    load_agents: impl FnOnce() -> Result<Vec<ManagedAgentRecord>, String>,
-    save_agents: impl FnOnce(&[ManagedAgentRecord]) -> Result<(), String>,
-) -> Result<(), String> {
-    let team_id = d_tag.clone();
-    let previous_persona_ids = teams
-        .iter()
-        .find(|record| record.id == team_id)
-        .map(|record| record.persona_ids.clone())
-        .unwrap_or_default();
-    apply_inbound_team(teams, d_tag, inbound);
-    let current_persona_ids = teams
-        .iter()
-        .find(|record| record.id == team_id)
-        .map(|record| record.persona_ids.clone())
-        .unwrap_or_default();
-    persist_teams(teams)?;
-    crate::commands::teams::propagate_membership_best_effort(
-        &team_id,
-        &previous_persona_ids,
-        &current_persona_ids,
-        load_agents,
-        save_agents,
-    );
-    Ok(())
-}
-
-/// Merge an inbound kind:30176 team projection into the local set.
-///
-/// Matches the local record whose `id` equals the event's d-tag (the d-tag IS
-/// the team id — see `build_team_event`). On match, overwrite ONLY the three
-/// shared fields (`name`, `description`, `persona_ids`); install-specific local
-/// fields (`source_dir`, `is_symlink`, `symlink_target`, `is_builtin`,
-/// `version`, `created_at`) are preserved. On no match, insert a fresh record
-/// reusing the d-tag as the id so a re-received event stays idempotent —
-/// symmetric to the persona path, since a team (like a persona) is a secretless
-/// definition that another device may legitimately learn about from the relay.
-fn apply_inbound_team(teams: &mut Vec<TeamRecord>, d_tag: String, inbound: TeamEventContent) {
-    // Team membership is a single-valued definition property. When a newer
-    // team event assigns definitions here, remove those definitions from any
-    // other local team before applying this record.
-    if let Some(persona_ids) = inbound.persona_ids.as_ref() {
-        for team in teams.iter_mut().filter(|team| team.id != d_tag) {
-            team.persona_ids
-                .retain(|persona_id| !persona_ids.contains(persona_id));
-        }
-    }
-    match teams.iter_mut().find(|record| record.id == d_tag) {
-        Some(local) => {
-            local.name = inbound.name;
-            local.description = inbound.description;
-            // `None` means the event came from a client that predates
-            // always-publish — its true value is unknown, so preserve
-            // local. Only `Some` (including the explicit-clear variants)
-            // overwrites. See `TeamEventContent` for the wire rules.
-            if let Some(instructions) = inbound.instructions {
-                local.instructions = instructions;
-            }
-            if let Some(persona_ids) = inbound.persona_ids {
-                local.persona_ids = persona_ids;
-            }
-        }
-        None => teams.push(TeamRecord {
-            id: d_tag,
-            name: inbound.name,
-            description: inbound.description,
-            // Fresh insert has no local value to preserve; `None` from a
-            // pre-fix client simply means no known value.
-            instructions: inbound.instructions.unwrap_or_default(),
-            persona_ids: inbound.persona_ids.unwrap_or_default(),
-            is_builtin: false,
-            source_dir: None,
-            is_symlink: false,
-            symlink_target: None,
-            version: None,
-            created_at: now_iso(),
-            updated_at: now_iso(),
-        }),
-    }
-}
+#[path = "inbound/team.rs"]
+mod team;
+#[cfg(test)]
+use team::apply_inbound_team;
+use team::commit_inbound_team;

@@ -428,7 +428,8 @@ maju workflows delete --workflow "$WF_ID" | jq .
 ```bash
 maju feed get | jq .
 maju feed get --limit 5 | jq .
-# Expected: [{id,pubkey,kind,content,created_at,tags}] — sig-stripped, sorted newest-first
+# Expected: complete signed Nostr events with
+# {id,pubkey,kind,content,created_at,sig,tags}, sorted newest-first
 ```
 
 ### 6.11 Forum & Voting

@@ -195,6 +195,13 @@ fn reserved_keys_include_remote_lifetime_policy() {
 }
 
 #[test]
+fn reserved_keys_include_desktop_acp_session_policy() {
+    assert!(is_reserved_env_key("MAJU_ACP_SESSION_POLICY"));
+    let agent = map(&[("MAJU_ACP_SESSION_POLICY", "thread")]);
+    assert!(merged_user_env(&BTreeMap::new(), &agent).is_empty());
+}
+
+#[test]
 fn reserved_keys_include_code_execution_surface() {
     // The agent/MCP command + args are what Maju actually exec's.
     // Overriding lets the user run arbitrary code as the agent.

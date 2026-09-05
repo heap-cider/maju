@@ -12,8 +12,18 @@ pub fn spawn_agent_child(
     relay_url: &str,
     lazy: bool,
     owner_hex: Option<&str>,
+    replay_floor_unix: Option<u64>,
 ) -> Result<ManagedAgentProcess, String> {
     let personas = crate::managed_agents::load_personas(app).unwrap_or_default();
     let teams = crate::managed_agents::load_teams(app).unwrap_or_default();
-    spawn_agent_child_with_context(app, record, relay_url, lazy, owner_hex, &personas, &teams)
+    spawn_agent_child_with_context(
+        app,
+        record,
+        relay_url,
+        lazy,
+        owner_hex,
+        &personas,
+        &teams,
+        replay_floor_unix,
+    )
 }

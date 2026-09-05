@@ -45,20 +45,19 @@ impl Drop for JobHandle {
 /// the caller can fall back to `Child::kill()` — a degraded teardown beats a
 /// failed spawn.
 ///
-/// Assignment happens immediately after spawn, on the same parent thread. The
-/// child (maju-acp) does spawn its 24 workers before it connects to the relay,
-/// so the window between our spawn and our assignment is NOT structurally empty.
-/// What closes it is assign-latency: `OpenProcess` + `AssignProcessToJobObject`
-/// are a few synchronous Win32 calls (microseconds), while maju-acp must init
-/// tokio, parse its config, and spawn 24 children (tens-to-hundreds of ms), so
-/// the assign reliably wins before any worker exists. Once assigned, Windows
-/// places every subsequently-spawned descendant in the job automatically.
+/// For the harness spawn path ([`finish_spawn`]) assignment happens immediately
+/// after a normal spawn. The child (maju-acp) must init tokio, parse its config,
+/// and spawn 24 children (tens-to-hundreds of ms) before any descendant exists,
+/// so the microsecond `OpenProcess` + `AssignProcessToJobObject` reliably wins
+/// that race. Once assigned, Windows places every subsequently-spawned
+/// descendant in the job automatically.
 ///
-/// `CREATE_SUSPENDED` -> assign -> `ResumeThread` would make the window airtight
-/// regardless of child timing, but it requires raw `CreateProcessW`/`ResumeThread`
-/// (materially more unsafe Win32) to close a microsecond race, so it is
-/// deliberately not used here.
-fn create_job_for_child(pid: u32) -> Option<JobHandle> {
+/// The discovery path (`bounded_command`) runs arbitrary probe commands that
+/// can background a descendant and exit in the same tick, so it cannot rely on
+/// assign-latency. It spawns with `CREATE_SUSPENDED`, assigns the frozen child
+/// here, then calls [`resume_process`] — no descendant can exist until the job
+/// owns the root, closing the race by construction.
+pub(crate) fn create_job_for_child(pid: u32) -> Option<JobHandle> {
     use std::ptr::null;
     use windows_sys::Win32::Foundation::{CloseHandle, FALSE};
     use windows_sys::Win32::System::JobObjects::{
@@ -103,6 +102,13 @@ fn create_job_for_child(pid: u32) -> Option<JobHandle> {
 
         Some(JobHandle(job))
     }
+}
+
+/// Resume the threads of a process spawned with `CREATE_SUSPENDED`.
+/// A failure leaves cleanup to the caller, which still owns the kill-on-close job.
+pub(crate) fn resume_process(pid: u32) -> bool {
+    use crosswin::windows::process::{Process, ProcessAccess};
+    Process::open(pid, ProcessAccess::SuspendResume).is_ok_and(|process| process.resume().is_ok())
 }
 
 /// Kill the entire process tree rooted at `pid` via `taskkill /T`, the closest

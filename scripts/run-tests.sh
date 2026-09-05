@@ -113,6 +113,11 @@ run_unit_tests() {
   # `just test-unit` — the two lists must stay in step.
   run_test_step "maju-agent unit tests" \
     cargo test -p maju-agent --lib -- --nocapture
+
+  # ACP author-gate and queue tests are pure unit tests. Keep this fallback in
+  # step with `just test-unit`; ignored lifecycle tests run elsewhere.
+  run_test_step "maju-acp unit tests" \
+    cargo test -p maju-acp --lib -- --nocapture
 }
 
 # ---- DB / integration tests (infra required) --------------------------------

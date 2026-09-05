@@ -4,7 +4,7 @@ import type {
 } from "@/features/projects/lib/projectAgentConversationStorage";
 import { hasOnlineAgentRepresentative } from "@/features/agents/agentExecutionLocations";
 import { listLoggedInDevices } from "@/shared/api/tauriDevices";
-import type { Channel } from "@/shared/api/types";
+import type { AddChannelMembersInput, Channel } from "@/shared/api/types";
 import {
   KIND_STREAM_MESSAGE,
   KIND_STREAM_MESSAGE_V2,
@@ -15,6 +15,26 @@ async function relayHasOnlineAgentRepresentative(
   pubkey: string,
 ): Promise<boolean> {
   return hasOnlineAgentRepresentative(await listLoggedInDevices(), pubkey);
+}
+
+export function projectAgentMembershipInput({
+  channelId,
+  agentPubkey,
+  relayScope,
+  signerScope,
+}: {
+  channelId: string;
+  agentPubkey: string;
+  relayScope: string | null;
+  signerScope: string | null;
+}): AddChannelMembersInput {
+  return {
+    channelId,
+    pubkeys: [agentPubkey],
+    role: "bot",
+    expectedRelayUrl: relayScope ?? undefined,
+    expectedSignerPubkey: signerScope ?? undefined,
+  };
 }
 
 /**
@@ -62,11 +82,14 @@ export function restoreProjectsAgentConversation<
   channels,
   candidates,
   currentPubkey,
+  homeChannelId,
 }: {
   stored: StoredProjectsAgentConversation | null;
   channels: readonly Channel[];
   candidates: readonly Agent[];
   currentPubkey: string | null;
+  /** When set, a stored pointer to this project channel (not a DM) can restore. */
+  homeChannelId?: string | null;
 }): {
   channel: Channel;
   agent: Agent;
@@ -82,9 +105,16 @@ export function restoreProjectsAgentConversation<
   const agent = candidates.find(
     (candidate) => candidate.pubkey === agentPubkey,
   );
-  if (!channel || !agent || channel.channelType !== "dm") return null;
-  const participants = channel.participantPubkeys.map(normalizePubkey);
+  if (!channel || !agent) return null;
   const self = normalizePubkey(currentPubkey);
+  if (homeChannelId && channel.id === homeChannelId) {
+    // Project-home chat lives on the project channel. Membership is the
+    // restore proof — the channel is not a 1:1 DM.
+    if (!channel.isMember) return null;
+    return { agent, channel, opener: stored.opener };
+  }
+  if (channel.channelType !== "dm") return null;
+  const participants = channel.participantPubkeys.map(normalizePubkey);
   const hasAgent = participants.includes(agentPubkey);
   // The contract is participants === {agent, self}: requiring the current
   // user's own membership matters as much as rejecting strangers — a stored
@@ -168,11 +198,12 @@ export async function submitProjectAgentMessage<Ch extends { id: string }>({
   relayScope,
   signerScope,
   hasOnlineRepresentative = relayHasOnlineAgentRepresentative,
+  homeChannel,
   startAgent,
   openDm,
   send,
 }: {
-  agent: { pubkey: string; isManaged: boolean; isActive: boolean };
+  agent: { pubkey: string; isManaged: boolean; isActive: boolean | null };
   conversation: { channel: Ch; opener: ProjectsConversationOpener } | null;
   content: string;
   mentionPubkeys: string[];
@@ -184,6 +215,8 @@ export async function submitProjectAgentMessage<Ch extends { id: string }>({
    * `relayScope`; null when unknown. */
   signerScope: string | null;
   hasOnlineRepresentative?: (pubkey: string) => Promise<boolean>;
+  /** When set, the first message lands here instead of opening a 1:1 DM. */
+  homeChannel?: Ch | null;
   startAgent: (input: {
     pubkey: string;
     expectedRelayUrl?: string;
@@ -219,6 +252,7 @@ export async function submitProjectAgentMessage<Ch extends { id: string }>({
   }
   const channel =
     conversation?.channel ??
+    homeChannel ??
     (await openDm({
       pubkeys: [agent.pubkey],
       expectedRelayUrl,

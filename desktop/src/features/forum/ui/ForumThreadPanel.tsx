@@ -39,7 +39,6 @@ type ForumThreadPanelProps = {
   onDeleteReply?: (eventId: string) => void;
   onTargetReached?: (eventId: string) => void;
   canDeletePost?: boolean;
-  canModerateContent?: boolean;
   isDeletingPost?: boolean;
   targetEventId?: string | null;
   targetSearchMessageId?: string;
@@ -55,7 +54,6 @@ function canDeleteReply(
 }
 
 function ReplyRow({
-  canModerateContent,
   reply,
   currentPubkey,
   profiles,
@@ -63,7 +61,6 @@ function ReplyRow({
   onDelete,
   searchQuery,
 }: {
-  canModerateContent?: boolean;
   reply: ThreadReply;
   currentPubkey?: string;
   profiles?: UserProfileLookup;
@@ -79,9 +76,9 @@ function ReplyRow({
   });
   const replyAvatarUrl =
     profiles?.[reply.pubkey.toLowerCase()]?.avatarUrl ?? null;
-  const showDelete =
-    onDelete &&
-    (canDeleteReply(reply, currentPubkey) || canModerateContent === true);
+  const replyAuthorIsAgent =
+    profiles?.[reply.pubkey.toLowerCase()]?.isAgent === true;
+  const showDelete = onDelete && canDeleteReply(reply, currentPubkey);
   const {
     mentionNames: replyMentionNames,
     mentionPubkeysByName: replyMentionPubkeysByName,
@@ -93,14 +90,19 @@ function ReplyRow({
       data-forum-event-id={reply.eventId}
     >
       <div className="flex items-center gap-2">
-        <UserProfilePopover pubkey={reply.pubkey}>
+        <UserProfilePopover
+          pubkey={reply.pubkey}
+          role={replyAuthorIsAgent ? "bot" : undefined}
+        >
           <button
             className="flex items-center gap-2 rounded-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             type="button"
           >
             <UserAvatar
+              accent={replyAuthorIsAgent}
               avatarUrl={replyAvatarUrl}
               displayName={replyAuthorLabel}
+              shape={replyAuthorIsAgent ? "squircle" : "circle"}
               size="sm"
             />
             <span className="text-sm font-medium text-foreground hover:underline">
@@ -151,7 +153,6 @@ export function ForumThreadPanel({
   onDeleteReply,
   onTargetReached,
   canDeletePost,
-  canModerateContent,
   isDeletingPost,
   targetEventId,
   targetSearchMessageId,
@@ -217,6 +218,8 @@ export function ForumThreadPanel({
   });
   const postAvatarUrl =
     profiles?.[post.pubkey.toLowerCase()]?.avatarUrl ?? null;
+  const postAuthorIsAgent =
+    profiles?.[post.pubkey.toLowerCase()]?.isAgent === true;
 
   return (
     <div className={cn("flex h-full flex-col", channelChrome.contentPadding)}>
@@ -245,14 +248,19 @@ export function ForumThreadPanel({
           data-forum-event-id={post.eventId}
         >
           <div className="flex items-center gap-2">
-            <UserProfilePopover pubkey={post.pubkey}>
+            <UserProfilePopover
+              pubkey={post.pubkey}
+              role={postAuthorIsAgent ? "bot" : undefined}
+            >
               <button
                 className="flex items-center gap-2 rounded-xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 type="button"
               >
                 <UserAvatar
+                  accent={postAuthorIsAgent}
                   avatarUrl={postAvatarUrl}
                   displayName={postAuthorLabel}
+                  shape={postAuthorIsAgent ? "squircle" : "circle"}
                 />
                 <span className="text-sm font-semibold text-foreground hover:underline">
                   {postAuthorLabel}
@@ -298,7 +306,6 @@ export function ForumThreadPanel({
         <div className="divide-y divide-border/40">
           {replies.map((reply) => (
             <ReplyRow
-              canModerateContent={canModerateContent}
               channelNames={channelNames}
               currentPubkey={currentPubkey}
               key={reply.eventId}

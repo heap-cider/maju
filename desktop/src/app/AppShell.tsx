@@ -1,4 +1,6 @@
+import { useRestoreCommunityDestination } from "@/app/useRestoreCommunityDestination";
 import * as React from "react";
+import { ProtectedGlobalOverlay } from "@protected-feature-components";
 import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation } from "@tanstack/react-router";
 import { deriveShellRoute, markAllReadSources } from "@/app/AppShell.helpers";
@@ -34,6 +36,7 @@ import {
   useHideDmMutation,
   useOpenDmMutation,
 } from "@/features/channels/hooks";
+import { useDmResurfaceFromMessages } from "@/features/channels/useDmResurfaceFromMessages";
 import { useUnreadChannels } from "@/features/channels/useUnreadChannels";
 import { useMembershipNotifications } from "@/features/channels/useMembershipNotifications";
 import { useFeedItemState } from "@/features/home/useFeedItemState";
@@ -58,6 +61,7 @@ import {
 import {
   useSetUserStatusMutation,
   useUserStatusQuery,
+  visibleUserStatus,
   useUserStatusSubscription,
 } from "@/features/user-status/hooks";
 import { useCommunityEmojiLiveUpdates } from "@/features/custom-emoji/hooks";
@@ -80,11 +84,6 @@ import { CommunityRail } from "@/features/sidebar/ui/CommunityRail";
 import { useChannelMutes } from "@/features/sidebar/lib/useChannelMutes";
 import { useChannelStars } from "@/features/sidebar/lib/useChannelStars";
 import { useCommunities } from "@/features/communities/useCommunities";
-import {
-  consumePendingCommunityRestore,
-  loadCommunityDestination,
-  saveCommunityDestination,
-} from "@/features/communities/communityNavigationStorage";
 import { useAddCommunityDialogState } from "@/features/communities/addCommunityPrefill";
 import { useApplyTemplate } from "@/features/channel-templates/useApplyTemplate";
 import { relayClient } from "@/shared/api/relayClient";
@@ -274,54 +273,15 @@ export function AppShell() {
       ),
     [huddleBackingChannelIds, memberChannels, revealedHuddleChannelIds],
   );
-  const hasRestoredCommunityDestinationRef = React.useRef(false);
-  React.useEffect(() => {
-    const activeCommunityId = communitiesHook.activeCommunity?.id;
-    if (
-      hasRestoredCommunityDestinationRef.current ||
-      !channelsQuery.isSuccess ||
-      channelsQuery.dataUpdatedAt === 0 ||
-      !activeCommunityId
-    ) {
-      return;
-    }
-    hasRestoredCommunityDestinationRef.current = true;
-
-    // Restoration belongs to an explicit community transition. Cold boot and
-    // reconnect remounts must preserve the route the user explicitly opened.
-    if (!consumePendingCommunityRestore(activeCommunityId)) {
-      return;
-    }
-
-    const destination = loadCommunityDestination(activeCommunityId);
-    if (!destination || destination.kind === "home") {
-      return;
-    }
-
-    const channelIsAvailable = sidebarChannels.some(
-      (channel) => channel.id === destination.channelId,
-    );
-    if (!channelIsAvailable) {
-      saveCommunityDestination(activeCommunityId, { kind: "home" });
-      void goHome({ replace: true });
-      return;
-    }
-
-    // The normal switch path writes the remembered channel into the hash before
-    // the target community mounts, so no intermediate Inbox frame is painted.
-    // Older transition callers may still arrive at neutral Home; repair those.
-    if (selectedView === "home") {
-      void goChannel(destination.channelId, { replace: true });
-    }
-  }, [
-    channelsQuery.dataUpdatedAt,
-    channelsQuery.isSuccess,
-    communitiesHook.activeCommunity?.id,
+  useRestoreCommunityDestination({
+    activeCommunityId: communitiesHook.activeCommunity?.id,
+    channelsReady: channelsQuery.isSuccess,
+    channelsUpdatedAt: channelsQuery.dataUpdatedAt,
+    sidebarChannels,
+    selectedView,
     goChannel,
     goHome,
-    selectedView,
-    sidebarChannels,
-  ]);
+  });
   const [terminalContextOverride, setTerminalContextOverride] =
     React.useState<TerminalContextOverride | null>(null);
   const { activeChannel, terminalContext } = useTerminalContext({
@@ -506,6 +466,11 @@ export function AppShell() {
   const { applyCanvas, applyAgents } = useApplyTemplate();
   const openDmMutation = useOpenDmMutation();
   const hideDmMutation = useHideDmMutation();
+  useDmResurfaceFromMessages({
+    pubkey: identityQuery.data?.pubkey,
+    relayUrl: communitiesHook.activeCommunity?.relayUrl,
+    reopen: openDmMutation.mutateAsync,
+  });
   const {
     browseDialogType,
     openBrowseChannels: handleOpenBrowseChannels,
@@ -888,9 +853,7 @@ export function AppShell() {
                           onSetPresenceStatus={(status) =>
                             presenceSession.setStatus(status)
                           }
-                          onSetUserStatus={(text, emoji) =>
-                            setUserStatusMutation.mutate({ text, emoji })
-                          }
+                          onSetUserStatus={setUserStatusMutation.mutate}
                           onClearUserStatus={() =>
                             setUserStatusMutation.mutate({
                               text: "",
@@ -903,9 +866,11 @@ export function AppShell() {
                           }
                           selfUserStatus={
                             deferredPubkey
-                              ? (selfStatusQuery.data?.[
-                                  deferredPubkey.toLowerCase()
-                                ] ?? undefined)
+                              ? (visibleUserStatus(
+                                  selfStatusQuery.data?.[
+                                    deferredPubkey.toLowerCase()
+                                  ],
+                                ) ?? undefined)
                               : undefined
                           }
                           selectedChannelId={selectedChannelId}
@@ -981,6 +946,7 @@ export function AppShell() {
                     onOpenChange={setIsSendFeedbackOpen}
                     open={isSendFeedbackOpen}
                   />
+                  {!isHuddleRoom ? <ProtectedGlobalOverlay /> : null}
                 </AppWorkflowEditorOverlayProvider>
               </AppProfilePanelProvider>
             </SidebarProvider>

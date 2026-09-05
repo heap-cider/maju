@@ -37,7 +37,7 @@ use super::{
     readiness::EffectiveHarnessDescriptor,
     runtime::{resolve_session_title, SESSION_TITLE_ENV_VAR},
     types::{AgentDefinition, ManagedAgentRecord, TeamRecord},
-    GlobalAgentConfig,
+    AcpSessionPolicy, GlobalAgentConfig,
 };
 
 pub(crate) mod diff;
@@ -84,6 +84,12 @@ pub(crate) struct SpawnConfigInputs<'a> {
     /// Compile-time distribution capability projected at this runtime boundary.
     /// The stored record remains portable; only effective spawned access is stamped.
     pub enforced_owner_only: bool,
+    /// The effective ACP session policy (`channel`/`thread`) the launch applies.
+    /// Resolved from the desktop experiment toggle at the shared launch
+    /// boundary; captured here so flipping the experiment while an agent runs
+    /// drives the existing restart-required path (the harness only reads
+    /// `MAJU_ACP_SESSION_POLICY` at launch).
+    pub session_policy: AcpSessionPolicy,
 }
 
 /// The effective spawn configuration of one managed-agent process.
@@ -135,6 +141,50 @@ pub(crate) struct SpawnConfigSnapshot {
     pub idle_timeout_seconds: Option<u64>,
     pub max_turn_duration_seconds: Option<u64>,
     pub parallelism: u32,
+    /// The startup effort the harness will actually apply, resolved by
+    /// [`effective_effort`]: the single effort key the harness-agnostic
+    /// projection left in `descriptor.env` under the runtime's destination key.
+    /// This is the *sole* representation of the effective effort in the
+    /// snapshot: the projection's destination key is stripped from `env` (see
+    /// `from_inputs`) so an authority handoff that leaves the effective value
+    /// unchanged produces no spurious drift entry, and an effort edit the
+    /// projection consumed surfaces as exactly one `effort_level` entry. For an
+    /// unknown/custom runtime the projection consumes nothing beyond the
+    /// sentinel, so any other effort-looking key the child receives stays in
+    /// `env` as ordinary state and diffs normally.
+    pub effort_level: Option<String>,
+    /// The effective ACP session policy this launch applies (`channel` or
+    /// `thread`). The harness reads `MAJU_ACP_SESSION_POLICY` only at launch, so
+    /// capturing the resolved policy here lets a toggle flip while an agent runs
+    /// raise the restart-required badge instead of silently leaving the running
+    /// process on the old policy. Written directly on the spawn `Command` (not
+    /// via layered env), so it must be captured explicitly rather than read back
+    /// out of `env`.
+    pub session_policy: String,
+}
+
+/// The startup effort a spawn actually applied, read from the single effort key
+/// the harness-agnostic projection left in `descriptor.env`.
+///
+/// The projection (`config_bridge::effort`) ran inside the descriptor resolver,
+/// resolving the effective value over the canonical column and every env tier,
+/// then reducing the env to exactly one effort key under the runtime's
+/// destination key (`effort_dest_key`). Reading that key here means the badge
+/// compares precisely what launched — no separate precedence to drift from the
+/// spawn path, and an invalid canonical that fell through to an inherited tier
+/// is reflected as the inherited value, not the raw column.
+pub(crate) fn effective_effort(descriptor: &EffectiveHarnessDescriptor) -> Option<String> {
+    let runtime = known_acp_runtime(&descriptor.command);
+    let dest_key = super::config_bridge::effort::effort_dest_key(runtime);
+    // Read case-insensitively (exact-first) so a mixed-case sentinel a custom
+    // runtime passed through (the projection uses an EMPTY suppress set, so a
+    // user-set `maju_acp_effort_level` survives into `descriptor.env` and the
+    // child reads it as `MAJU_ACP_EFFORT_LEVEL` on Windows) is captured here.
+    // The read must match the snapshot strip, which is also case-insensitive:
+    // if the read were exact-case it would miss the mixed-case sentinel, the
+    // strip would still remove it, and the value would land in neither
+    // `snapshot.env` nor `effort_level` — producing no restart diff on an edit.
+    super::config_bridge::effort::get_ci(&descriptor.env, dest_key).cloned()
 }
 
 impl SpawnConfigSnapshot {
@@ -149,9 +199,13 @@ impl SpawnConfigSnapshot {
             model,
             provider,
             enforced_owner_only,
+            session_policy,
         } = inputs;
         let (respond_to, respond_to_allowlist) =
             super::projected_access_with_policy(record, enforced_owner_only);
+        let effort_keys = super::config_bridge::effort::snapshot_suppress_keys(known_acp_runtime(
+            &descriptor.command,
+        ));
         Self {
             acp_command: record.acp_command.clone(),
             command: descriptor.command.clone(),
@@ -160,7 +214,16 @@ impl SpawnConfigSnapshot {
                 .and_then(|runtime| runtime.mcp_command)
                 .unwrap_or("")
                 .to_string(),
-            env: descriptor.env.clone(),
+            env: descriptor
+                .env
+                .iter()
+                .filter(|(key, _)| {
+                    !effort_keys
+                        .iter()
+                        .any(|effort_key| key.eq_ignore_ascii_case(effort_key))
+                })
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
             relay_url: relay_url.to_string(),
             team_instructions: team_instructions.map(str::to_string),
             system_prompt: system_prompt.map(str::to_string),
@@ -187,6 +250,12 @@ impl SpawnConfigSnapshot {
             // pool and must badge. The diff surface consequently displays the
             // effective value — that is correct, it is what actually runs.
             parallelism: super::effective_parallelism(&descriptor.command, record.parallelism),
+            // Sole effort representation — see the field doc and the `env`
+            // strip above. Reads the single projected effort key the descriptor
+            // resolver left in `descriptor.env`, so the badge compares exactly
+            // what launched regardless of which tier supplied the value.
+            effort_level: effective_effort(descriptor),
+            session_policy: session_policy.as_str().to_string(),
         }
     }
 
@@ -227,6 +296,7 @@ pub(crate) fn prospective_spawn_config_snapshot(
     workspace_relay: &str,
     global: &GlobalAgentConfig,
     enforced_owner_only: bool,
+    session_policy: AcpSessionPolicy,
 ) -> SpawnConfigSnapshot {
     // Prospective re-snapshot: apply the same `apply_persona_snapshot` the
     // start/restore paths run right before spawning, so this describes what a
@@ -277,6 +347,7 @@ pub(crate) fn prospective_spawn_config_snapshot(
         model: model.as_deref(),
         provider: provider.as_deref(),
         enforced_owner_only,
+        session_policy,
     })
 }
 

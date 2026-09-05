@@ -1,3 +1,7 @@
+import type {
+  MessageRowProps,
+  ThreadDepthGuideAction,
+} from "./MessageRow.types";
 import * as React from "react";
 import { AlertTriangle } from "lucide-react";
 import {
@@ -14,8 +18,8 @@ import type { TimelineMessage } from "@/features/messages/types";
 import { useKnownAgentPubkeys } from "@/features/agents/useKnownAgentPubkeys";
 import { HuddleAttachment } from "@/features/huddle/components/HuddleAttachment";
 import { MessageReactions } from "@/features/messages/ui/MessageReactions";
+import { MessageAuthorWithIndicators } from "@/features/messages/ui/MessageAuthorWithIndicators";
 import { useReactionHandler } from "@/features/messages/ui/useReactionHandler";
-import type { UserProfileLookup } from "@/features/profile/lib/identity";
 import { UserProfilePopover } from "@/features/profile/ui/UserProfilePopover";
 import { useRemindLater } from "@/features/reminders/ui/RemindMeLaterProvider";
 import {
@@ -33,7 +37,7 @@ import {
 } from "@/shared/constants/kinds";
 import { getConfigNudgeAuthorPubkey } from "@/features/messages/ui/configNudgeAuthPubkey";
 import { cn } from "@/shared/lib/cn";
-import { normalizePubkey, truncatePubkey } from "@/shared/lib/pubkey";
+import { normalizePubkey } from "@/shared/lib/pubkey";
 import { UserAvatar } from "@/shared/ui/UserAvatar";
 import { useChannelNavigation } from "@/shared/context/ChannelNavigationContext";
 import { parseImetaTags } from "@/shared/ui/markdown/parseImeta";
@@ -41,7 +45,6 @@ import { useMessageEmoji } from "@/features/messages/lib/useMessageEmoji";
 import { parseWaveMessageContent } from "@/features/messages/lib/waveMessage";
 import { resolveSnapshotSharedBy } from "@/features/messages/lib/snapshotSharedBy";
 import { resolveMentionProps } from "@/shared/lib/resolveMentionNames";
-import type { VideoReviewContext } from "@/shared/ui/VideoPlayer";
 import { VideoReviewCommentMarkdown } from "@/shared/ui/VideoReviewCommentMarkdown";
 import { MessageActionBar } from "./MessageActionBar";
 import { editMessage } from "@/shared/api/tauri";
@@ -57,18 +60,12 @@ import { MessageTimestamp } from "./MessageTimestamp";
 import { SentFromThreadLine } from "./SentFromThreadLine";
 import { WaveMessageAttachment } from "./WaveMessageAttachment";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
-import { useMessageAgentAddressPrefix } from "./MessageAgentAddressPrefix";
-
+import { getAgentAddressMentionPubkeys } from "@/features/messages/lib/agentAddressMention.mjs";
+import { getVisibleAgentAddressPubkeys } from "@/features/messages/lib/getVisibleAgentAddressPubkeys";
+import { MessageAgentAddressPrefix } from "./MessageAgentAddressPrefix";
 const DiffMessage = React.lazy(() => import("./DiffMessage"));
 const DiffMessageExpanded = React.lazy(() => import("./DiffMessageExpanded"));
-
-export type ThreadDepthGuideAction = {
-  active?: boolean;
-  depth: number;
-  label: string;
-  message: TimelineMessage;
-};
-
+export type { ThreadDepthGuideAction } from "./MessageRow.types";
 export const MessageRow = React.memo(
   function MessageRow({
     channelId = null,
@@ -111,58 +108,7 @@ export const MessageRow = React.memo(
     showDepthGuides = true,
     videoReviewCommentRootId,
     videoReviewContext,
-  }: {
-    channelId?: string | null;
-    currentPubkey?: string;
-    collapseDepthGuideActions?: ReadonlyArray<ThreadDepthGuideAction>;
-    connectDescendants?: boolean;
-    depthGuideDepths?: ReadonlyArray<number>;
-    highlighted?: boolean;
-    highlightDescendantRail?: boolean;
-    highlightReplyConnector?: boolean;
-    highlightThreadLineDepths?: ReadonlyArray<number>;
-    hoverBackground?: boolean;
-    huddleMemberPubkeys?: readonly string[];
-    huddleMemberPubkeysPending?: boolean;
-    hideAgentAccessBadge?: boolean;
-    actionBarPlacement?: "floating" | "inside";
-    collapseDescendantsLabel?: string;
-    isFollowingThread?: boolean;
-    isContinuation?: boolean;
-    isUnread?: boolean;
-    layoutVariant?: "default" | "thread-reply";
-    message: TimelineMessage;
-    onCollapseDepthGuide?: (message: TimelineMessage) => void;
-    onCollapseDepthGuideHoverChange?: (
-      message: TimelineMessage,
-      hovered: boolean,
-    ) => void;
-    onCollapseDescendants?: (message: TimelineMessage) => void;
-    onCollapseDescendantsHoverChange?: (
-      message: TimelineMessage,
-      hovered: boolean,
-    ) => void;
-    onDelete?: (message: TimelineMessage) => void;
-    onEdit?: (message: TimelineMessage) => void;
-    onFollowThread?: (message: TimelineMessage) => void;
-    onMarkUnread?: (message: TimelineMessage) => void;
-    onMarkRead?: (message: TimelineMessage) => void;
-    onToggleReaction?: (
-      message: TimelineMessage,
-      emoji: string,
-      remove: boolean,
-    ) => Promise<void>;
-    onReply?: (message: TimelineMessage) => void;
-    onSendToChannel?: (message: TimelineMessage) => Promise<void>;
-    onUnfollowThread?: (message: TimelineMessage) => void;
-    onEntranceComplete?: (messageId: string) => void;
-    playEntrance?: boolean;
-    profiles?: UserProfileLookup;
-    searchQuery?: string;
-    showDepthGuides?: boolean;
-    videoReviewCommentRootId?: string;
-    videoReviewContext?: VideoReviewContext;
-  }) {
+  }: MessageRowProps) {
     // Keep the transient send state with its timestamp rather than collapsing
     // it into a grouped message row with no header.
     const isDisplayedAsContinuation = isContinuation && !message.pending;
@@ -263,27 +209,34 @@ export const MessageRow = React.memo(
       (message.pubkey && isKnownAgentPubkey(message.pubkey))
         ? "bot"
         : message.role;
+    const isAuthorAgent =
+      message.isAgent === true || profilePopoverRole === "bot";
     const agentMentionPubkeysByName = React.useMemo(() => {
       if (!mentionPubkeysByName) {
         return undefined;
       }
-
       const values: Record<string, string> = {};
       for (const [name, pubkey] of Object.entries(mentionPubkeysByName)) {
         if (isKnownAgentPubkey(pubkey)) {
           values[name] = pubkey;
         }
       }
-
       return Object.keys(values).length > 0 ? values : undefined;
     }, [isKnownAgentPubkey, mentionPubkeysByName]);
-    const agentAddressPrefix = useMessageAgentAddressPrefix({
-      isKnownAgentPubkey,
-      mentionPubkeysByName,
-      message,
-      profiles,
-    });
-
+    const addressedAgentPubkeys = React.useMemo(() => {
+      return getVisibleAgentAddressPubkeys(
+        message.body,
+        getAgentAddressMentionPubkeys(message.tags).filter(isKnownAgentPubkey),
+        mentionPubkeysByName,
+      );
+    }, [isKnownAgentPubkey, mentionPubkeysByName, message.body, message.tags]);
+    const agentAddressPrefix =
+      addressedAgentPubkeys.length > 0 ? (
+        <MessageAgentAddressPrefix
+          profiles={profiles}
+          pubkeys={addressedAgentPubkeys}
+        />
+      ) : undefined;
     const imetaByUrl = React.useMemo(
       () => (message.tags ? parseImetaTags(message.tags) : undefined),
       [message.tags],
@@ -454,7 +407,9 @@ export const MessageRow = React.memo(
 
     const isThreadReplyLayout = layoutVariant === "thread-reply";
     const guideBleedRem = isThreadReplyLayout ? 0.25 : 0;
-    const avatarButtonRadiusClass = "rounded-full";
+    const avatarButtonRadiusClass = isAuthorAgent
+      ? "rounded-[30%]"
+      : "rounded-full";
 
     const showRespondToIndicator =
       message.respondTo === "anyone" || message.respondTo === "allowlist";
@@ -466,6 +421,7 @@ export const MessageRow = React.memo(
           avatarUrl={message.avatarUrl ?? null}
           className="shrink-0"
           displayName={message.author}
+          shape={isAuthorAgent ? "squircle" : "circle"}
           testId="message-avatar"
         />
         {showRespondToIndicator &&
@@ -607,17 +563,7 @@ export const MessageRow = React.memo(
               <TooltipTrigger asChild>
                 <p className="text-muted-foreground/70">(edited)</p>
               </TooltipTrigger>
-              <TooltipContent>
-                {message.editedByPubkey &&
-                message.pubkey &&
-                normalizePubkey(message.editedByPubkey) !==
-                  normalizePubkey(message.pubkey)
-                  ? `Edited by ${
-                      profiles?.[normalizePubkey(message.editedByPubkey)]
-                        ?.displayName ?? truncatePubkey(message.editedByPubkey)
-                    }`
-                  : "This message has been edited"}
-              </TooltipContent>
+              <TooltipContent>This message has been edited</TooltipContent>
             </Tooltip>
           ) : null}
         </>
@@ -648,18 +594,14 @@ export const MessageRow = React.memo(
     const headerNode = isDisplayedAsContinuation ? null : (
       <MessageHeaderRow>
         {message.pubkey ? (
-          <UserProfilePopover
+          <MessageAuthorWithIndicators
+            authorName={message.author}
+            ownerPubkey={message.ownerPubkey}
             pubkey={message.pubkey}
             role={profilePopoverRole}
-            botIdenticonValue={message.author}
           >
-            <button
-              className="truncate rounded leading-message-author focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-              type="button"
-            >
-              {authorNode}
-            </button>
-          </UserProfilePopover>
+            {authorNode}
+          </MessageAuthorWithIndicators>
         ) : (
           authorNode
         )}
@@ -949,7 +891,6 @@ export const MessageRow = React.memo(
     prev.message.kind === next.message.kind &&
     prev.message.pending === next.message.pending &&
     prev.message.edited === next.message.edited &&
-    prev.message.editedByPubkey === next.message.editedByPubkey &&
     // Value comparisons, not identity: these arrays are rebuilt with fresh
     // identities on every ingest/refetch even when unchanged — identity
     // checks made every row re-render on every streamed event in an open

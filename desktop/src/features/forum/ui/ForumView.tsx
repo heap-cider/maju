@@ -2,8 +2,6 @@ import { MessageSquareText } from "lucide-react";
 import * as React from "react";
 
 import { useProfileQuery, useUsersBatchQuery } from "@/features/profile/hooks";
-import { useMyRelayMembershipQuery } from "@/features/community-members/hooks";
-import { canModerateCommunityContent } from "@/features/moderation/lib/contentModeration";
 import { mergeCurrentProfileIntoLookup } from "@/features/profile/lib/identity";
 import { getMentionTagPubkey } from "@/shared/lib/resolveMentionNames";
 import type { Channel } from "@/shared/api/types";
@@ -36,11 +34,10 @@ type ForumViewProps = {
   targetSearchQuery?: string;
 };
 
-function isForumContentAuthor(
-  postPubkey: string,
-  currentPubkey?: string,
-): boolean {
+function canDelete(postPubkey: string, currentPubkey?: string): boolean {
   if (!currentPubkey) return false;
+  // Author can always delete their own posts. Admin check would need
+  // channel member role data — for now, author-only is sufficient.
   return postPubkey.toLowerCase() === currentPubkey.toLowerCase();
 }
 
@@ -59,10 +56,6 @@ export function ForumView({
   const postsScrollRef = React.useRef<HTMLDivElement>(null);
 
   const profileQuery = useProfileQuery();
-  const relayMembershipQuery = useMyRelayMembershipQuery();
-  const canModerateContent = canModerateCommunityContent(
-    relayMembershipQuery.data?.role,
-  );
   const postsQuery = useForumPostsQuery(channel);
   const threadQuery = useForumThreadQuery(
     selectedPostId ? channel.id : null,
@@ -138,43 +131,22 @@ export function ForumView({
   if (selectedPostId) {
     const threadPost = threadQuery.data?.post;
     const canDeleteExpandedPost = threadPost
-      ? isForumContentAuthor(threadPost.pubkey, effectiveCurrentPubkey) ||
-        canModerateContent
+      ? canDelete(threadPost.pubkey, effectiveCurrentPubkey)
       : false;
 
     return (
       <ForumThreadPanel
         canDeletePost={canDeleteExpandedPost}
-        canModerateContent={canModerateContent}
         currentPubkey={effectiveCurrentPubkey}
         isDeletingPost={deletePostMutation.isPending}
         isLoading={threadQuery.isLoading}
         isSendingReply={createReplyMutation.isPending}
         onBack={onClosePost}
         onDeletePost={(eventId) => {
-          deletePostMutation.mutate(
-            {
-              eventId,
-              moderatorDelete:
-                threadPost != null &&
-                !isForumContentAuthor(
-                  threadPost.pubkey,
-                  effectiveCurrentPubkey,
-                ),
-            },
-            { onSuccess: onClosePost },
-          );
+          deletePostMutation.mutate({ eventId }, { onSuccess: onClosePost });
         }}
         onDeleteReply={(eventId) => {
-          const reply = threadQuery.data?.replies.find(
-            (candidate) => candidate.eventId === eventId,
-          );
-          deleteReplyMutation.mutate({
-            eventId,
-            moderatorDelete:
-              reply != null &&
-              !isForumContentAuthor(reply.pubkey, effectiveCurrentPubkey),
-          });
+          deleteReplyMutation.mutate({ eventId });
         }}
         channelId={channel.id}
         onReply={(content, mentionPubkeys, mediaTags) =>
@@ -264,10 +236,7 @@ export function ForumView({
             renderItem={(post) => (
               <div className="pb-3">
                 <ForumPostCard
-                  canDelete={
-                    isForumContentAuthor(post.pubkey, effectiveCurrentPubkey) ||
-                    canModerateContent
-                  }
+                  canDelete={canDelete(post.pubkey, effectiveCurrentPubkey)}
                   currentPubkey={effectiveCurrentPubkey}
                   isActive={selectedPostId === post.eventId}
                   isDeleting={
@@ -276,13 +245,7 @@ export function ForumView({
                   }
                   onClick={() => onSelectPost(post.eventId)}
                   onDelete={(eventId) => {
-                    deletePostMutation.mutate({
-                      eventId,
-                      moderatorDelete: !isForumContentAuthor(
-                        post.pubkey,
-                        effectiveCurrentPubkey,
-                      ),
-                    });
+                    deletePostMutation.mutate({ eventId });
                   }}
                   post={post}
                   profiles={profiles}

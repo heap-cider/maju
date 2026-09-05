@@ -2,6 +2,7 @@
 mod app_menu;
 mod app_state;
 mod archive;
+mod build_identity;
 mod builderlab;
 mod channel_head_cache;
 mod commands;
@@ -42,6 +43,7 @@ mod relay_admission;
 mod reset;
 mod secret_store;
 mod shutdown;
+mod team_catalog;
 mod templates;
 mod terminal_runtime;
 #[cfg_attr(not(test), allow(dead_code))]
@@ -95,11 +97,7 @@ use tauri_plugin_window_state::StateFlags;
 use tray_menu::show_main_window;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // mesh-llm's async chains (model download, node start/join) overflow
-    // tokio's default 2 MiB worker stacks — a stack-guard SIGABRT, not a
-    // panic. Upstream mesh-llm and mesh-console both run on 8 MiB worker
-    // stacks for this reason; give Tauri's command runtime the same headroom
-    // before anything else touches tauri::async_runtime.
+    // mesh-llm async chains overflow tokio's default 2 MiB stacks; run on 8 MiB like upstream.
     #[cfg(feature = "mesh-llm")]
     match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -130,7 +128,7 @@ pub fn run() {
             }
             // Forward any deep link URLs from the duplicate launch.
             for arg in &argv {
-                if arg.starts_with("maju://") {
+                if crate::build_identity::is_deep_link_for_build(arg) {
                     handle_deep_link_url(app, arg);
                 }
             }
@@ -390,7 +388,10 @@ pub fn run() {
             // the now-inert ~/.sprout; the frontend dedupes the toast.
             // Suppressed when a reset completed this boot: the nest was wiped and
             // a fresh ~/.sprout-less state is exactly what we want.
-            if !reset_outcome.completed && migration::migrate_legacy_nest() {
+            if !crate::build_identity::is_demo_build()
+                && !reset_outcome.completed
+                && migration::migrate_legacy_nest()
+            {
                 let _ = app_handle.emit("legacy-nest-migrated", ());
             }
 
@@ -611,6 +612,10 @@ pub fn run() {
             create_channel,
             ensure_starter_channels,
             open_dm,
+            get_bestie_assignment,
+            assign_bestie,
+            clear_bestie_assignment,
+            resolve_bestie_conversation,
             hide_dm,
             get_channel_details,
             get_channel_members,
@@ -662,6 +667,8 @@ pub fn run() {
             save_png_data_url,
             download_file,
             fetch_media_bytes,
+            cancel_media_fetch,
+            release_media_fetch,
             copy_image_to_clipboard,
             copy_text_to_clipboard,
             read_clipboard_text,
@@ -690,6 +697,7 @@ pub fn run() {
             start_managed_agent,
             stop_managed_agent,
             set_agent_managed_profiles,
+            set_thread_scoped_acp_sessions,
             set_managed_agent_start_on_app_launch,
             set_managed_agent_auto_restart,
             delete_managed_agent,
@@ -714,6 +722,7 @@ pub fn run() {
             discover_backend_providers,
             probe_backend_provider,
             persona_catalog::fetch_persona_catalog,
+            team_catalog::fetch_team_catalog,
             unread_catch_up::unread_catch_up,
             observed_unread::observed_unread_open_scope,
             observed_unread::observed_unread_ingest,
@@ -736,6 +745,8 @@ pub fn run() {
             list_teams,
             create_team,
             update_team,
+            set_team_shared,
+            add_team_from_catalog,
             delete_team,
             export_agent_snapshot,
             card_mint_key_status,

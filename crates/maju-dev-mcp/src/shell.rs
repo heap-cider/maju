@@ -14,7 +14,7 @@ use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
 const DEFAULT_TIMEOUT_MS: u64 = 120_000;
-const MAX_TIMEOUT_MS: u64 = 600_000;
+const MAX_TIMEOUT_MS: u64 = 1_200_000;
 const MAX_COMMAND_BYTES: usize = 1_000_000;
 const CAPTURE_CAP: usize = 10 * 1024 * 1024;
 const MAX_BYTES: usize = 50 * 1024;
@@ -121,10 +121,14 @@ pub struct ShellParams {
     pub command: String,
     #[serde(default)]
     pub workdir: Option<String>,
-    /// Defaults to 120000 ms (2 min) if omitted; capped at 600000 ms (10 min).
+    /// Defaults to 120000 ms (2 min) if omitted; capped at 1,200,000 ms (20 min).
     /// For long-running commands (git push with hooks, cargo build, test suites), use 300000+.
     #[serde(default)]
     pub timeout_ms: Option<u64>,
+}
+
+fn effective_timeout_ms(requested: Option<u64>) -> u64 {
+    requested.unwrap_or(DEFAULT_TIMEOUT_MS).min(MAX_TIMEOUT_MS)
 }
 
 pub async fn run(
@@ -138,10 +142,7 @@ pub async fn run(
             None,
         ));
     }
-    let timeout_ms = p
-        .timeout_ms
-        .unwrap_or(DEFAULT_TIMEOUT_MS)
-        .min(MAX_TIMEOUT_MS);
+    let timeout_ms = effective_timeout_ms(p.timeout_ms);
     let workdir: PathBuf = p
         .workdir
         .as_deref()
@@ -1135,6 +1136,15 @@ mod tests {
         // "한글\r\n" encoded as Windows-949 (the Korean Windows console page).
         let decoded = decode_windows_code_page(&[0xC7, 0xD1, 0xB1, 0xDB, 0x0D, 0x0A], 949);
         assert_eq!(decoded.as_deref(), Some("한글\r\n"));
+    }
+
+    #[test]
+    fn timeout_bounds_preserve_default_and_cap_requests_at_twenty_minutes() {
+        assert_eq!(effective_timeout_ms(None), 120_000);
+        assert_eq!(effective_timeout_ms(Some(120_000)), 120_000);
+        assert_eq!(effective_timeout_ms(Some(1_200_000)), 1_200_000);
+        assert_eq!(effective_timeout_ms(Some(1_200_001)), 1_200_000);
+        assert_eq!(effective_timeout_ms(Some(u64::MAX)), 1_200_000);
     }
 
     #[tokio::test(flavor = "current_thread")]

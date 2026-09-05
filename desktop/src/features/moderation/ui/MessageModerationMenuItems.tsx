@@ -1,11 +1,4 @@
-import {
-  Ban,
-  CircleSlash,
-  Clock,
-  ShieldCheck,
-  Trash2,
-  UserMinus,
-} from "lucide-react";
+import { Ban, CircleSlash, Clock, ShieldCheck, UserMinus } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -21,7 +14,6 @@ import { useMyRelayMembershipQuery } from "@/features/community-members/hooks";
 import type { TimelineMessage } from "@/features/messages/types";
 import { isTimedOut } from "@/features/moderation/lib/restrictionState";
 import { useIdentityQuery } from "@/shared/api/hooks";
-import { canModerateCommunityContent } from "@/features/moderation/lib/contentModeration";
 import { normalizePubkey } from "@/shared/lib/pubkey";
 import {
   DropdownMenuItem,
@@ -48,24 +40,15 @@ const TIMEOUT_PRESETS: { label: string; seconds: number }[] = [
  * the security note on TimelineMessage.
  */
 export function MessageModerationMenuItems({
-  canOfferDelete = false,
   channelId,
   message,
-  onDeleteMessage,
 }: {
-  canOfferDelete?: boolean;
   channelId?: string | null;
   message: TimelineMessage;
-  onDeleteMessage?: () => void;
 }) {
   const relayMembershipQuery = useMyRelayMembershipQuery();
   const relayRole = relayMembershipQuery.data?.role;
-  const canModerate = canModerateCommunityContent(relayRole);
-  const canDeleteMessage =
-    canModerate &&
-    canOfferDelete &&
-    channelId != null &&
-    onDeleteMessage != null;
+  const canModerate = relayRole === "owner" || relayRole === "admin";
 
   const identityQuery = useIdentityQuery();
   // Moderate the raw signer, never a relay-delegated display author. A message
@@ -118,35 +101,11 @@ export function MessageModerationMenuItems({
     [],
   );
 
-  if (!enabled || targetPubkey == null) {
-    return canDeleteMessage ? (
-      <>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          data-testid={`moderate-delete-message-${message.id}`}
-          onClick={onDeleteMessage}
-        >
-          <Trash2 className="h-4 w-4" />
-          Delete message
-        </DropdownMenuItem>
-      </>
-    ) : null;
-  }
+  if (!enabled || targetPubkey == null) return null;
 
   return (
     <>
       <DropdownMenuSeparator />
-      {canDeleteMessage ? (
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          data-testid={`moderate-delete-message-${message.id}`}
-          onClick={onDeleteMessage}
-        >
-          <Trash2 className="h-4 w-4" />
-          Delete message
-        </DropdownMenuItem>
-      ) : null}
       {timedOut ? (
         <DropdownMenuItem
           data-testid={`message-untimeout-${message.id}`}

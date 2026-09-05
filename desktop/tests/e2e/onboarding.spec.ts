@@ -8,6 +8,11 @@ import {
   TEST_IDENTITIES,
 } from "../helpers/bridge";
 import { expectEmojiMartStylesInstalled } from "../helpers/css";
+import {
+  invokeMockCommand,
+  publishWelcomeTeamPresence,
+  waitForWelcomeTeam,
+} from "../helpers/welcomeTeam";
 import { installFakeCamera } from "../helpers/fakeCamera";
 import { waitForAnimations } from "../helpers/animations";
 import {
@@ -431,6 +436,9 @@ async function expectWelcomeView(page: Page) {
     "Create an agent",
   );
   await expect(page.getByTestId("message-composer")).toBeVisible();
+  // Measure the empty-channel intro before presence releases the live kickoff.
+  // Its message arrival can remount the timeline while bounding boxes are read.
+  await publishWelcomeTeamPresence(page);
   await expect(page.getByTestId("welcome-composer-guide-banner")).toBeVisible();
   await expect(page.getByTestId("welcome-composer-guide-banner")).toContainText(
     "Mention",
@@ -518,39 +526,6 @@ async function getMockChannels(page: Page) {
     };
     return payload.channels ?? [];
   });
-}
-
-async function invokeMockCommand<T>(
-  page: Page,
-  command: string,
-  payload?: Record<string, unknown>,
-) {
-  return page.evaluate(
-    async ({ command, payload }) => {
-      const bridgeWindow = window as Window & {
-        __MAJU_E2E_INVOKE_MOCK_COMMAND__?: (
-          command: string,
-          payload?: Record<string, unknown>,
-        ) => Promise<unknown>;
-        __TAURI_INTERNALS__?: {
-          invoke?: (
-            command: string,
-            payload?: Record<string, unknown>,
-          ) => Promise<unknown>;
-        };
-      };
-      const invoke =
-        bridgeWindow.__MAJU_E2E_INVOKE_MOCK_COMMAND__ ??
-        bridgeWindow.__TAURI_INTERNALS__?.invoke;
-
-      if (!invoke) {
-        throw new Error("Mock invoke bridge is unavailable.");
-      }
-
-      return (await invoke(command, payload)) as T;
-    },
-    { command, payload },
-  );
 }
 
 async function seedCurrentAvatar(page: Page, avatarUrl: string) {
@@ -2769,6 +2744,22 @@ test("first-run onboarding posts the live Fizz kickoff", async ({ page }) => {
   await completeProfileOnboarding(page);
 
   await expectPrivateWelcomeLanding(page);
+  // Runtime start alone cannot satisfy the kickoff's relay-presence wait.
+  const team = await waitForWelcomeTeam(page);
+  const presence = await invokeMockCommand<Record<string, string>>(
+    page,
+    "get_presence",
+    { pubkeys: team.map((agent) => agent.pubkey) },
+  );
+  expect(team.map((agent) => presence[agent.pubkey])).toEqual([
+    "offline",
+    "offline",
+    "offline",
+  ]);
+  await expect(page.getByTestId("message-timeline")).not.toContainText(
+    "Hi Morty QA, I'm Fizz. Welcome to Maju.",
+  );
+  await publishWelcomeTeamPresence(page);
   // Greeted by the name typed above — the @mention pill also files the opener
   // into the new user's Inbox mentions feed.
   await expect(page.getByTestId("message-timeline")).toContainText(
@@ -2795,6 +2786,7 @@ test("first-run onboarding lands before Welcome team bootstrap completes", async
 
   await expectPrivateWelcomeLanding(page);
   await expect(page.getByTestId("app-loading-gate")).toHaveCount(0);
+  await publishWelcomeTeamPresence(page);
   await expect(page.getByTestId("message-timeline")).toContainText(
     "Hi Morty QA, I'm Fizz. Welcome to Maju.",
   );
@@ -2885,6 +2877,7 @@ test("welcome-everywhere banner: X dismiss removes the guidance surface", async 
 
   await page.getByTestId("onboarding-display-name").fill("Morty QA");
   await completeProfileOnboarding(page);
+  await publishWelcomeTeamPresence(page);
 
   const banner = page.getByTestId("welcome-composer-guide-banner");
   const guidanceLayer = page.getByTestId("welcome-composer-guidance-layer");
@@ -2911,6 +2904,7 @@ test("welcome-everywhere banner: dismiss persists after channel re-entry", async
 
   await page.getByTestId("onboarding-display-name").fill("Morty QA");
   await completeProfileOnboarding(page);
+  await publishWelcomeTeamPresence(page);
 
   const banner = page.getByTestId("welcome-composer-guide-banner");
 

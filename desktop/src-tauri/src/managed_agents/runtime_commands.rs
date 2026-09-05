@@ -368,6 +368,7 @@ fn start_pair(
         owner.as_deref(),
         &personas,
         &teams,
+        None,
     )?;
     let now = crate::util::now_iso();
     let receipt = ManagedAgentRuntimeReceipt {

@@ -31,6 +31,8 @@ fn record(
 
 fn team(id: &str, personas: &[&str], created_at: &str) -> TeamRecord {
     TeamRecord {
+        shared: false,
+        catalog_source: None,
         id: id.to_string(),
         name: id.to_string(),
         description: None,

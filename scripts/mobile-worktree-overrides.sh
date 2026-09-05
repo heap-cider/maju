@@ -75,7 +75,7 @@ case "$android_slug" in
     [0-9]*) android_slug="w_$android_slug" ;;
 esac
 
-ios_bundle_id="com.maju.majuMobile.${ios_slug}"
+ios_bundle_id="xyz.block.maju.dogfood.mobile.${ios_slug}"
 android_app_name="${MAJU_ANDROID_DEBUG_APP_NAME:-Maju (${label})}"
 android_suffix="${MAJU_ANDROID_DEBUG_ID_SUFFIX:-.${android_slug}}"
 

@@ -196,12 +196,16 @@ pub(crate) fn agent_store_dir_for_relay(
 /// Unit tests historically use a bare Tauri app without applying a workspace,
 /// so they retain the old flat seam. Production is always relay+owner scoped.
 #[cfg(test)]
-pub(crate) fn active_agent_store_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn active_agent_store_dir<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+) -> Result<PathBuf, String> {
     managed_agents_base_dir(app)
 }
 
 #[cfg(not(test))]
-pub(crate) fn active_agent_store_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn active_agent_store_dir<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+) -> Result<PathBuf, String> {
     let state = app.state::<AppState>();
     let scope = retention::active_retention_scope(app, &state)?;
     let base_dir = managed_agents_base_dir(app)?;

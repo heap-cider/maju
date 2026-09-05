@@ -9,6 +9,7 @@
 .tags*
 **/.vagrant/
 **/DerivedData/
+MajuPushKit/Package.resolved
 Icon?
 **/Pods/
 **/.symlinks/

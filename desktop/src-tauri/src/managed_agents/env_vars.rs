@@ -227,7 +227,7 @@ pub fn validate_user_env_keys(env_vars: &BTreeMap<String, String>) -> Result<(),
 /// - `MAJU_AGENT_PROVIDER`, `MAJU_AGENT_MODEL` — agent runtime selection
 /// - `MAJU_AGENT_THINKING_EFFORT` — non-secret enum (none/minimal/low/medium/high/xhigh/max)
 /// - `MAJU_AGENT_THINKING_SUMMARY` — non-secret enum (auto/concise/detailed)
-/// - `DATABRICKS_HOST`, `DATABRICKS_MODEL` — Block non-secret defaults
+/// - `DATABRICKS_HOST`, `DATABRICKS_MODEL`, `DATABRICKS_MODEL_FILTER` — Block non-secret defaults
 pub(crate) fn is_safe_to_reveal(key: &str) -> bool {
     const SAFE_KEYS: &[&str] = &[
         "MAJU_AGENT_PROVIDER",
@@ -236,6 +236,7 @@ pub(crate) fn is_safe_to_reveal(key: &str) -> bool {
         "MAJU_AGENT_THINKING_SUMMARY",
         "DATABRICKS_HOST",
         "DATABRICKS_MODEL",
+        "DATABRICKS_MODEL_FILTER",
     ];
     let upper = key.to_ascii_uppercase();
     SAFE_KEYS.iter().any(|safe| upper == *safe)

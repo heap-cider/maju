@@ -1,7 +1,10 @@
+use crate::managed_agents::discovery::EffortNormalization;
 use crate::managed_agents::discovery::KnownAcpRuntime;
 use crate::managed_agents::types::ManagedAgentRecord;
 
+use super::effort::effort_tier_alias;
 use super::types::*;
+use super::LEGACY_THINKING_EFFORT_KEY;
 
 /// Build the full config surface for an agent, merging all tiers.
 ///
@@ -40,6 +43,8 @@ pub(crate) fn read_config_surface(
     let provider_env_var = runtime_meta.and_then(|m| m.provider_env_var);
     let provider_locked = runtime_meta.is_some_and(|m| m.provider_locked);
     let thinking_env_var = runtime_meta.and_then(|m| m.thinking_env_var);
+    let effort_norm = runtime_meta.and_then(|m| m.effort_normalization);
+    let effort_accepted = runtime_meta.and_then(|m| m.effort_accepted_values);
     let supports_acp_native = runtime_meta.is_some_and(|m| m.supports_acp_native_config);
     let required_fields: &[&str] = runtime_meta
         .map(|m| m.required_normalized_fields)
@@ -54,9 +59,15 @@ pub(crate) fn read_config_surface(
             .or_else(|| find_config_option_value(c, "model"))
     });
     let acp_mode = session_cache.and_then(|c| find_config_option_value(c, "mode"));
+    let effort_config_id = find_config_id_by_category(session_cache, "thought_level")
+        .or_else(|| find_config_id_by_category(session_cache, "effort"));
     let acp_effort = session_cache.and_then(|cache| {
-        find_config_option_value(cache, "thought_level")
-            .or_else(|| find_config_option_value(cache, "effort"))
+        cache
+            .config_options
+            .iter()
+            .find(|option| Some(option.config_id.as_str()) == effort_config_id.as_deref())
+            .and_then(|option| option.current_value.as_ref())
+            .and_then(config_scalar_display_value)
     });
 
     let model_overridden = session_cache.is_some_and(|c| c.model_overridden);
@@ -87,9 +98,11 @@ pub(crate) fn read_config_surface(
             record,
             &file_config.thinking_effort,
             &acp_effort,
+            effort_config_id.as_deref(),
             thinking_env_var,
+            effort_norm,
+            effort_accepted,
             is_pre_spawn,
-            session_cache,
             tiers,
         ),
         max_output_tokens: build_numeric_env_field(
@@ -122,7 +135,7 @@ pub(crate) fn read_config_surface(
         .collect();
 
     // Collect the env var keys already covered by normalized fields.
-    let normalized_env_keys: Vec<&str> = [
+    let mut normalized_env_keys: Vec<&str> = [
         model_env_var,
         provider_env_var,
         thinking_env_var,
@@ -135,10 +148,35 @@ pub(crate) fn read_config_surface(
     .flatten()
     .collect();
 
-    // Tier 2a: remaining env vars not covered by normalized fields.
+    // Hide the legacy effort key from advanced only when it actually wins the
+    // record tier: the native environment key is absent/invalid, then legacy
+    // normalizes. Otherwise `build_thinking_field` represents another winner
+    // and the legacy key stays editable in Advanced.
+    let record_legacy_consumed = thinking_env_var
+        .zip(effort_norm)
+        .is_some_and(|(native, norm)| {
+            native != LEGACY_THINKING_EFFORT_KEY
+                && super::effort::get_ci(&record.env_vars, native)
+                    .and_then(|v| norm.normalize_str(v))
+                    .is_none()
+                && super::effort::get_ci(&record.env_vars, LEGACY_THINKING_EFFORT_KEY)
+                    .and_then(|v| norm.normalize_str(v))
+                    .is_some()
+        });
+    if record_legacy_consumed {
+        normalized_env_keys.push(LEGACY_THINKING_EFFORT_KEY);
+    }
+
+    // Tier 2a: remaining env vars not covered by normalized fields. Matching is
+    // ASCII-case-insensitive so a mixed-case managed key (e.g. Windows
+    // `goose_thinking_effort`) the launch projection already consumed is hidden
+    // from Advanced rather than shown as a spurious editable extra.
     let mut advanced = advanced;
     for (k, v) in &record.env_vars {
-        if normalized_env_keys.contains(&k.as_str()) {
+        if normalized_env_keys
+            .iter()
+            .any(|nk| nk.eq_ignore_ascii_case(k))
+        {
             continue;
         }
         if file_config.extra.contains_key(k) {
@@ -529,53 +567,103 @@ fn build_thinking_field(
     record: &ManagedAgentRecord,
     file_effort: &Option<String>,
     acp_effort: &Option<String>,
+    effort_config_id: Option<&str>,
     thinking_env_var: Option<&str>,
+    effort_norm: Option<&'static EffortNormalization>,
+    effort_accepted: Option<&'static [&'static str]>,
     is_pre_spawn: bool,
-    session_cache: Option<&SessionConfigCache>,
     tiers: &InheritedConfigTiers,
 ) -> Option<NormalizedField> {
-    // Tier ordering: record env > ACP > persona env > global env >
-    // definition env > config file.
-    let [rec_env, pers_env, glob_env, def_env] = thinking_env_var
-        .map(|k| {
-            env_candidates(
-                k,
-                &record.env_vars,
-                &tiers.persona_env,
-                &tiers.global_env,
-                &tiers.definition_env,
-            )
-        })
-        .unwrap_or([None, None, None, None]);
+    // Tier ordering (mirrors the launch projection in `config_bridge::effort`,
+    // plus the two reader-only tiers the projection has no input for — live ACP
+    // and the on-disk config file):
+    //   record native > record legacy > ACP >
+    //   persona > global > definition > config file.
+    //
+    // Every candidate is normalized through the runtime's declared contract
+    // (`effort_norm`) before validity, precedence, override tracking, and the B
+    // same-value collapse — the SAME normalizer the launch projection applies —
+    // so the panel and the next spawn resolve one effective value AND authority.
+    // For contract runtimes an invalid value (e.g. Goose `minimal`) normalizes
+    // to `None` and is skipped as absent so a lower tier can win; aliases
+    // (`none`→`off`, `xhigh`→`max`, case-fold) canonicalize. Contract-less
+    // runtimes (maju-agent, Claude/Codex) pass raw.
+    let norm = |raw: &str| -> Option<String> {
+        super::effort::normalize_effort(effort_norm, effort_accepted, raw)
+    };
+
+    // Record tiers, split exactly as the projection resolves them: native env
+    // followed by the legacy environment alias.
+    let rec_native = thinking_env_var
+        .and_then(|k| super::effort::get_ci(&record.env_vars, k))
+        .and_then(|v| norm(v));
+    let rec_legacy = thinking_env_var
+        .filter(|k| *k != LEGACY_THINKING_EFFORT_KEY)
+        .and_then(|_| super::effort::get_ci(&record.env_vars, LEGACY_THINKING_EFFORT_KEY))
+        .and_then(|v| norm(v));
+
+    // Inherited env tiers: persona resolves native-then-legacy; global and
+    // definition are native-only (legacy alias excluded), matching the launch
+    // projection's per-tier alias policy.
+    let pers = thinking_env_var.and_then(|k| effort_tier_alias(&tiers.persona_env, k, norm, true));
+    let glob = thinking_env_var.and_then(|k| effort_tier_alias(&tiers.global_env, k, norm, false));
+    let def =
+        thinking_env_var.and_then(|k| effort_tier_alias(&tiers.definition_env, k, norm, false));
+    let file = file_effort.as_deref().and_then(&norm);
+
+    // Live ACP value: normalized through the runtime CONTRACT only, never the
+    // persisted `effort_accepted` vocabulary. The ACP running value comes from
+    // the session's own config-option namespace (e.g. maju-agent reports
+    // `default` for its live thinking-level option) — it is a descriptive
+    // "currently running" fact, never emitted to a spawn, so the
+    // destination-vocabulary gate that guards the writable tiers must not skip
+    // it. Goose still canonicalizes (its ACP option values ARE effort values);
+    // contract-less runtimes pass raw. The matched `config_id` is preserved for
+    // `write_via` regardless of value validity.
+    let acp_norm = acp_effort
+        .as_deref()
+        .and_then(|v| super::effort::normalize_effort(effort_norm, None, v));
+
+    // B same-value collapse: when NO record-level authority exists and the live
+    // ACP value exactly equals what inheritance would already resolve to, drop
+    // ACP so the panel shows the true baseline origin ("Global default") rather
+    // than a spurious "Runtime override (this session only)" — the session is
+    // almost certainly echoing what spawn injected. When a record tier is
+    // present it wins over ACP anyway, so ACP stays only for override tracking.
+    let record_present = rec_native.is_some() || rec_legacy.is_some();
+    let baseline_first = [
+        pers.as_deref(),
+        glob.as_deref(),
+        def.as_deref(),
+        file.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .next();
+    let acp_for_list = match (record_present, acp_norm.as_deref(), baseline_first) {
+        (false, Some(a), Some(b)) if a == b => None,
+        _ => acp_norm.as_deref(),
+    };
 
     let tiers_list: &[(Option<&str>, ConfigOrigin)] = &[
-        (rec_env, ConfigOrigin::MajuExplicit),
-        (acp_effort.as_deref(), ConfigOrigin::AcpConfigOption),
-        (pers_env, ConfigOrigin::PersonaDefault),
-        (glob_env, ConfigOrigin::GlobalDefault),
-        (def_env, ConfigOrigin::HarnessDefault),
-        (file_effort.as_deref(), ConfigOrigin::ConfigFile),
+        (rec_native.as_deref(), ConfigOrigin::MajuExplicit),
+        (rec_legacy.as_deref(), ConfigOrigin::MajuExplicit),
+        (acp_for_list, ConfigOrigin::AcpConfigOption),
+        (pers.as_deref(), ConfigOrigin::PersonaDefault),
+        (glob.as_deref(), ConfigOrigin::GlobalDefault),
+        (def.as_deref(), ConfigOrigin::HarnessDefault),
+        (file.as_deref(), ConfigOrigin::ConfigFile),
     ];
     let (value, origin, overridden_value, overridden_origin) = resolve_with_override(tiers_list)?;
 
-    let native_thought_level_config_id = find_config_id_by_category(session_cache, "thought_level")
-        .or_else(|| find_config_id_by_category(session_cache, "effort"));
-    let write_via = if !is_pre_spawn {
-        native_thought_level_config_id
-            .map(|config_id| ConfigWriteMechanism::AcpSetConfigOption { config_id })
-            .unwrap_or_else(|| {
-                thinking_env_var.map_or(ConfigWriteMechanism::ReadOnly, |env_key| {
-                    ConfigWriteMechanism::RespawnWithEnvVar {
-                        env_key: env_key.to_string(),
-                    }
-                })
-            })
-    } else if let Some(env_key) = thinking_env_var {
-        ConfigWriteMechanism::RespawnWithEnvVar {
+    let write_via = match (is_pre_spawn, effort_config_id, thinking_env_var) {
+        (false, Some(config_id), _) => ConfigWriteMechanism::AcpSetConfigOption {
+            config_id: config_id.to_string(),
+        },
+        (_, _, Some(env_key)) => ConfigWriteMechanism::RespawnWithEnvVar {
             env_key: env_key.to_string(),
-        }
-    } else {
-        ConfigWriteMechanism::ReadOnly
+        },
+        _ => ConfigWriteMechanism::ReadOnly,
     };
 
     Some(NormalizedField {

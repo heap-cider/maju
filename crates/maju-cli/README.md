@@ -53,6 +53,17 @@ maju channels topic --channel <uuid> --topic "New topic"
 maju reactions add --event <event-id> --emoji "👍"
 maju reactions get --event <event-id>
 
+# GIFs (requires relay to advertise maju-gif / KLIPY)
+maju gifs search                              # trending GIFs
+maju gifs search --query "celebration"        # search GIFs
+maju gifs share --slug <slug>                 # report selection to provider Recents
+# Paste the `cdn_url` from a search result directly into messages send --content
+
+# Custom emoji in messages
+# maju messages send scans outgoing content for :shortcode: patterns and
+# automatically attaches NIP-30 ["emoji", shortcode, url] tags from the
+# workspace palette — identical to the desktop composer behavior.
+
 # Users & Presence
 maju users get                          # your own profile
 maju users get --pubkey <hex>           # single user
@@ -130,6 +141,8 @@ stored rules in `validation_error` so an owner can remove and repair them.
 | `reactions` | `add` | React to a message |
 | | `remove` | Remove a reaction |
 | | `get` | List reactions |
+| `gifs` | `search` | Search or browse trending GIFs (requires relay maju-gif support) |
+| | `share` | Report a selected GIF to the provider's Recents |
 | `dms` | `list` | List DM conversations |
 | | `open` | Open a DM (1–8 pubkeys) |
 | | `add-member` | Add member to DM group |

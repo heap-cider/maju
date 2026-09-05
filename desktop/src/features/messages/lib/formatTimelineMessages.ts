@@ -9,10 +9,6 @@ import type {
   TimelineMessage,
   TimelineReaction,
 } from "@/features/messages/types";
-// Pure overlay helper lives in a sibling .mjs so node:test (no TS loader)
-// can exercise the exact same source the renderer uses.
-import { applyEditTagOverlay } from "@/features/messages/lib/applyEditTagOverlay.mjs";
-import { formatTime } from "@/features/messages/lib/dateFormatters";
 import {
   getThreadReference,
   isBroadcastReply,
@@ -41,10 +37,16 @@ import {
   KIND_SYSTEM_MESSAGE,
 } from "@/shared/constants/kinds";
 import { resolveEventAuthorPubkey } from "@/shared/lib/authors";
-import { normalizePubkey, truncatePubkey } from "@/shared/lib/pubkey";
+import { normalizePubkey } from "@/shared/lib/pubkey";
 import { channelRoleMap } from "@/shared/lib/rosterDerivations";
 
 const EMPTY_ROLE_MAP: ReadonlyMap<string, string> = new Map();
+import { formatTime } from "@/features/messages/lib/dateFormatters";
+// Pure overlay helper lives in a sibling .mjs so node:test (no TS loader)
+// can exercise the exact same source the renderer uses.
+import { applyEditTagOverlay } from "@/features/messages/lib/applyEditTagOverlay.mjs";
+import { truncatePubkey } from "@/shared/lib/pubkey";
+
 const HEX_RE = /^[0-9a-f]+$/i;
 
 export function isTimelineContentEvent(event: RelayEvent) {
@@ -255,19 +257,12 @@ export function formatTimelineMessages(
   // Build a map of latest authorized edit per original message. Preview
   // suppression is monotonic: any authorized edit carrying the marker wins
   // forever, independent of which edit supplies the latest body.
-  // Keep the edit signer so verified agent-owner edits remain visible provenance
-  // instead of looking like the original author silently rewrote the message.
   // The edit's own tags are kept so the renderer can overlay imeta tags
   // (attachments) from the edit onto the original event — non-imeta tags on
   // the original (`h`, `p` mentions, etc.) stay untouched.
   const editsByTargetId = new Map<
     string,
-    {
-      content: string;
-      tags: string[][];
-      createdAt: number;
-      editorPubkey: string;
-    }
+    { content: string; tags: string[][]; createdAt: number }
   >();
   for (const event of events) {
     if (
@@ -298,7 +293,6 @@ export function formatTimelineMessages(
         content: event.content,
         tags: event.tags,
         createdAt: event.created_at,
-        editorPubkey: event.pubkey.toLowerCase(),
       });
     }
   }
@@ -516,7 +510,6 @@ export function formatTimelineMessages(
       accent: currentPubkey === authorPubkey,
       pending: event.pending,
       edited: edit !== undefined,
-      editedByPubkey: edit?.editorPubkey,
       kind: event.kind,
       // When edited, swap the original event's imeta tags for the edit's
       // imeta tags. All non-imeta tags on the original are preserved.

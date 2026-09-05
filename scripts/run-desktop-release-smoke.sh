@@ -89,7 +89,7 @@ export PGSCHEMA_PLAN_HOST=localhost PGSCHEMA_PLAN_PORT=5432 PGSCHEMA_PLAN_DB="${
 export PGSCHEMA_PLAN_USER=maju PGSCHEMA_PLAN_PASSWORD=maju_dev
 ./bin/pgschema apply --file schema/schema.sql --auto-approve
 docker exec -i -e PGPASSWORD=maju_dev maju-postgres \
-  psql -U maju -d "${DB_NAME}" -v ON_ERROR_STOP=1 < scripts/attach-schema-partitions.sql
+  psql -U maju -d "${DB_NAME}" -v ON_ERROR_STOP=1 < scripts/reconcile-schema-after-pgschema.sql
 MAJU_DB_NAME="${DB_NAME}" MAJU_COMMUNITY_HOST="${COMMUNITY_HOST}" ./scripts/setup-desktop-test-data.sh
 docker exec maju-redis redis-cli -n "${REDIS_DB}" FLUSHDB >/dev/null
 phase database "${phase_start}"

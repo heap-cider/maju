@@ -21,15 +21,17 @@ import 'features/pairing/pairing_page.dart';
 import 'features/channels/agent_activity/observer_subscription.dart';
 import 'features/channels/channel_detail_page.dart';
 import 'features/channels/deep_link_dispatcher.dart';
+import 'features/channels/voice_note_recording.dart';
 import 'features/profile/user_status_cache_provider.dart';
 import 'features/profile/settings_profile_header.dart';
 import 'features/profile/profile_edit_page.dart';
 import 'features/profile/profile_text_editor.dart';
-import 'features/settings/app_update_prompt.dart';
 import 'features/settings/settings_page.dart';
 import 'shared/auth/auth.dart';
 import 'shared/deeplink/pending_deep_link_provider.dart';
 import 'shared/emoji/emoji_burst.dart';
+import 'shared/push/push_subscription_provider.dart';
+import 'shared/push/push_relay_capability_provider.dart';
 import 'shared/relay/relay.dart';
 import 'shared/read_state/read_state_provider.dart';
 import 'shared/theme/theme.dart';
@@ -326,6 +328,11 @@ class App extends HookConsumerWidget {
       ref.watch(observerRelayProvider);
       ref.watch(appLifecycleProvider);
       ref.watch(userStatusCacheProvider);
+      if (ref.watch(activeCommunityProvider).value?.pushNotificationsEnabled ==
+              true &&
+          ref.watch(currentRelayPushDescriptorProvider).value != null) {
+        ref.watch(pushSubscriptionSyncProvider);
+      }
       hasUnreadInbox = ref.watch(_unreadInboxItemCountProvider) > 0;
     }
 
@@ -353,6 +360,7 @@ class App extends HookConsumerWidget {
 
     return MaterialApp(
       navigatorKey: _mobileRootNavigatorKey,
+      navigatorObservers: [voiceNoteRouteObserver],
       title: 'Maju',
       theme: AppTheme.light(
         colorScheme: lightScheme,
@@ -374,19 +382,15 @@ class App extends HookConsumerWidget {
         loading: () => const _SplashScreen(),
         error: (_, _) => const PairingPage(),
         data: (state) => switch (state.status) {
-          AuthStatus.authenticated => AppUpdateListener(
-            child: DeepLinkDispatcher(
-              child: HomePage(
-                settingsPageBuilder: _buildSettingsPage,
-                hasUnreadInbox: hasUnreadInbox,
-              ),
+          AuthStatus.authenticated => DeepLinkDispatcher(
+            child: HomePage(
+              settingsPageBuilder: _buildSettingsPage,
+              hasUnreadInbox: hasUnreadInbox,
             ),
           ),
-          _ => const AppUpdateListener(
-            child: DeepLinkDispatcher(
-              dispatchMessageLinks: false,
-              child: PairingPage(),
-            ),
+          _ => const DeepLinkDispatcher(
+            dispatchMessageLinks: false,
+            child: PairingPage(),
           ),
         },
       ),
@@ -394,16 +398,25 @@ class App extends HookConsumerWidget {
   }
 }
 
-Widget _buildSettingsPage(BuildContext context) => SettingsPage(
-  profileHeader: const SettingsProfileHeader(),
-  profileEditPageBuilder: (_) =>
-      const ProfileEditPage(startInPhotoEditor: true),
-  onEditDisplayName: showProfileDisplayNameEditor,
-  onEditProfileDescription: showProfileDescriptionEditor,
-  invitePageBuilder: (_) => const CommunityInvitePage(),
-  identityRecoveryPageBuilder: (_) =>
-      const PairingPage(addingCommunity: true, identityRecoveryOnly: true),
-);
+Widget _buildSettingsPage(BuildContext context) => const _SettingsPageContent();
+
+class _SettingsPageContent extends ConsumerWidget {
+  const _SettingsPageContent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SettingsPage(
+      profileHeader: const SettingsProfileHeader(),
+      profileEditPageBuilder: (_) =>
+          const ProfileEditPage(startInPhotoEditor: true),
+      onEditDisplayName: showProfileDisplayNameEditor,
+      onEditProfileDescription: showProfileDescriptionEditor,
+      invitePageBuilder: (_) => const CommunityInvitePage(),
+      identityRecoveryPageBuilder: (_) =>
+          const PairingPage(addingCommunity: true, identityRecoveryOnly: true),
+    );
+  }
+}
 
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen();

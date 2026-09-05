@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  formatMessageSendError,
+  getErrorMessage,
   mergeMentionRecipients,
   shouldStartMentionedAgentHere,
 } from "./useMentionSendFlow.helpers.ts";
@@ -18,6 +20,28 @@ const device = (overrides = {}) => ({
   activeAgents: [],
   standbyAgents: [],
   ...overrides,
+});
+
+test("formatMessageSendError preserves the publication failure", () => {
+  assert.equal(
+    formatMessageSendError(new Error("relay rejected voice note")),
+    "Message failed to send: relay rejected voice note",
+  );
+});
+
+test("getErrorMessage preserves Tauri string errors", () => {
+  assert.equal(
+    getErrorMessage(
+      "relay returned 415 Unsupported Media Type",
+      "Unknown error",
+    ),
+    "relay returned 415 Unsupported Media Type",
+  );
+  assert.equal(
+    getErrorMessage({ message: "upload rejected" }, "Unknown error"),
+    "upload rejected",
+  );
+  assert.equal(getErrorMessage({}, "Unknown error"), "Unknown error");
 });
 
 test("address-locked agents join explicit mentions without duplicating recipients", () => {
@@ -59,7 +83,7 @@ test("a stopped mentioned agent starts here when no representative is online", (
   assert.equal(shouldStartMentionedAgentHere(agent, devices), true);
 });
 
-test("provider-backed mentioned agents follow deployment status instead of device representatives", () => {
+test("provider-backed mentioned agents also reuse an online representative", () => {
   const devices = [device({ activeAgents: ["fizz"] })];
   const providerAgent = (status) => ({
     pubkey: "fizz",
@@ -69,14 +93,22 @@ test("provider-backed mentioned agents follow deployment status instead of devic
 
   assert.equal(
     shouldStartMentionedAgentHere(providerAgent("stopped"), devices),
-    true,
+    false,
   );
   assert.equal(
     shouldStartMentionedAgentHere(providerAgent("running"), devices),
-    true,
+    false,
   );
   assert.equal(
     shouldStartMentionedAgentHere(providerAgent("deployed"), devices),
+    false,
+  );
+  assert.equal(
+    shouldStartMentionedAgentHere(providerAgent("stopped"), []),
+    true,
+  );
+  assert.equal(
+    shouldStartMentionedAgentHere(providerAgent("deployed"), []),
     false,
   );
 });

@@ -93,7 +93,13 @@ build-release:
     cargo build --workspace --release
 
 # Run repo lint, formatting, and repository policy checks
-check: fmt-check clippy desktop-check desktop-tauri-fmt-check desktop-tauri-clippy web-check mobile-check file-size-check
+check: fmt-check clippy desktop-check desktop-tauri-fmt-check desktop-tauri-clippy web-check mobile-check security-review-check file-size-check
+
+# Validate the trusted security-review workflow support and renderer contract.
+security-review-check:
+    node --check .github/scripts/codex-security-review.js
+    node --test .github/scripts/codex-security-review.test.js
+    actionlint .github/workflows/codex-security-review.yml
 
 # Run the repository-wide differential file-size ratchet and its policy tests.
 # The ratchet inspects only files changed from the merge base, so this stays
@@ -250,7 +256,18 @@ desktop-tauri-test-compiled-flags: _ensure-sidecar-stubs
     MAJU_BUILD_AGENT_ACCESS_OWNER_ONLY=1 \
       MAJU_TEST_EXPECTED_AGENT_ACCESS_OWNER_ONLY=true \
       cargo test compiled_policy_matches_expected -- --ignored --nocapture
-    echo "Both compiled states verified."
+    echo "=== Maximum accepted demo name reaches Rust build validation ==="
+    DEMO_CONFIG="$(node ../scripts/demo-build-config.mjs "$(printf 'x%.0s' {1..31})" /dev/null 1234567812345678)"
+    DEMO_SLUG="$(node -e 'console.log(JSON.parse(process.argv[1]).slug)' "$DEMO_CONFIG")"
+    MAJU_BUILD_DEMO_SLUG="$DEMO_SLUG" \
+      MAJU_TEST_EXPECTED_DEMO_SLUG="$DEMO_SLUG" \
+      cargo test compiled_demo_slug_matches_expected -- --ignored --nocapture
+    MAJU_BUILD_DEMO_SLUG="$DEMO_SLUG" cargo test --workspace
+    if node ../scripts/demo-build-config.mjs "$(printf 'x%.0s' {1..32})" /dev/null 1234567812345678; then
+      echo "A 32-character demo name unexpectedly passed JavaScript validation" >&2
+      exit 1
+    fi
+    echo "Both compiled states and the accepted/rejected demo-name boundary verified."
 
 # Build the full desktop Tauri app locally (unsigned, for testing)
 # Sidecar binary list must stay in sync with _ensure-sidecar-stubs above.
@@ -268,6 +285,38 @@ desktop-release-build target="aarch64-apple-darwin":
     touch "desktop/src-tauri/binaries/maju-$TARGET"
     pnpm install
     cd {{desktop_dir}} && pnpm tauri build --features mesh-llm --target {{target}}
+
+# Build an unsigned named macOS demo DMG with isolated app and runtime identities.
+desktop-demo-build demo_name target="aarch64-apple-darwin":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    TARGET={{target}}
+    [[ "$(uname -s)" == "Darwin" && "$TARGET" == *-apple-darwin ]] || { echo "Demo DMGs require a macOS Apple target" >&2; exit 2; }
+    CONFIG_PATH="$(mktemp "${TMPDIR:-/tmp}/maju-demo-config.XXXXXX")"
+    trap 'rm -f "$CONFIG_PATH"' EXIT
+    DEMO_BUILD_ID="$(node -e 'console.log(require("node:crypto").randomBytes(8).toString("hex"))')"
+    DEMO_CONFIG="$(node desktop/scripts/demo-build-config.mjs {{quote(demo_name)}} "$CONFIG_PATH" "$DEMO_BUILD_ID")"
+    read_config() { node -e 'console.log(JSON.parse(process.argv[1])[process.argv[2]])' "$DEMO_CONFIG" "$1"; }
+    PRODUCT_NAME="$(read_config productName)"
+    DMG_VOLUME_NAME="$(read_config dmgVolumeName)"
+    DMG_FILE_STEM="$(read_config dmgFileStem)"
+    DEMO_SLUG="$(read_config slug)"
+    cargo build --release --target "$TARGET" \
+      -p maju-acp -p maju-agent -p maju-backend-kubernetes -p maju-dev-mcp \
+      -p git-credential-nostr -p maju-cli
+    ./scripts/bundle-sidecars.sh "$TARGET"
+    pnpm install
+    cd {{desktop_dir}}
+    MAJU_BUILD_DEMO_SLUG="$DEMO_SLUG" pnpm tauri build --features mesh-llm --target "$TARGET" --bundles app --config "$CONFIG_PATH"
+    cd ..
+    VERSION="$(node -p "require('./desktop/package.json').version")"
+    DMG_ARCH="${TARGET%%-*}"; [[ "$DMG_ARCH" == "x86_64" ]] && DMG_ARCH=x64
+    APP_PATH="desktop/src-tauri/target/$TARGET/release/bundle/macos/$PRODUCT_NAME.app"
+    PLIST="$APP_PATH/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $PRODUCT_NAME" "$PLIST"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName $PRODUCT_NAME" "$PLIST"
+    codesign --force --deep --sign - "$APP_PATH"
+    VOL_NAME="$DMG_VOLUME_NAME" ./desktop/scripts/package-macos-dmg.sh "$APP_PATH" "desktop/src-tauri/target/$TARGET/release/bundle/dmg/${DMG_FILE_STEM}_${VERSION}_${DMG_ARCH}.dmg"
 
 # Run desktop checks suitable for CI / pre-push
 desktop-ci: desktop-check desktop-test desktop-tauri-fmt-check desktop-build desktop-tauri-check desktop-tauri-test
@@ -309,12 +358,20 @@ test-unit:
     ./scripts/test-ensure-local-relay-key.sh
     if command -v cargo-nextest &>/dev/null; then
         cargo nextest run -p maju-core -p maju-auth --lib
+        # maju-auth NIP-FI verifier doctests. The sealed-authority
+        # `compile_fail` doctests prove the default-feature public API alone
+        # cannot forge the issuer→JWKS authority; nextest does not run
+        # doctests, hence this separate step. The verifier's regression suite
+        # lives in the in-crate `#[cfg(test)] mod tests`, so `--lib` above
+        # already runs it.
+        cargo test -p maju-auth --doc
         cargo nextest run -p maju-voice --lib
         cargo nextest run -p maju-cli
         # maju-db migrator/lint tests: pure SQL-parsing unit tests (no infra).
-        # They guard the embedded-migrator invariant (exactly the consolidated
-        # 0001; cutover/backfill stays an operator script, not startup state)
-        # and the tenant-scoping lints. The Postgres-backed maju-db tests are
+        # They guard the embedded-migrator invariant (the complete checked-in
+        # additive migration set; legacy cutover/backfill remains an operator
+        # script, not startup state) and the tenant-scoping lints. The
+        # Postgres-backed maju-db tests are
         # #[ignore]d, so --lib runs only the infra-free set. Without this gate a
         # stray file in migrations/ or a broken lint ships green.
         cargo nextest run -p maju-db --lib
@@ -326,14 +383,56 @@ test-unit:
         # Gateway unit and black-box HTTP tests are infra-free. Postgres-backed
         # contract/race tests run in the dedicated CI job below.
         cargo nextest run -p maju-push-gateway
-        # maju-agent model-capabilities corpus: the Rust half of the
-        # cross-language drift guard. `model_capabilities.rs` embeds
-        # scripts/model-capabilities.json + scripts/normative-corpus.json via
-        # include_str! and replays the full locked corpus as pure in-process tests (no
-        # infra). Enumerated explicitly because nothing in CI runs
-        # `cargo test --workspace`; without this step a manifest edit that
-        # diverges Rust from the corpus ships green.
-        cargo nextest run -p maju-agent --lib
+        # Kubernetes backend provider: the decision layers (state machine, GC
+        # planner, env precedence, naming, wire) are pure functions with a fake
+        # substrate, so they belong in the unit job. Enumerated explicitly
+        # because nothing in CI runs `cargo test --workspace` — workspace
+        # membership alone buys clippy/check, not a single executed test.
+        cargo nextest run -p maju-backend-kubernetes
+        # maju-agent: two infra-free concerns run together by executing the
+        # whole crate (lib + integration tests), because nothing in CI runs
+        # `cargo test --workspace`, so without this stanza neither the crate's
+        # library tests nor its integration tests execute remotely.
+        #   * model-capabilities corpus (lib): the Rust half of the
+        #     cross-language drift guard. `model_capabilities.rs` embeds
+        #     scripts/model-capabilities.json + scripts/normative-corpus.json via
+        #     include_str! and replays the full locked corpus as pure in-process
+        #     tests; without it a manifest edit that diverges Rust from the
+        #     corpus ships green.
+        #   * OAuth auth coordinator (lib concurrency matrix + databricks
+        #     integration tests): lock single-flight, cooldown, cross-process
+        #     crash recovery — infra-free via a stub OIDC provider and an
+        #     injected browser opener, no network or Postgres.
+        cargo nextest run -p maju-agent
+        # Admin API auth-boundary tests (api::admin in maju-relay): the NIP-98
+        # duplicate-tag rejections, the Host/Origin replay-ordering causal pair,
+        # the admin.localhost origin/advertisement/canonical-URL pins, and the
+        # host-oracle/credential-first checks. These are the regression guard for
+        # the /api/admin/v1 moderation auth surface. Enumerated explicitly because
+        # nothing in CI runs `cargo test --workspace`, `just test-unit` did not
+        # enumerate `maju-relay --lib`, and Backend Integration selects only the
+        # #[ignore]d Postgres suites — so these non-ignored tests ran in no lane
+        # and a red one could ship green (exactly how a broken admin test slipped
+        # past every gate once). Scoped to api::admin, not the whole maju-relay
+        # --lib, because api::media has non-ignored tests that require Postgres.
+        # Two api::admin tests are excluded: both exercise a read-route DB
+        # fallthrough and pass without a database only by waiting out the sqlx
+        # acquire timeout (~30s each), so they do not belong in the infra-free
+        # unit job. nip98_mode_unrostered_signer_does_not_consume_a_replay_slot
+        # asserts a unique replay-guard invariant, so it is wired into the
+        # Postgres-backed Backend Integration job (see ci.yml "Admin API
+        # unrostered-signer replay invariant"). disabled_mode_allows_
+        # unauthenticated_requests_on_the_admin_host has no unique invariant:
+        # disabled-mode unauthenticated success is covered by
+        # disabled_mode_regression_pin_unauthenticated_request_is_served on the
+        # DB-free /probe route, and its Host/Origin gating is covered here by
+        # disabled_mode_still_requires_the_correct_host / _a_matching_origin.
+        cargo nextest run -p maju-relay --lib \
+            -E 'test(/^api::admin::/) - test(=api::admin::tests::disabled_mode_allows_unauthenticated_requests_on_the_admin_host) - test(=api::admin::tests::nip98_mode_unrostered_signer_does_not_consume_a_replay_slot)'
+        # ACP author-gate and queue tests protect the trust boundary between
+        # relay events and agent prompts. They are infra-free; ignored lifecycle
+        # tests remain excluded and run in their dedicated integration lanes.
+        cargo nextest run -p maju-acp --lib
     else
         ./scripts/run-tests.sh unit
     fi
@@ -434,7 +533,7 @@ relay-web: bootstrap _ensure-migrations
     pnpm -C web build
     MAJU_WEB_DIR=./web/dist cargo run -p maju-relay
 
-# Build and run the private read-only admin dashboard
+# Build and run the private admin dashboard
 admin: bootstrap _ensure-migrations
     #!/usr/bin/env bash
     set -euo pipefail
@@ -446,20 +545,26 @@ admin: bootstrap _ensure-migrations
     pnpm -C admin-web build
     export MAJU_ADMIN_HOST="${MAJU_ADMIN_HOST:-admin.localhost:3000}"
     export MAJU_ADMIN_WEB_DIR="${MAJU_ADMIN_WEB_DIR:-{{justfile_directory()}}/admin-web/dist}"
+    # Default to disabled auth locally: localhost is the network boundary and a
+    # NIP-07 signer extension can't be assumed in dev. Override per run with
+    # MAJU_ADMIN_AUTH=nip98 (plus RELAY_OPERATOR_PUBKEYS or RELAY_OWNER_PUBKEY)
+    # to exercise the authenticated path.
+    export MAJU_ADMIN_AUTH="${MAJU_ADMIN_AUTH:-disabled}"
     echo "Admin dashboard: http://${MAJU_ADMIN_HOST}/reports"
+    echo "Auth mode: ${MAJU_ADMIN_AUTH} (set MAJU_ADMIN_AUTH=nip98 to require a signed operator)"
     cargo run -p maju-relay
 
 # Seed deterministic reports and product feedback for local admin dashboard review
 admin-seed: _ensure-migrations
     ./scripts/seed-admin-dashboard.sh
 
-# Run focused relay and browser checks for the read-only admin dashboard
+# Run focused relay and browser checks for the admin dashboard
 admin-check: fmt-check
     cargo check -p maju-relay --all-targets
     cargo test -p maju-relay api::admin
     cargo test -p maju-relay router::tests
     pnpm -C admin-web check
-    pnpm -C admin-web exec playwright test
+    pnpm -C admin-web test:e2e
 
 # Start the relay server in release mode
 relay-release: bootstrap _ensure-migrations
@@ -937,7 +1042,7 @@ goose-bg relay="ws://localhost:3000" agents="1" heartbeat="0" prompt="" key="$MA
 
 # ─── Benchmarking ─────────────────────────────────────────────────────────────
 
-# Run the Maju orchestra benchmark — leaderboard-eligible by default (TB 2.1, k=5, Sonnet+Haiku). Stands up its own Docker stack; --gui opens a live spectator desktop app; other flags pass to benchmark.py (--dataset/--path, --include-task, --attempts, --manifest, --dry-run, ...)
+# Run the Maju orchestra benchmark — TB defaults to leaderboard-eligible k=5; Maju task layers default to regression k=1 and workflow k=3. Stands up its own Docker stack; --gui opens a live spectator desktop app; other flags pass to benchmark.py (--dataset/--path, --layer, --include-task, --attempts, --manifest, --dry-run, ...)
 benchmark *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
