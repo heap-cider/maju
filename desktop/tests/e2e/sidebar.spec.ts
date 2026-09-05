@@ -105,7 +105,7 @@ test("sidebar rows separate hover, selected, and reorder states", async ({
       '[data-testid="channel-general"]',
     );
     const following = document.querySelector<HTMLElement>(
-      '[data-testid="channel-random"]',
+      '[data-testid="channel-maju"]',
     );
     if (!selected || !following) return null;
     const selectedBox = selected.getBoundingClientRect();
