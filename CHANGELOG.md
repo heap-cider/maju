@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.2.28
+
+- Fix Windows startup showing ERR_FILE_NOT_FOUND after upgrading to 0.2.27 by bundling the app screen files through a relative packaging path.
+
 ## v0.2.27
 
 - Bring Maju from Buzz `desktop-v0.5.20` to `desktop-v0.5.22`, following Buzz defaults except for the explicit Maju product contract.

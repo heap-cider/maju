@@ -20,14 +20,18 @@ import path from "node:path";
 const args = process.argv.slice(2);
 const configIndex = args.lastIndexOf("--config");
 const override = JSON.parse(args[configIndex + 1]);
-const output = override.build.frontendDist;
+const frontendDist = override.build.frontendDist;
+const output = path.resolve("src-tauri", frontendDist);
+if (output !== process.env.MAJU_PROTECTED_BUILD_OUTPUT) {
+  throw new Error("Tauri must embed the directory produced by beforeBuildCommand");
+}
 mkdirSync(output, { recursive: true });
 writeFileSync(path.join(output, "variant.txt"), process.env.VITE_MAJU_BESTIE);
 await new Promise((resolve) => setTimeout(resolve, 100));
 const observed = readFileSync(path.join(output, "variant.txt"), "utf8");
 writeFileSync(
   process.env.MAJU_TEST_RESULT,
-  JSON.stringify({ args, output, observed }),
+  JSON.stringify({ args, output, frontendDist, observed }),
 );
 `,
 );
@@ -71,6 +75,10 @@ test("opposite Tauri package variants own private frontend artifacts", async () 
   assert.equal(oss.observed, "0");
   assert.equal(internal.observed, "1");
   assert.notEqual(oss.output, internal.output);
+  for (const invocation of [oss, internal]) {
+    assert.equal(path.isAbsolute(invocation.frontendDist), false);
+    assert.equal(URL.canParse(invocation.frontendDist), false);
+  }
 });
 
 test("private config precedes Cargo runner arguments", async () => {
@@ -92,6 +100,6 @@ test("private config precedes Cargo runner arguments", async () => {
   assert.equal(invocation.args[delimiterIndex + 1], "--locked");
   assert.equal(
     JSON.parse(invocation.args[privateConfigIndex + 1]).build.frontendDist,
-    invocation.output,
+    invocation.frontendDist,
   );
 });
