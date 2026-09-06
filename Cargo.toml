@@ -2,6 +2,7 @@
 members = [
     "crates/maju-relay",
     "crates/maju-core",
+    "crates/ifc-core",
     "crates/maju-conformance",
     "crates/maju-push-gateway",
     "crates/maju-db",

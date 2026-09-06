@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,17 +36,27 @@ export function runTauriCommand(args) {
   // Tauri runs beforeBuildCommand and then consumes frontendDist. Give the
   // entire invocation a private directory so concurrent OSS/internal packages
   // cannot replace one another's assets between those two operations.
-  const tauriRoot = path.join(desktopRoot, "src-tauri");
-  const assetRoot = path.join(tauriRoot, "target");
-  mkdirSync(assetRoot, { recursive: true });
-  const invocationRoot = mkdtempSync(
-    path.join(assetRoot, "maju-tauri-package-assets-"),
+  let invocationRoot = mkdtempSync(
+    path.join(tmpdir(), "maju-tauri-package-assets-"),
   );
+  // `frontendDist` deserializes into an untagged enum whose first variant is a
+  // URL, and a Windows absolute path parses as one -- `C:` becomes the scheme.
+  // Tauri then embeds zero assets, exits 0, and the app boots to
+  // ERR_FILE_NOT_FOUND. Hand it a path relative to the config's own directory,
+  // which can never parse as a URL. If the temp dir is on another drive there
+  // is no relative form, so put the scratch root beside the config instead.
+  const configDir = path.join(desktopRoot, "src-tauri");
+  const relativeTo = (root) =>
+    path.relative(configDir, path.join(root, "dist"));
+  if (path.isAbsolute(relativeTo(invocationRoot))) {
+    rmSync(invocationRoot, { recursive: true, force: true });
+    invocationRoot = mkdtempSync(
+      path.join(desktopRoot, ".maju-tauri-package-assets-"),
+    );
+  }
   const frontendDist = path.join(invocationRoot, "dist");
-  // Tauri parses drive-letter paths as URLs and then embeds no assets.
-  // Keep the directory on the same drive so this is always a relative path.
   const outputOverride = JSON.stringify({
-    build: { frontendDist: path.relative(tauriRoot, frontendDist) },
+    build: { frontendDist: relativeTo(invocationRoot) },
   });
 
   try {

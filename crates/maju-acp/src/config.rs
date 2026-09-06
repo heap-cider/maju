@@ -435,7 +435,7 @@ pub struct CliArgs {
     pub no_memory: bool,
 
     /// Disable the `<base>` platform-context section prepended to every prompt.
-    /// When set, agents receive only the persona `<system>` prompt with no Maju orientation.
+    /// When set, agents receive only the persona `<agent-instructions>` prompt with no Maju orientation.
     #[arg(long, env = "MAJU_ACP_NO_BASE_PROMPT")]
     pub no_base_prompt: bool,
 
@@ -496,7 +496,7 @@ pub struct CliArgs {
     #[arg(long, env = "MAJU_ACP_ALLOWED_RESPOND_TO", value_delimiter = ',')]
     pub allowed_respond_to: Option<Vec<String>>,
 
-    /// Team-owned instructions layered after `<system>` and before agent memory.
+    /// Team-owned instructions layered after `<agent-instructions>` and before agent memory.
     #[arg(long, env = "MAJU_ACP_TEAM_INSTRUCTIONS")]
     pub team_instructions: Option<String>,
 

@@ -6,6 +6,7 @@ import {
   getErrorMessage,
   mergeMentionRecipients,
   shouldStartMentionedAgentHere,
+  mentionRevalidationOptions,
 } from "./useMentionSendFlow.helpers.ts";
 
 const device = (overrides = {}) => ({
@@ -110,5 +111,26 @@ test("provider-backed mentioned agents also reuse an online representative", () 
   assert.equal(
     shouldStartMentionedAgentHere(providerAgent("deployed"), []),
     false,
+  );
+});
+
+test("revalidation carries captured and prepared agent keys independently of the cleared composer", () => {
+  const draft = {
+    inlineAgentMentionPubkeys: ["A".repeat(64)],
+    addressedAgentPubkeys: ["b".repeat(64)],
+  };
+  assert.deepEqual(mentionRevalidationOptions(draft, "prepare"), {
+    phase: "prepare",
+    intendedAgentPubkeys: ["a".repeat(64), "b".repeat(64)],
+  });
+  assert.deepEqual(
+    mentionRevalidationOptions(draft, "publish", [
+      "a".repeat(64),
+      "c".repeat(64),
+    ]),
+    {
+      phase: "publish",
+      intendedAgentPubkeys: ["a".repeat(64), "b".repeat(64), "c".repeat(64)],
+    },
   );
 });

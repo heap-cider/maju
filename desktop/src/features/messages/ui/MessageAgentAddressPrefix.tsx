@@ -1,13 +1,43 @@
 import * as React from "react";
 import { AgentManagementMarker } from "@/features/agents/ui/OtherSetupAgentMarker";
+import { getAgentAddressMentionPubkeys } from "../lib/agentAddressMention.mjs";
+import { getVisibleAgentAddressPubkeys } from "../lib/getVisibleAgentAddressPubkeys";
 
-import { getAgentAddressMentionPubkeys } from "@/features/messages/lib/agentAddressMention.mjs";
-import { getVisibleAgentAddressPubkeys } from "@/features/messages/lib/getVisibleAgentAddressPubkeys";
-import type { TimelineMessage } from "@/features/messages/types";
 import type { UserProfileLookup } from "@/features/profile/lib/identity";
 import { UserProfilePopover } from "@/features/profile/ui/UserProfilePopover";
 import { truncatePubkey } from "@/shared/lib/pubkey";
 import { InlineChip } from "@/shared/ui/InlineChip";
+
+/** Resolve all literal competitors before hiding tag-backed address chips. */
+export function useMessageAgentAddressPrefix({
+  profiles,
+  body,
+  tags,
+  mentionNames,
+  mentionPubkeysByName,
+  isKnownAgentPubkey,
+}: {
+  profiles?: UserProfileLookup;
+  body: string;
+  tags?: string[][];
+  mentionNames?: string[];
+  mentionPubkeysByName?: Record<string, string>;
+  isKnownAgentPubkey: (pubkey: string) => boolean;
+}) {
+  const pubkeys = React.useMemo(
+    () =>
+      getVisibleAgentAddressPubkeys(
+        body,
+        getAgentAddressMentionPubkeys(tags).filter(isKnownAgentPubkey),
+        mentionPubkeysByName,
+        mentionNames,
+      ),
+    [body, tags, isKnownAgentPubkey, mentionPubkeysByName, mentionNames],
+  );
+  return pubkeys.length > 0 ? (
+    <MessageAgentAddressPrefix profiles={profiles} pubkeys={pubkeys} />
+  ) : undefined;
+}
 
 /** Visible send-state prefix for recipients kept in the composer address tray. */
 export function MessageAgentAddressPrefix({
@@ -52,30 +82,4 @@ export function MessageAgentAddressPrefix({
       })}
     </>
   );
-}
-
-export function useMessageAgentAddressPrefix({
-  isKnownAgentPubkey,
-  mentionPubkeysByName,
-  message,
-  profiles,
-}: {
-  isKnownAgentPubkey: (pubkey: string) => boolean;
-  mentionPubkeysByName: Readonly<Record<string, string>> | undefined;
-  message: Pick<TimelineMessage, "body" | "tags">;
-  profiles?: UserProfileLookup;
-}) {
-  const pubkeys = React.useMemo(
-    () =>
-      getVisibleAgentAddressPubkeys(
-        message.body,
-        getAgentAddressMentionPubkeys(message.tags).filter(isKnownAgentPubkey),
-        mentionPubkeysByName,
-      ),
-    [isKnownAgentPubkey, mentionPubkeysByName, message.body, message.tags],
-  );
-
-  return pubkeys.length > 0 ? (
-    <MessageAgentAddressPrefix profiles={profiles} pubkeys={pubkeys} />
-  ) : undefined;
 }

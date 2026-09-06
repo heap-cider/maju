@@ -10,6 +10,7 @@ const desktopRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
+const configDir = path.join(desktopRoot, "src-tauri");
 const wrapper = path.join(desktopRoot, "scripts/tauri-command.mjs");
 const fakeCli = path.join(tmpdir(), `maju-fake-tauri-${process.pid}.mjs`);
 
@@ -20,18 +21,21 @@ import path from "node:path";
 const args = process.argv.slice(2);
 const configIndex = args.lastIndexOf("--config");
 const override = JSON.parse(args[configIndex + 1]);
-const frontendDist = override.build.frontendDist;
-const output = path.resolve("src-tauri", frontendDist);
-if (output !== process.env.MAJU_PROTECTED_BUILD_OUTPUT) {
-  throw new Error("Tauri must embed the directory produced by beforeBuildCommand");
-}
-mkdirSync(output, { recursive: true });
-writeFileSync(path.join(output, "variant.txt"), process.env.VITE_MAJU_BESTIE);
+const configured = override.build.frontendDist;
+// Tauri resolves frontendDist against the directory holding tauri.conf.json
+// (config_parent.join(path) in tauri-codegen), not against the process cwd.
+const output = path.resolve(process.env.MAJU_TEST_CONFIG_DIR, configured);
+// Write through the producer path the wrapper publishes and read back through
+// the config-resolved consumer path. Doing both against one path would make the
+// fake agree with itself no matter where the wrapper pointed frontendDist.
+const producer = process.env.MAJU_PROTECTED_BUILD_OUTPUT;
+mkdirSync(producer, { recursive: true });
+writeFileSync(path.join(producer, "variant.txt"), process.env.VITE_MAJU_BESTIE);
 await new Promise((resolve) => setTimeout(resolve, 100));
 const observed = readFileSync(path.join(output, "variant.txt"), "utf8");
 writeFileSync(
   process.env.MAJU_TEST_RESULT,
-  JSON.stringify({ args, output, frontendDist, observed }),
+  JSON.stringify({ args, configured, output, observed }),
 );
 `,
 );
@@ -46,6 +50,7 @@ function packageVariant(variant, result, runnerArguments = []) {
         env: {
           ...process.env,
           MAJU_TAURI_CLI_ENTRYPOINT: fakeCli,
+          MAJU_TEST_CONFIG_DIR: configDir,
           MAJU_TEST_RESULT: result,
           VITE_MAJU_BESTIE: variant,
         },
@@ -75,10 +80,6 @@ test("opposite Tauri package variants own private frontend artifacts", async () 
   assert.equal(oss.observed, "0");
   assert.equal(internal.observed, "1");
   assert.notEqual(oss.output, internal.output);
-  for (const invocation of [oss, internal]) {
-    assert.equal(path.isAbsolute(invocation.frontendDist), false);
-    assert.equal(URL.canParse(invocation.frontendDist), false);
-  }
 });
 
 test("private config precedes Cargo runner arguments", async () => {
@@ -100,6 +101,30 @@ test("private config precedes Cargo runner arguments", async () => {
   assert.equal(invocation.args[delimiterIndex + 1], "--locked");
   assert.equal(
     JSON.parse(invocation.args[privateConfigIndex + 1]).build.frontendDist,
-    invocation.frontendDist,
+    invocation.configured,
   );
+});
+
+test("private frontendDist is never mistaken for a URL", async () => {
+  const result = path.join(
+    tmpdir(),
+    `maju-tauri-frontend-dist-${process.pid}.json`,
+  );
+  await packageVariant("0", result);
+  const invocation = JSON.parse(readFileSync(result, "utf8"));
+
+  // `FrontendDist` is an untagged enum whose first variant is `Url(Url)`, and
+  // tauri-codegen embeds *no assets without erroring* for that variant. A
+  // Windows absolute path parses as a URL -- `C:` becomes the scheme -- so an
+  // absolute frontendDist produces a UI-less app that still exits 0.
+  assert.ok(
+    !path.isAbsolute(invocation.configured),
+    `frontendDist must stay relative, got ${invocation.configured}`,
+  );
+  // Rust's `url` crate and Node's `URL` both implement the WHATWG standard, so
+  // this is the same parse serde performs. It only rejects absolute paths on
+  // Windows, which is why the assertion above carries the check on Linux/macOS.
+  assert.throws(() => new URL(invocation.configured));
+  // The relative path still has to reach the directory the wrapper published.
+  assert.equal(invocation.observed, "0");
 });

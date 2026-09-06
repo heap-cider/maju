@@ -47,6 +47,9 @@ pub(crate) const RESERVED_ENV_KEYS: &[&str] = &[
     "MAJU_ACP_AGENT_COMMAND",
     "MAJU_ACP_AGENT_ARGS",
     "MAJU_ACP_MCP_COMMAND",
+    // pi-acp's executable override is reserved for Maju's generated launcher,
+    // which injects the managed system prompt and skills.
+    "PI_ACP_PI_COMMAND",
     // Control-plane parallelism: the Desktop resolves the effective
     // worker-pool size (applying any per-harness cap) and writes it into
     // launch.policy_env. A user-supplied MAJU_ACP_AGENTS would bypass the

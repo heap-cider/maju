@@ -22,6 +22,15 @@ async function waitForReadyComposerSnapshots(
   );
 }
 
+// Edit starts only when Radix finishes closing. An enabled reply input is
+// not evidence that edit content/focus (and the navigation guard) are ready.
+async function expectReplyEditReady(threadPanel: Locator, content: string) {
+  await expect(threadPanel.getByTestId("edit-target")).toBeVisible();
+  const input = threadPanel.getByTestId("message-input");
+  await expect(input).toHaveText(content);
+  await expect(input).toBeFocused();
+}
+
 async function expectThreadReplyUnobscured(row: Locator) {
   await expect
     .poll(async () =>
@@ -3856,10 +3865,11 @@ test("closing a thread while editing a reply preserves the typed edit", async ({
     .getByTestId("message-timeline")
     .getByTestId("message-row")
     .last();
+  await expect(timelineRoot).toContainText(root);
+  await waitForAnimations(page);
+  await timelineRoot.scrollIntoViewIfNeeded();
   await timelineRoot.hover();
-  await timelineRoot
-    .getByRole("button", { name: "Reply" })
-    .click({ force: true });
+  await timelineRoot.getByRole("button", { name: "Reply" }).click();
 
   const threadPanel = page.getByTestId("message-thread-panel");
   const threadInput = threadPanel.getByTestId("message-input");
@@ -3870,6 +3880,7 @@ test("closing a thread while editing a reply preserves the typed edit", async ({
   await threadReply.hover();
   await threadReply.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Edit message" }).click();
+  await expectReplyEditReady(threadPanel, reply);
   await threadInput.fill(edited);
 
   await threadPanel.getByTestId("auxiliary-panel-close").click();
@@ -3944,10 +3955,11 @@ test("main ArrowUp refuses to replace a dirty thread edit", async ({
     .getByTestId("message-timeline")
     .getByTestId("message-row")
     .last();
+  await expect(timelineRoot).toContainText(root);
+  await waitForAnimations(page);
+  await timelineRoot.scrollIntoViewIfNeeded();
   await timelineRoot.hover();
-  await timelineRoot
-    .getByRole("button", { name: "Reply" })
-    .click({ force: true });
+  await timelineRoot.getByRole("button", { name: "Reply" }).click();
 
   const threadPanel = page.getByTestId("message-thread-panel");
   const threadInput = threadPanel.getByTestId("message-input");
@@ -3958,6 +3970,7 @@ test("main ArrowUp refuses to replace a dirty thread edit", async ({
   await threadReply.hover();
   await threadReply.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Edit message" }).click();
+  await expectReplyEditReady(threadPanel, reply);
   await threadInput.fill(unsaved);
 
   await mainInput.click();
@@ -4064,7 +4077,7 @@ test("a refused message deep link retries after the thread edit is canceled", as
     .filter({ hasText: sourceRoot })
     .last();
   await source.hover();
-  await source.getByRole("button", { name: "Reply" }).click({ force: true });
+  await source.getByRole("button", { name: "Reply" }).click();
   const threadPanel = page.getByTestId("message-thread-panel");
   const threadInput = threadPanel.getByTestId("message-input");
   await threadInput.fill(reply);
@@ -4076,6 +4089,7 @@ test("a refused message deep link retries after the thread edit is canceled", as
   await threadReply.hover();
   await threadReply.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Edit message" }).click();
+  await expectReplyEditReady(threadPanel, reply);
   await threadInput.fill(`${reply} unsaved`);
 
   const threadUrl = page.url();
@@ -4150,7 +4164,7 @@ test("a refused sent-from-thread link preserves the edit and retries after cance
   const timeline = page.getByTestId("message-timeline");
   const source = timeline.locator(`[data-message-id="${sourceRootId}"]`);
   await source.hover();
-  await source.getByRole("button", { name: "Reply" }).click({ force: true });
+  await source.getByRole("button", { name: "Reply" }).click();
   const threadPanel = page.getByTestId("message-thread-panel");
   const threadInput = threadPanel.getByTestId("message-input");
   const reply = threadPanel
@@ -4160,6 +4174,7 @@ test("a refused sent-from-thread link preserves the edit and retries after cance
   await reply.hover();
   await reply.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Edit message" }).click();
+  await expectReplyEditReady(threadPanel, sourceReply);
   await threadInput.fill(dirtyReply);
 
   const threadUrl = page.url();
@@ -4224,7 +4239,7 @@ test("a refused search result preserves the edit and retries after cancel", asyn
   const timeline = page.getByTestId("message-timeline");
   const source = timeline.locator(`[data-message-id="${sourceRootId}"]`);
   await source.hover();
-  await source.getByRole("button", { name: "Reply" }).click({ force: true });
+  await source.getByRole("button", { name: "Reply" }).click();
   const threadPanel = page.getByTestId("message-thread-panel");
   const threadInput = threadPanel.getByTestId("message-input");
   const reply = threadPanel
@@ -4234,6 +4249,7 @@ test("a refused search result preserves the edit and retries after cancel", asyn
   await reply.hover();
   await reply.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Edit message" }).click();
+  await expectReplyEditReady(threadPanel, sourceReply);
   await threadInput.fill(dirtyReply);
 
   const threadUrl = page.url();
@@ -4298,7 +4314,7 @@ test("a refused forum search result preserves the edit and retries after cancel"
     .getByTestId("message-timeline")
     .locator(`[data-message-id="${sourceRootId}"]`);
   await source.hover();
-  await source.getByRole("button", { name: "Reply" }).click({ force: true });
+  await source.getByRole("button", { name: "Reply" }).click();
   const threadPanel = page.getByTestId("message-thread-panel");
   const threadInput = threadPanel.getByTestId("message-input");
   const reply = threadPanel
@@ -4308,6 +4324,7 @@ test("a refused forum search result preserves the edit and retries after cancel"
   await reply.hover();
   await reply.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Edit message" }).click();
+  await expectReplyEditReady(threadPanel, sourceReply);
   await threadInput.fill(dirtyReply);
 
   const threadUrl = page.url();
@@ -4383,7 +4400,7 @@ for (const targetKind of ["reply", "root"] as const) {
     const timeline = page.getByTestId("message-timeline");
     const source = timeline.locator(`[data-message-id="${sourceRootId}"]`);
     await source.hover();
-    await source.getByRole("button", { name: "Reply" }).click({ force: true });
+    await source.getByRole("button", { name: "Reply" }).click();
 
     const threadPanel = page.getByTestId("message-thread-panel");
     const threadInput = threadPanel.getByTestId("message-input");
@@ -4391,6 +4408,7 @@ for (const targetKind of ["reply", "root"] as const) {
     await reply.hover();
     await reply.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("menuitem", { name: "Edit message" }).click();
+    await expectReplyEditReady(threadPanel, sourceReply);
     await threadInput.fill(dirtyReply);
 
     const targetLink = timeline
@@ -4477,7 +4495,7 @@ test("a refused channel switch preserves the reply edit and retries after cancel
     .getByTestId("message-timeline")
     .locator(`[data-message-id="${sourceRootId}"]`);
   await source.hover();
-  await source.getByRole("button", { name: "Reply" }).click({ force: true });
+  await source.getByRole("button", { name: "Reply" }).click();
 
   const threadPanel = page.getByTestId("message-thread-panel");
   const threadInput = threadPanel.getByTestId("message-input");
@@ -4485,6 +4503,7 @@ test("a refused channel switch preserves the reply edit and retries after cancel
   await reply.hover();
   await reply.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Edit message" }).click();
+  await expectReplyEditReady(threadPanel, sourceReply);
   await threadInput.fill(dirtyReply);
 
   const navigationBefore = await page.evaluate(() => ({
@@ -4561,7 +4580,7 @@ for (const backInput of ["button", "keyboard"] as const) {
       .getByTestId("message-timeline")
       .locator(`[data-message-id="${sourceRootId}"]`);
     await source.hover();
-    await source.getByRole("button", { name: "Reply" }).click({ force: true });
+    await source.getByRole("button", { name: "Reply" }).click();
 
     const threadPanel = page.getByTestId("message-thread-panel");
     const threadInput = threadPanel.getByTestId("message-input");
@@ -4569,6 +4588,7 @@ for (const backInput of ["button", "keyboard"] as const) {
     await reply.hover();
     await reply.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("menuitem", { name: "Edit message" }).click();
+    await expectReplyEditReady(threadPanel, sourceReply);
     await threadInput.fill(dirtyReply);
 
     const navigationBefore = await page.evaluate(() => ({
