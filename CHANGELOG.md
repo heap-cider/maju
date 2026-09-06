@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.29
+
+- Adopt Buzz `desktop-v0.5.23` while preserving Maju's self-hosted communities, stable shared agents and representative runner, ACP v1, live configOptions, Antigravity, and supported release targets.
+- Preserve exact mention recipients through editing, uploads and copy/paste; improve remote-agent invitation checks and recover drafts after canceled or failed forum sends.
+- Simplify unread channel indicators, improve grouped membership notices and the jump-to-latest escape, and remember video playback speed on each device.
+- Bound agent session-pool waits, improve existing Pi integration, verify inbound event signatures before queueing, and consolidate relay channel authorization.
+- Add an information-flow policy foundation without enabling product-wide enforcement, adopt the upstream Windows packaging fix, and make native/browser validation fixtures deterministic.
+
 ## v0.2.28
 
 - Fix Windows startup showing ERR_FILE_NOT_FOUND after upgrading to 0.2.27 by bundling the app screen files through a relative packaging path.
