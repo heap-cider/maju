@@ -237,7 +237,9 @@ async fn readiness_check_cancellation_balances_waiter_and_inflight_connection() 
         .expect_err("querying check must be cancelled")
         .is_cancelled());
 
-    let recovered = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+    // SQLx may drain the cancelled `pg_sleep(5)` response before returning or
+    // replacing the connection, so keep the recovery bound beyond that query.
+    let recovered = tokio::time::timeout(std::time::Duration::from_secs(10), async {
         loop {
             let outcome = db
                 .readiness_check(
