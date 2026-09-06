@@ -143,6 +143,19 @@ async function installVideoReviewHarness(
       }
       window.localStorage.setItem("maju-accent-color", accentColor);
 
+      // This harness owns synthetic playback. Native fetch errors from the
+      // nonexistent test relay must not overwrite that controlled state.
+      // Explicitly dispatched media errors remain observable by the app.
+      window.addEventListener(
+        "error",
+        (event) => {
+          if (event.isTrusted && event.target instanceof HTMLMediaElement) {
+            event.stopImmediatePropagation();
+          }
+        },
+        true,
+      );
+
       type MediaState = {
         currentTime: number;
         paused: boolean;
@@ -1518,12 +1531,13 @@ test("right-click menus expose distinct selectors for links, relay video, and of
     sha: MENU_RELAY_VIDEO_SHA,
     filename: "relay-clip.mp4",
   });
-  const relayPlayer = page.getByTestId("video-player").last();
+  const relayPlayer = page.locator(
+    `[data-testid="video-player"]:has(video[src*="${MENU_RELAY_VIDEO_SHA}"])`,
+  );
   await expect(relayPlayer).toBeVisible();
-  // Right-click the player surface. `force` skips the actionability guard: the
-  // Play-button overlay sits above the video, but the contextmenu event still
-  // capture-bubbles to the surface handler that opens the menu.
-  await relayPlayer.click({ button: "right", force: true });
+  // Wait for the emitted row to settle before right-clicking its surface.
+  // Playback overlays are descendants, so their events still reach capture.
+  await relayPlayer.click({ button: "right" });
 
   const videoMenu = page.locator("[data-video-context-menu]");
   await expect(videoMenu).toBeVisible();
@@ -1564,9 +1578,13 @@ test("right-click menus expose distinct selectors for links, relay video, and of
     sha: MENU_OFF_RELAY_VIDEO_SHA,
     filename: "external-clip.mp4",
   });
-  const offRelayPlayer = page.getByTestId("video-player").last();
+  // Wait for the newly emitted video, not the previous last row while the
+  // timeline is still reconciling the live event.
+  const offRelayPlayer = page.locator(
+    `[data-testid="video-player"]:has(video[src*="${MENU_OFF_RELAY_VIDEO_SHA}"])`,
+  );
   await expect(offRelayPlayer).toBeVisible();
-  await offRelayPlayer.click({ button: "right", force: true });
+  await offRelayPlayer.click({ button: "right" });
 
   const offRelayMenu = page.locator("[data-video-context-menu]");
   await expect(offRelayMenu).toBeVisible();
