@@ -486,11 +486,14 @@ async function expectWelcomeComposerBannerCompletesAfterPersonaMention(
   expect(await sentRecipients()).toEqual([]);
 
   const agents = await invokeMockCommand<
-    Array<{ pubkey: string; persona_id: string | null; status: string }>
+    Array<{
+      pubkey: string;
+      name: string;
+      persona_id: string | null;
+      status: string;
+    }>
   >(page, "list_managed_agents");
-  const sameNameAgents = agents.filter(
-    (agent) => agent.persona_id === "builtin:fizz",
-  );
+  const sameNameAgents = agents.filter((agent) => agent.name === "Fizz");
   expect(sameNameAgents).toHaveLength(2);
   // Onboarding starts the new member's starter; the pre-existing mock stays
   // stopped. This identifies the fixture key, not a production routing rule.
@@ -1940,17 +1943,27 @@ test("name-only community profile save preserves an existing avatar", async ({
 
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        (window.__MAJU_E2E_COMMAND_PAYLOADS__ ?? [])
-          .filter(
-            ({ command }) =>
-              command === "update_profile" ||
-              command === "update_profile_at_relay",
-          )
-          .map(({ payload }) => (payload as { avatarUrl?: string }).avatarUrl),
-      ),
+      page
+        .evaluate(() =>
+          (window.__MAJU_E2E_COMMAND_PAYLOADS__ ?? [])
+            .filter(
+              ({ command }) =>
+                command === "update_profile" ||
+                command === "update_profile_at_relay",
+            )
+            .map(
+              ({ payload }) => (payload as { avatarUrl?: string }).avatarUrl,
+            ),
+        )
+        .then((avatars) =>
+          avatars.map(
+            (avatar) => avatar === undefined || avatar === existingAvatarUrl,
+          ),
+        ),
     )
-    .toEqual([undefined]);
+    // The existing image may finish loading before Save. Both omission and
+    // writing that same URL preserve it; clearing or replacing it does not.
+    .toEqual([true]);
   const profile = await invokeMockCommand<{ avatar_url: string | null }>(
     page,
     "get_profile",
@@ -2894,8 +2907,17 @@ test("completed onboarding backfills missing starter channels", async ({
 test("finishing onboarding creates starter channels and focuses welcome-everyone for a new member", async ({
   page,
 }) => {
+  const namesakePubkey = "f1".repeat(32);
   await seedActiveIdentity(page, BLANK_TYLER_IDENTITY);
-  await installMockBridge(page, undefined, { skipOnboardingSeed: true });
+  await installMockBridge(
+    page,
+    {
+      managedAgents: [
+        { pubkey: namesakePubkey, name: "Fizz", status: "stopped" },
+      ],
+    },
+    { skipOnboardingSeed: true },
+  );
   await page.goto("/");
 
   await page.getByTestId("onboarding-display-name").fill("Morty QA");
@@ -2905,6 +2927,23 @@ test("finishing onboarding creates starter channels and focuses welcome-everyone
   await expect(page.getByTestId("channel-general")).toBeVisible();
   await expectStarterChannels(page);
   await expectWelcomeGuideIntro(page);
+  // Default fixtures contain no pre-existing managed agents. Add the namesake
+  // to this newly created private channel before testing ambiguous member names.
+  const channelId = await getWelcomeChannelId(page);
+  const added = await invokeMockCommand(page, "add_channel_members", {
+    channelId,
+    pubkeys: [namesakePubkey],
+    role: "bot",
+  });
+  expect(added).toEqual({ added: [namesakePubkey], errors: [] });
+  await page.evaluate(async (channelId) => {
+    const queryClient = window.__MAJU_E2E_QUERY_CLIENT__;
+    if (!queryClient) throw new Error("E2E query client is unavailable");
+    await queryClient.invalidateQueries({ queryKey: ["channels", channelId] });
+  }, channelId);
+  await expect(
+    page.getByRole("button", { name: "View channel members (5)", exact: true }),
+  ).toBeVisible();
   await expectWelcomeComposerBannerCompletesAfterPersonaMention(page);
 });
 
