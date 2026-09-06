@@ -14,6 +14,37 @@ const MOCK_PUBKEY = "deadbeef".repeat(8);
 const SECTION_TOP = { id: "sec-top", name: "Priority", order: 0 };
 const SECTION_BOTTOM = { id: "sec-bottom", name: "Archive", order: 1 };
 
+async function prepareWheelBurst(
+  page: Page,
+  timeline: Locator,
+  deltas: number[],
+  interval: number,
+) {
+  const box = await timeline.boundingBox();
+  if (!box) throw new Error("timeline has no bounding box");
+  const client = await page.context().newCDPSession(page);
+  return async () => {
+    try {
+      // Preserve native wheel input without serial driver acknowledgements
+      // stretching a 1.2s gesture beyond the production 4s hold deadline.
+      await Promise.all(
+        deltas.map(async (deltaY, index) => {
+          await new Promise((resolve) => setTimeout(resolve, index * interval));
+          await client.send("Input.dispatchMouseEvent", {
+            type: "mouseWheel",
+            x: box.x + box.width / 2,
+            y: box.y + box.height / 2,
+            deltaX: 0,
+            deltaY,
+          });
+        }),
+      );
+    } finally {
+      await client.detach();
+    }
+  };
+}
+
 async function seedChannelSections(page: Page) {
   await page.addInitScript(
     ({ pubkey, sections }) => {
@@ -251,12 +282,12 @@ test.describe("list virtualization", () => {
     // reproduce Chromium/WebKit's native wheel → scroll callback ordering. The
     // old boundary rollback moved the viewport back down before the fetch
     // committed; keep that pre-prepend reversal below the same 5px frame bar.
-    // A 300ms relay delay leaves the input boundary and prepend commit as two
+    // A 1000ms relay delay leaves the input boundary and prepend commit as two
     // distinct phases so this assertion cannot accidentally measure only the
     // later anchor correction.
     await installMockBridge(page, {
       deepHistoryMessageCount: 1_800,
-      channelWindowDelayMs: 300,
+      channelWindowDelayMs: 1_000,
     });
     await page.goto("/#/channels/feedf00d-0000-4000-8000-000000000007");
     const timeline = page.getByTestId("message-timeline");
@@ -358,7 +389,10 @@ test.describe("list virtualization", () => {
         await page.waitForTimeout(12);
       }
       const wheelTrace = await wheelTracePromise;
-      expect(wheelTrace.minScrollTop).toBeLessThanOrEqual(350);
+      expect(
+        wheelTrace.minScrollTop,
+        `page ${pageIndex} boundary input`,
+      ).toBeLessThanOrEqual(350);
       expect(wheelTrace.maxBoundaryRollback).toBeLessThan(5);
       // Linux Chromium delivers CDP wheel input with more latency than macOS,
       // so the burst's final delta can land AFTER the anchor baseline sample
@@ -443,33 +477,47 @@ test.describe("list virtualization", () => {
       // That reader intent retires Virtua's active prepend reconciliation, so
       // later row measurements must not pull the viewport back toward the
       // completed prepend before the next upward load.
+      const sendExitWheel = await prepareWheelBurst(
+        page,
+        timeline,
+        [120, 100, 80],
+        12,
+      );
       const exitTracePromise = timeline.evaluate(async (scroller) => {
         const s = scroller as HTMLElement;
-        const startScrollTop = s.scrollTop;
+        let startScrollTop = s.scrollTop;
         let previousScrollTop = startScrollTop;
         let maxForwardTravel = 0;
         let maxRollback = 0;
-        const deadline = performance.now() + 400;
+        let receivedDelta = 0;
+        let lastWheelAt = 0;
+        const onWheel = (event: WheelEvent) => {
+          if (receivedDelta === 0) {
+            startScrollTop = s.scrollTop;
+            previousScrollTop = startScrollTop;
+          }
+          receivedDelta += event.deltaY;
+          lastWheelAt = performance.now();
+        };
+        s.addEventListener("wheel", onWheel, { passive: true });
+        const deadline = performance.now() + 5_000;
         while (performance.now() < deadline) {
           const travel = s.scrollTop - startScrollTop;
           maxForwardTravel = Math.max(maxForwardTravel, travel);
           maxRollback = Math.max(maxRollback, previousScrollTop - s.scrollTop);
           previousScrollTop = s.scrollTop;
+          if (receivedDelta >= 300 && performance.now() - lastWheelAt >= 400)
+            break;
           await new Promise((resolve) => requestAnimationFrame(resolve));
         }
-        return { maxForwardTravel, maxRollback };
+        s.removeEventListener("wheel", onWheel);
+        return { maxForwardTravel, maxRollback, receivedDelta };
       });
-      const exitBox = await timeline.boundingBox();
-      if (!exitBox) throw new Error("timeline has no bounding box");
-      await page.mouse.move(
-        exitBox.x + exitBox.width / 2,
-        exitBox.y + exitBox.height / 2,
-      );
-      for (const deltaY of [120, 100, 80]) {
-        await page.mouse.wheel(0, deltaY);
-        await page.waitForTimeout(12);
-      }
+      // Ensure the in-page observer is armed before dispatching native input.
+      await timeline.evaluate(() => undefined);
+      await sendExitWheel();
       const exitTrace = await exitTracePromise;
+      expect(exitTrace.receivedDelta).toBe(300);
       expect(exitTrace.maxForwardTravel).toBeGreaterThan(200);
       expect(exitTrace.maxRollback).toBeLessThan(5);
 
@@ -597,13 +645,13 @@ test.describe("list virtualization", () => {
     await timeline.evaluate((element) => {
       element.scrollTop = 150;
     });
-    const box = await timeline.boundingBox();
-    if (!box) throw new Error("timeline has no bounding box");
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    for (let burst = 0; burst < 30; burst += 1) {
-      await page.mouse.wheel(0, 30);
-      await page.waitForTimeout(40);
-    }
+    const sendContinuousWheel = await prepareWheelBurst(
+      page,
+      timeline,
+      Array.from({ length: 30 }, () => 30),
+      40,
+    );
+    await sendContinuousWheel();
 
     const trace = await tracePromise;
     // The page must eventually commit — the gate defers, never strands.
