@@ -518,6 +518,7 @@ test("primary+Shift+M favors the most recently mentioned eligible agent", async 
   await installAudienceFixtures(page);
   await openThread(page);
   await emitMockMessage(page, "Please ask Vogue", [AGENT_B]);
+  await waitForAnimations(page);
 
   const input = threadComposer(page).getByTestId("message-input");
   await input.fill("draft text");
@@ -602,14 +603,20 @@ test("the mention button opens settings and can undo an address", async ({
     composer.getByRole("button", { name: "Mention someone" }),
   ).toBeVisible();
   await input.fill("");
-
+  await expect(menu).toHaveCount(0);
+  await composer
+    .getByRole("button", { name: "Mention someone", exact: true })
+    .click();
+  await expect(menu).toBeVisible();
   await menu
     .getByRole("button", { name: "Mention Morgarita", exact: true })
     .click();
   await expect(input).toHaveText("@Morgarita ");
+  // An explicit unpin remains authoritative: a later one-off mention still
+  // notifies the agent but must not silently enable automatic addressing.
   await expect(
     composer.getByTestId(`composer-address-lock-${AGENT_A}`),
-  ).toBeVisible();
+  ).toHaveCount(0);
 
   await input.type("later");
   await input.press("Enter");

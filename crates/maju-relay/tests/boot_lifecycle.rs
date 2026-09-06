@@ -41,6 +41,12 @@ impl RelayProcess {
             .env("MAJU_GIT_PACK_CACHE_PATH", scratch_dir.join("pack-cache"))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        // Winsock expands this path to load its service provider on Windows.
+        // Keep that OS prerequisite while excluding inherited relay settings.
+        #[cfg(windows)]
+        if let Some(system_root) = std::env::var_os("SystemRoot") {
+            command.env("SystemRoot", system_root);
+        }
         for (name, value) in environment {
             command.env(name, value);
         }

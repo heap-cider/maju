@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { waitForAnimations } from "../helpers/animations";
 import { TEST_IDENTITIES, installMockBridge } from "../helpers/bridge";
 
 // Ultrawide viewport: 3440px is a common 21:9 monitor width.
@@ -76,8 +77,11 @@ async function openThread(page: import("@playwright/test").Page) {
   );
   const threadSummary = page.getByTestId("message-thread-summary").first();
   await expect(threadSummary).toBeVisible();
-  await threadSummary.click();
+  // Open through the keyboard so the hover preview cannot cover the trigger.
+  await threadSummary.focus();
+  await threadSummary.press("Enter");
   await expect(page.getByTestId("message-thread-panel")).toBeVisible();
+  await waitForAnimations(page);
 }
 
 test.describe("thread pane on ultrawide monitors", () => {
@@ -93,6 +97,7 @@ test.describe("thread pane on ultrawide monitors", () => {
     if (!beforeBox) throw new Error("thread panel not laid out");
     // The panel opens at its default narrow width, far from the viewport edge.
     expect(beforeBox.width).toBeLessThan(720);
+    await waitForAnimations(page);
     await page.screenshot({
       path: "test-results/threadpane-ultrawide-before.png",
     });
@@ -114,6 +119,7 @@ test.describe("thread pane on ultrawide monitors", () => {
     if (!afterBox) throw new Error("thread panel not laid out after resize");
     // The pane is now far wider than the old 720px hard cap.
     expect(afterBox.width).toBeGreaterThan(1200);
+    await waitForAnimations(page);
     await page.screenshot({
       path: "test-results/threadpane-ultrawide-after.png",
     });
@@ -150,6 +156,7 @@ test.describe("thread pane on ultrawide monitors", () => {
       .getByTestId("channel-drop-zone")
       .evaluate((element) => Math.round(element.getBoundingClientRect().width));
 
+    await waitForAnimations(page);
     await page.screenshot({
       path: "test-results/threadpane-expanded-after-fix.png",
     });

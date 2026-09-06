@@ -151,10 +151,25 @@ test("encryption and native save continue after closing the dialog and settings"
   page,
 }) => {
   await openBackupSettings(page, {
-    backupEncryptionDelayMs: 750,
     backupSavePaths: [null],
   });
   const dialog = await openCreateBackup(page);
+  await page.evaluate(() => {
+    const w = window as Window & {
+      __TAURI_INTERNALS__: {
+        invoke: (command: string, ...args: unknown[]) => Promise<unknown>;
+      };
+      __MAJU_E2E_RELEASE_BACKUP__?: () => void;
+    };
+    const pending = new Promise<void>((resolve) => {
+      w.__MAJU_E2E_RELEASE_BACKUP__ = resolve;
+    });
+    const invoke = w.__TAURI_INTERNALS__.invoke.bind(w.__TAURI_INTERNALS__);
+    w.__TAURI_INTERNALS__.invoke = async (command, ...args) => {
+      if (command === "create_ncryptsec_backup") await pending;
+      return invoke(command, ...args);
+    };
+  });
   await dialog
     .getByTestId("backup-passphrase-input")
     .fill("background password");
@@ -167,6 +182,14 @@ test("encryption and native save continue after closing the dialog and settings"
   await expect(
     page.getByText("Preparing backup…", { exact: true }),
   ).toBeVisible();
+
+  await page.evaluate(() => {
+    const release = (
+      window as Window & { __MAJU_E2E_RELEASE_BACKUP__?: () => void }
+    ).__MAJU_E2E_RELEASE_BACKUP__;
+    if (!release) throw new Error("Missing backup release handle");
+    release();
+  });
 
   await expect.poll(() => backupSaveCallCount(page)).toBe(1);
   const readyToast = page.getByText("Backup ready to download", {

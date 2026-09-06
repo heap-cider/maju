@@ -3358,9 +3358,19 @@ mod tests {
         // Keepalive session/update lines every 50ms against a 100ms idle deadline.
         // The turn should survive well past the 100ms deadline (proves the fix).
         let mut client = spawn_script(
-            r#"for i in $(seq 1 20); do echo '{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"keepalive"}}}'; sleep 0.05; done; sleep 10"#,
+            r#"for i in $(seq 1 20); do echo '{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"keepalive"}}}'; read -r -t 0.05 _ || :; done; sleep 10"#,
         )
         .await;
+        // Measure idle renewal after the fixture is emitting, not Windows
+        // process startup. Bash's timed read also avoids spawning sleep.exe
+        // for every 50ms interval. The remaining frames must still renew idle.
+        let first = tokio::time::timeout(std::time::Duration::from_secs(5), client.reader.next())
+            .await
+            .expect("fixture startup deadline")
+            .expect("fixture stays connected")
+            .expect("fixture emits UTF-8");
+        let first: serde_json::Value = serde_json::from_str(&first).expect("keepalive frame");
+        assert_eq!(first["params"]["update"]["sessionUpdate"], "keepalive");
         let max_dur = std::time::Duration::from_secs(10);
         let hard_deadline = tokio::time::Instant::now() + max_dur;
         let start = std::time::Instant::now();
@@ -3374,7 +3384,7 @@ mod tests {
             )
             .await;
         let elapsed = start.elapsed();
-        // 20 keepalives × 50ms = ~1000ms of activity, then idle fires after 100ms more.
+        // 19 remaining keepalives × 50ms, then idle fires after 100ms more.
         // Must survive well past the 100ms deadline.
         assert!(
             elapsed >= std::time::Duration::from_millis(500),

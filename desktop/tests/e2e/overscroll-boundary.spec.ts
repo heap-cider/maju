@@ -37,6 +37,26 @@ test("locks viewport rubber-band outside conversation scrollers", async ({
   await page.goto("/");
   await page.getByTestId("channel-general").click();
   await expect(page.getByTestId("message-timeline")).toBeVisible();
+  await page.waitForFunction(() =>
+    window.__MAJU_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({
+      channelName: "general",
+    }),
+  );
+  await page.evaluate(() => {
+    for (let i = 0; i < 20; i++) {
+      window.__MAJU_E2E_EMIT_MOCK_MESSAGE__?.({
+        channelName: "general",
+        content: `Scrollable boundary fixture ${i}`,
+      });
+    }
+  });
+  await expect
+    .poll(() =>
+      page
+        .getByTestId("message-timeline")
+        .evaluate((element) => element.scrollHeight > element.clientHeight + 1),
+    )
+    .toBe(true);
 
   await expect(
     dispatchWheelPrevented(page, '[data-testid="app-top-chrome"]', {

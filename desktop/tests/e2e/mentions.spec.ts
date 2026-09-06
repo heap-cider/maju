@@ -3616,9 +3616,14 @@ test("mentioning a non-member managed agent adds it before sending and starts it
   const startIndex = sendCommands.findIndex(
     (entry) => entry.command === "start_managed_agent",
   );
-  const sendIndex = sendCommands.findIndex(
-    (entry) => entry.command === "sign_event",
-  );
+  const sendIndex = sendCommands.findIndex((entry) => {
+    const event = entry.payload as { kind?: number; content?: string };
+    return (
+      entry.command === "sign_event" &&
+      event.kind === 9 &&
+      event.content === "Loop in @fizz"
+    );
+  });
   expect(updateIndex).toBeGreaterThanOrEqual(0);
   expect(updateIndex).toBeLessThan(addIndex);
   expect(updateIndex).toBeLessThan(startIndex);
@@ -3626,6 +3631,7 @@ test("mentioning a non-member managed agent adds it before sending and starts it
   // publish; only the start itself is detached from the send.
   expect(sendIndex).toBeGreaterThanOrEqual(0);
   expect(addIndex).toBeLessThan(sendIndex);
+  expect(sendIndex).toBeLessThan(startIndex);
   expect(sendCommands[updateIndex]?.payload).toMatchObject({
     input: {
       pubkey: OUT_OF_CHANNEL_MANAGED_AGENT_PUBKEY,

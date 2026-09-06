@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { waitForAnimations } from "../helpers/animations";
 import { installMockBridge, TEST_IDENTITIES } from "../helpers/bridge";
@@ -29,6 +29,18 @@ async function expectReplyEditReady(threadPanel: Locator, content: string) {
   const input = threadPanel.getByTestId("message-input");
   await expect(input).toHaveText(content);
   await expect(input).toBeFocused();
+}
+
+async function openSeededThread(page: Page, root: Locator) {
+  // Seeded history can restore an unread anchor. Reach the latest rows before
+  // hovering their actions above the overlaid composer.
+  await page
+    .getByTestId("message-timeline")
+    .hover({ position: { x: 24, y: 120 } });
+  await page.mouse.wheel(0, 1000);
+  await waitForAnimations(page);
+  await root.hover();
+  await root.getByRole("button", { name: "Reply" }).click();
 }
 
 async function expectThreadReplyUnobscured(row: Locator) {
@@ -3480,8 +3492,7 @@ test("editing a pre-seeded thread reply uses and focuses the thread composer", a
     .getByTestId("message-timeline")
     .locator(`[data-message-id="${rootId}"]`);
   await expect(timelineRoot).toContainText(root);
-  await timelineRoot.hover();
-  await timelineRoot.getByRole("button", { name: "Reply" }).click();
+  await openSeededThread(page, timelineRoot);
 
   const threadPanel = page.getByTestId("message-thread-panel");
   const threadInput = threadPanel.getByTestId("message-input");
@@ -4399,8 +4410,7 @@ for (const targetKind of ["reply", "root"] as const) {
     await page.getByTestId("channel-general").click();
     const timeline = page.getByTestId("message-timeline");
     const source = timeline.locator(`[data-message-id="${sourceRootId}"]`);
-    await source.hover();
-    await source.getByRole("button", { name: "Reply" }).click();
+    await openSeededThread(page, source);
 
     const threadPanel = page.getByTestId("message-thread-panel");
     const threadInput = threadPanel.getByTestId("message-input");
@@ -4494,8 +4504,7 @@ test("a refused channel switch preserves the reply edit and retries after cancel
   const source = page
     .getByTestId("message-timeline")
     .locator(`[data-message-id="${sourceRootId}"]`);
-  await source.hover();
-  await source.getByRole("button", { name: "Reply" }).click();
+  await openSeededThread(page, source);
 
   const threadPanel = page.getByTestId("message-thread-panel");
   const threadInput = threadPanel.getByTestId("message-input");
@@ -4579,8 +4588,7 @@ for (const backInput of ["button", "keyboard"] as const) {
     const source = page
       .getByTestId("message-timeline")
       .locator(`[data-message-id="${sourceRootId}"]`);
-    await source.hover();
-    await source.getByRole("button", { name: "Reply" }).click();
+    await openSeededThread(page, source);
 
     const threadPanel = page.getByTestId("message-thread-panel");
     const threadInput = threadPanel.getByTestId("message-input");
