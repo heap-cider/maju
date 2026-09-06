@@ -438,6 +438,8 @@ test("reacting with a custom emoji renders via the loopback media proxy", async 
   // The picker closes with the pointer/focus position depending on animation
   // timing. Put the row into a deterministic idle state before checking the
   // pill's pre-existing hidden behavior.
+  await expect(picker).toBeHidden();
+  await waitForAnimations(page);
   await page.mouse.move(0, 0);
   await page.evaluate(() => {
     if (document.activeElement instanceof HTMLElement) {

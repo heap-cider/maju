@@ -108,7 +108,7 @@ test("MEASURE: cold-switch longtask cost into deep-history at the 300 ceiling", 
     await expect(page.getByTestId("chat-title")).toHaveText("deep-history");
     await expect(
       page.locator('[data-message-id^="mock-deep-history-"]').first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30_000 });
     // Let any post-mount longtasks (anchor settle, sticky handoff) flush before
     // reading — they are part of the switch cost.
     await page.waitForTimeout(300);

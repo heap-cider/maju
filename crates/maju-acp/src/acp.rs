@@ -4010,10 +4010,14 @@ mod tests {
         capture_path: &std::path::Path,
         response: &str,
     ) -> AcpClient {
+        let capture = capture_path.to_string_lossy();
+        #[cfg(windows)]
+        let capture = capture.replace('\\', "/");
+        let capture = capture.replace('\'', "'\\''");
         let script = format!(
-            "read -r line; printf '%s' \"$line\" > {capture}; \
+            "read -r line; printf '%s' \"$line\" > '{capture}'; \
              printf '%s\\n' '{response}'; sleep 10",
-            capture = capture_path.display(),
+            capture = capture,
             response = response,
         );
         spawn_script(&script).await

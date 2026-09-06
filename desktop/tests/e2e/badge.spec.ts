@@ -160,6 +160,8 @@ test("primary navigation rows share the same inactive emphasis", async ({
 
 test("hovering a channel keeps its text color", async ({ page }) => {
   await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-maju-theme", "maju");
+  await waitForAnimations(page);
   const channel = page.getByTestId("channel-engineering");
   const initialColor = await channel.evaluate(
     (element) => getComputedStyle(element).color,
