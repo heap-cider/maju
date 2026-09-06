@@ -34,7 +34,7 @@
   The `sync-buzz-upstream` skill reads exact tags directly from
   `https://github.com/block/buzz.git`; a persistent `upstream` remote is not
   required. Never push, open issues, or open pull requests against Buzz.
-- Maju is currently synchronized through Buzz release `desktop-v0.5.22`.
+- Maju is currently synchronized through Buzz release `desktop-v0.5.23`.
 - Do not merge, rebase, or cherry-pick an upstream release directly into Maju.
   Use the project-local `sync-buzz-upstream` skill to inspect and normalize the
   upstream release delta first.
