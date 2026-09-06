@@ -7,6 +7,7 @@ import { expectCornerRadiusPx, expectSmoothCorners } from "../helpers/css";
 
 async function openMoreActionsMenu(page: Page, messageId: string) {
   const row = page.locator(`[data-message-id="${messageId}"]`);
+  await waitForAnimations(page);
   await row.hover();
   await page.getByTestId(`more-actions-${messageId}`).click();
   await expect(page.locator('[role="menuitem"]').first()).toBeVisible({
@@ -72,6 +73,33 @@ async function choosePhoto(page: Page) {
   });
 }
 
+async function holdPhotoUpload(page: Page) {
+  await page.evaluate(() => {
+    const w = window as Window & {
+      __TAURI_INTERNALS__: {
+        invoke: (command: string, ...args: unknown[]) => Promise<unknown>;
+      };
+      __MAJU_E2E_RELEASE_PHOTO_UPLOAD__?: () => void;
+    };
+    const pending = new Promise<void>((resolve) => {
+      w.__MAJU_E2E_RELEASE_PHOTO_UPLOAD__ = resolve;
+    });
+    const invoke = w.__TAURI_INTERNALS__.invoke.bind(w.__TAURI_INTERNALS__);
+    w.__TAURI_INTERNALS__.invoke = async (command, ...args) => {
+      if (command === "upload_media_bytes_raw") await pending;
+      return invoke(command, ...args);
+    };
+  });
+  return () =>
+    page.evaluate(() => {
+      const release = (
+        window as Window & { __MAJU_E2E_RELEASE_PHOTO_UPLOAD__?: () => void }
+      ).__MAJU_E2E_RELEASE_PHOTO_UPLOAD__;
+      if (!release) throw new Error("Missing upload release handle");
+      release();
+    });
+}
+
 const PHOTO_FILE = {
   buffer: Buffer.from("photo"),
   mimeType: "image/png",
@@ -126,15 +154,8 @@ test("photos upload before Send without a queued spoiler control", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.evaluate(() => {
-    const e2e = (
-      window as Window & {
-        __MAJU_E2E__?: { mock?: { uploadDelayMs?: number } };
-      }
-    ).__MAJU_E2E__;
-    if (e2e?.mock) e2e.mock.uploadDelayMs = 1_000;
-  });
   await page.getByTestId("channel-general").click();
+  const finishUpload = await holdPhotoUpload(page);
   await choosePhoto(page);
 
   await expect(page.getByTestId("upload-progress")).toBeVisible();
@@ -145,6 +166,7 @@ test("photos upload before Send without a queued spoiler control", async ({
   // queued list until the upload lands: Send stays blocked so the message
   // cannot publish without the attachment.
   await expect(page.getByTestId("send-message")).toBeDisabled();
+  await finishUpload();
   await expect(page.getByTestId("upload-progress")).toHaveCount(0, {
     timeout: 5_000,
   });
@@ -166,25 +188,25 @@ test("opening edit during an immediate photo upload preserves the draft", async 
   page,
 }) => {
   await page.goto("/");
-  await page.evaluate(() => {
-    const e2e = (
-      window as Window & {
-        __MAJU_E2E__?: { mock?: { uploadDelayMs?: number } };
-      }
-    ).__MAJU_E2E__;
-    if (e2e?.mock) e2e.mock.uploadDelayMs = 1_000;
-  });
   await page.getByTestId("channel-general").click();
+  const finishUpload = await holdPhotoUpload(page);
   await choosePhoto(page);
   await expect(page.getByTestId("upload-progress")).toBeVisible();
 
   await openMoreActionsMenu(page, "mock-general-welcome");
   await page.getByTestId("edit-message-mock-general-welcome").click();
+  // Edit starts from the menu's close-autofocus callback. Keep the upload held
+  // through that callback and the composer's rejection effect.
+  await expect(
+    page.getByTestId("edit-message-mock-general-welcome"),
+  ).toHaveCount(0);
+  await waitForAnimations(page);
 
   // Edit entry is rejected while the compacted draft cannot represent the
   // reserved upload slot. The upload remains current and lands in the draft.
   await expect(page.getByTestId("edit-target")).toHaveCount(0);
   await expect(page.getByTestId("upload-progress")).toBeVisible();
+  await finishUpload();
   await expect(page.getByTestId("upload-progress")).toHaveCount(0, {
     timeout: 5_000,
   });
